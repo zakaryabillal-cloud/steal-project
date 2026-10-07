@@ -9,6 +9,8 @@ local GameConfig = require(Shared.Config.GameConfig)
 local Relics = require(Shared.Config.Relics)
 local Mutations = require(Shared.Config.Mutations)
 local Upgrades = require(Shared.Config.Upgrades)
+local Abilities = require(Shared.Config.Abilities)
+local PowerConfig = require(Shared.Config.Power)
 local Economy = require(Shared.Economy)
 local Layout = require(Shared.Layout)
 local Types = require(script.Parent.Types)
@@ -48,12 +50,57 @@ function DataSchema.default(): SaveData
 			shake = true,
 			language = "",
 		},
+		abilities = {
+			unlocked = Abilities.defaultUnlocked(),
+			loadout = Abilities.defaultLoadout(),
+		},
+		power = {
+			peak = 0,
+		},
 	}
 end
 
 -- Ordered migrations: MIGRATIONS[n] upgrades a schema-n table to schema n+1.
 -- Add new entries here whenever the schema changes and bump SchemaVersion.
-local MIGRATIONS: { [number]: (any) -> any } = {}
+-- Migrations only ADD or reshape fields; they never drop player progress.
+-- `normalize` runs afterwards and sanitises every field anyway.
+local MIGRATIONS: { [number]: (any) -> any } = {
+	-- 1 -> 2 (V2 phase 1): ability loadout + Power record. V1 players start
+	-- with the V1 kit (Dash + Pulse) equipped; their Power record is filled in
+	-- on the first recompute after joining (see EconomyService.recompute).
+	[1] = function(raw: any): any
+		if type(raw.abilities) ~= "table" then
+			raw.abilities = {
+				unlocked = Abilities.defaultUnlocked(),
+				loadout = Abilities.defaultLoadout(),
+			}
+		end
+		if type(raw.power) ~= "table" then
+			raw.power = { peak = 0 }
+		end
+		raw.schema = 2
+		return raw
+	end,
+}
+
+-- Schema number stored in a raw DataStore record (1 when missing: launch saves).
+function DataSchema.versionOf(raw: any): number
+	if type(raw) ~= "table" then
+		return DataSchema.Version
+	end
+	local version = raw.schema
+	if type(version) ~= "number" or version ~= version then
+		return 1
+	end
+	return math.floor(version)
+end
+
+-- True when a record was written by a NEWER build of the game. Such records
+-- must never be normalised (that would drop the fields this build does not
+-- know) nor overwritten by this server.
+function DataSchema.isNewer(raw: any): boolean
+	return type(raw) == "table" and DataSchema.versionOf(raw) > DataSchema.Version
+end
 
 local function num(value: any, default: number, min: number?, max: number?): number
 	if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge then
@@ -82,7 +129,10 @@ function DataSchema.normalize(raw: any): SaveData
 		return data
 	end
 
-	local version = num(raw.schema, 1, 1)
+	-- Migrations mutate their input: work on a copy so the caller's record
+	-- (e.g. the raw DataStore value) is never altered.
+	raw = table.clone(raw)
+	local version = math.max(1, DataSchema.versionOf(raw))
 	while version < DataSchema.Version do
 		local migrate = MIGRATIONS[version]
 		if migrate then
@@ -147,6 +197,33 @@ function DataSchema.normalize(raw: any): SaveData
 				}
 			end
 		end
+	end
+
+	-- Abilities: defaults are always unlocked; unknown ids are dropped; each
+	-- loadout slot must hold an unlocked ability of that slot (else default).
+	if type(raw.abilities) == "table" then
+		local unlocked = data.abilities.unlocked
+		if type(raw.abilities.unlocked) == "table" then
+			for abilityId, flag in raw.abilities.unlocked do
+				if flag == true and Abilities.get(abilityId) then
+					unlocked[abilityId] = true
+				end
+			end
+		end
+		if type(raw.abilities.loadout) == "table" then
+			for index, slot in Abilities.Slots do
+				local chosen = raw.abilities.loadout[index]
+				if type(chosen) == "string" and #chosen <= 32 and Abilities.canEquip(index, chosen, unlocked) then
+					data.abilities.loadout[index] = chosen
+				else
+					data.abilities.loadout[index] = slot.default
+				end
+			end
+		end
+	end
+
+	if type(raw.power) == "table" then
+		data.power.peak = math.floor(num(raw.power.peak, 0, 0, PowerConfig.MaxPeak))
 	end
 
 	-- Relics: valid ids only, unique uids, unique slots within unlocked range.
@@ -225,6 +302,13 @@ function DataSchema.serialize(data: SaveData): { [string]: any }
 		tutorial = data.tutorial,
 		tips = table.clone(data.tips),
 		settings = table.clone(data.settings),
+		abilities = {
+			unlocked = table.clone(data.abilities.unlocked),
+			loadout = table.clone(data.abilities.loadout),
+		},
+		power = {
+			peak = data.power.peak,
+		},
 	}
 end
 

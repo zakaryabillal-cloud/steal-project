@@ -1,8 +1,8 @@
 --!strict
 -- Main heads-up display:
---   left   : Essence counter, menu buttons (Upgrades / RiftDex / Settings), next goal
+--   left   : Essence counter + Power Level, menu buttons (Upgrades / RiftDex / Settings), next goal
 --   bottom : carry panel (what you hold, where home is, theft timers)
---   right  : ability buttons with cooldown fills (Pulse, Dash, Seal)
+--   right  : ability buttons with cooldown fills (one per equipped loadout slot + Seal)
 -- plus Essence collection orbs and the danger vignette.
 
 local Players = game:GetService("Players")
@@ -16,6 +16,7 @@ local Upgrades = require(Shared.Config.Upgrades)
 local Relics = require(Shared.Config.Relics)
 local Mutations = require(Shared.Config.Mutations)
 local GameConfig = require(Shared.Config.GameConfig)
+local AbilityConfig = require(Shared.Config.Abilities)
 local Economy = require(Shared.Economy)
 local Layout = require(Shared.Layout)
 local Locale = require(Shared.Locale)
@@ -52,6 +53,9 @@ local rateLabel: TextLabel
 local essenceCard: Frame
 local essenceIcon: Frame
 local displayedEssence = 0
+local powerLabel: TextLabel
+local powerPeakLabel: TextLabel
+local displayedPower = -1
 
 -- Menu
 local menuButtons: { [string]: Button.Button } = {}
@@ -76,6 +80,16 @@ type AbilityView = {
 	wasReady: boolean,
 }
 local abilityViews: { AbilityView } = {}
+local abilityCluster: Frame
+-- Loadout slot index -> its button (nil when the slot is empty).
+local slotViews: { [number]: AbilityView } = {}
+local shownLoadout = ""
+-- Button size and position per loadout slot (Mobility, Control, Utility).
+local SLOT_LAYOUT = {
+	{ size = 70, position = UDim2.new(1, -150, 1, -40) },
+	{ size = 88, position = UDim2.new(1, -48, 1, -50) },
+	{ size = 60, position = UDim2.new(1, -150, 1, -122) },
+}
 
 -- Carry panel
 local carryPanel: Frame
@@ -139,7 +153,7 @@ end
 local function buildEssence(parent: Instance)
 	essenceCard = Style.panel({
 		Name = "Essence",
-		Size = UDim2.fromOffset(250, 76),
+		Size = UDim2.fromOffset(250, 102),
 		LayoutOrder = 1,
 		Parent = parent,
 	})
@@ -147,7 +161,7 @@ local function buildEssence(parent: Instance)
 	stroke.Name = "Stroke"
 	essenceIcon = Create("Frame", {
 		Size = UDim2.fromOffset(48, 48),
-		Position = UDim2.new(0, 12, 0.5, 0),
+		Position = UDim2.new(0, 12, 0, 38),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundTransparency = 1,
 		Parent = essenceCard,
@@ -170,6 +184,46 @@ local function buildEssence(parent: Instance)
 		TextSize = 15,
 		TextColor3 = Theme.Colors.Essence,
 		Text = "+0/s",
+		Parent = essenceCard,
+	})
+
+	-- Power Level row (progression summary, never spent).
+	Create("Frame", {
+		Name = "Divider",
+		Size = UDim2.new(1, -24, 0, 1),
+		Position = UDim2.fromOffset(12, 74),
+		BackgroundColor3 = Theme.Colors.Stroke,
+		BackgroundTransparency = 0.88,
+		BorderSizePixel = 0,
+		Parent = essenceCard,
+	})
+	local powerIcon = Create("Frame", {
+		Name = "PowerIcon",
+		Size = UDim2.fromOffset(16, 16),
+		Position = UDim2.fromOffset(14, 80),
+		BackgroundTransparency = 1,
+		Parent = essenceCard,
+	})
+	Icons.power(powerIcon, Theme.Colors.Power)
+	powerLabel = Style.text({
+		Name = "Power",
+		Size = UDim2.new(0.6, -36, 0, 20),
+		Position = UDim2.fromOffset(36, 78),
+		FontFace = Theme.Fonts.BodyBold,
+		TextSize = 15,
+		TextColor3 = Theme.Colors.Power,
+		Text = Locale.t("hud.power") .. " 0",
+		Parent = essenceCard,
+	})
+	powerPeakLabel = Style.text({
+		Name = "PowerPeak",
+		Size = UDim2.new(0.4, -12, 0, 20),
+		Position = UDim2.new(0.6, 0, 0, 78),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		FontFace = Theme.Fonts.Body,
+		TextSize = 13,
+		TextColor3 = Theme.Colors.TextDim,
+		Text = "",
 		Parent = essenceCard,
 	})
 end
@@ -371,8 +425,42 @@ local function abilityButton(parent: Instance, key: string, size: number, positi
 	return { key = key, frame = frame, overlay = overlay, gradient = gradient, countdown = countdown, stroke = stroke, wasReady = true }
 end
 
+-- (Re)builds one button per equipped loadout slot when the loadout changes.
+local function refreshAbilitySlots()
+	local loadout = Store.state.loadout
+	local signature = table.concat(loadout, ",")
+	if signature == shownLoadout then
+		return
+	end
+	shownLoadout = signature
+	for index, slot in AbilityConfig.Slots do
+		local existing = slotViews[index]
+		local def = AbilityConfig.get(loadout[index])
+		if existing and def and existing.key == def.id then
+			continue
+		end
+		if existing then
+			local at = table.find(abilityViews, existing)
+			if at then
+				table.remove(abilityViews, at)
+			end
+			existing.frame:Destroy()
+			slotViews[index] = nil
+		end
+		if def then
+			local layout = SLOT_LAYOUT[index]
+			local icon = (Icons :: any)[def.icon] or Icons.pulse
+			local view = abilityButton(abilityCluster, def.id, layout.size, layout.position, slot.keyboard.Name, icon, def.color, function()
+				Abilities.useSlot(index)
+			end)
+			slotViews[index] = view
+			table.insert(abilityViews, view)
+		end
+	end
+end
+
 local function buildAbilities(parent: Instance)
-	local cluster = Create("Frame", {
+	abilityCluster = Create("Frame", {
 		Name = "Abilities",
 		Size = UDim2.fromOffset(230, 190),
 		Position = if touch then UDim2.new(1, -16, 1, -150) else UDim2.new(1, -22, 1, -22),
@@ -380,9 +468,25 @@ local function buildAbilities(parent: Instance)
 		BackgroundTransparency = 1,
 		Parent = parent,
 	})
-	table.insert(abilityViews, abilityButton(cluster, "pulse", 88, UDim2.new(1, -48, 1, -50), "F", Icons.pulse, Color3.fromRGB(150, 230, 255), Abilities.pulse))
-	table.insert(abilityViews, abilityButton(cluster, "dash", 70, UDim2.new(1, -150, 1, -40), "Q", Icons.dash, Color3.fromRGB(190, 160, 255), Abilities.dash))
-	table.insert(abilityViews, abilityButton(cluster, "seal", 60, UDim2.new(1, -58, 1, -148), "G", Icons.seal, Color3.fromRGB(255, 205, 100), Abilities.seal))
+	table.insert(abilityViews, abilityButton(abilityCluster, "seal", 60, UDim2.new(1, -58, 1, -148), "G", Icons.seal, Color3.fromRGB(255, 205, 100), Abilities.seal))
+	refreshAbilitySlots()
+end
+
+local function refreshPower()
+	local state = Store.state
+	if state.power ~= displayedPower then
+		if displayedPower >= 0 and state.power > displayedPower then
+			Tween.pop(powerLabel, 0.08)
+		end
+		displayedPower = state.power
+	end
+	powerLabel.Text = Locale.t("hud.power") .. " " .. Format.commas(math.floor(state.power))
+	-- The record only shows when it differs (e.g. after a theft).
+	if state.powerPeak > state.power then
+		powerPeakLabel.Text = Locale.t("hud.powerPeak", { peak = Format.abbrev(state.powerPeak) })
+	else
+		powerPeakLabel.Text = ""
+	end
 end
 
 local function buildCarry(parent: Instance)
@@ -476,6 +580,8 @@ end
 local function refreshStatic()
 	local state = Store.state
 	rateLabel.Text = Locale.t("hud.perSecond", { rate = Format.abbrev(state.rate) })
+	refreshPower()
+	refreshAbilitySlots()
 	local found = Store.dexCounts()
 	dexChip.Text = string.format("%d/%d", found, Relics.count)
 	upgradesBadge.Visible = Hud.anyAffordable()
@@ -758,7 +864,7 @@ function Hud.init(parent: Instance, fullscreenLayer: Frame, options: Options)
 
 	local column = Create("Frame", {
 		Name = "LeftColumn",
-		Size = UDim2.fromOffset(250, 230),
+		Size = UDim2.fromOffset(250, 256),
 		Position = if touch then UDim2.new(0, 12, 0.36, 0) else UDim2.new(0, 16, 0.5, -20),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundTransparency = 1,

@@ -16,6 +16,7 @@ local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
 local Remotes = require(Core.Remotes)
+local Scheduler = require(Core.Scheduler)
 local PlotService = require(script.Parent.PlotService)
 local RelicService = require(script.Parent.RelicService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -115,6 +116,7 @@ function CarryService.returnToOwner(entity: Entity, reason: string)
 	Remotes.fx("ReturnHome", { uid = entity.uid, reason = reason, plot = plot.index })
 	if reason == "Recovered" then
 		victim.data.stats.recovered += 1
+		Sessions.markCold(victim)
 		Remotes.notify(victim.player, "n.recovered", { relic = entity.id }, "success")
 	else
 		Remotes.notify(victim.player, "n.returnedHome", { relic = entity.id }, "success")
@@ -166,6 +168,7 @@ function CarryService.claim(player: Player, entity: Entity)
 	CarryService.attach(session, entity)
 	if fromRift then
 		session.data.stats.claimed += 1
+		Sessions.markCold(session)
 	end
 	Remotes.fx("Pickup", { uid = entity.uid, userId = session.userId, rarity = entity.rarity, fromRift = fromRift })
 	TutorialService.progress(session, "claim")
@@ -251,7 +254,8 @@ local function deposit(session: Session, entity: Entity, from: Vector3): boolean
 		end
 		victim.data.stats.lost += 1
 		session.data.stats.stolen += 1
-		Sessions.markDirty(victim)
+		Sessions.markCold(victim)
+		Sessions.markCold(session)
 		EconomyService.recompute(victim)
 		Remotes.notify(victim.player, "n.lostRelic", { thief = session.player.DisplayName, relic = entity.id }, "danger")
 		Remotes.fx("HeistSecured", { uid = entity.uid, thiefId = session.userId, victimId = victim.userId, relicId = entity.id, rarity = entity.rarity })
@@ -307,7 +311,8 @@ local function deposit(session: Session, entity: Entity, from: Vector3): boolean
 	end
 	EconomyService.recompute(session)
 	TutorialService.progress(session, "deposit")
-	Sessions.markDirty(session)
+	-- stats + Dex changed
+	Sessions.markCold(session)
 	return true
 end
 
@@ -446,18 +451,8 @@ function CarryService.start()
 			CarryService.dropAll(session, position)
 		end
 	end)
-	task.spawn(function()
-		while true do
-			task.wait(CARRY.DepositCheckInterval)
-			carryTick()
-		end
-	end)
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			droppedTick()
-		end
-	end)
+	Scheduler.every("Carry.deposit", CARRY.DepositCheckInterval, carryTick)
+	Scheduler.every("Carry.dropped", 1, droppedTick)
 end
 
 return CarryService

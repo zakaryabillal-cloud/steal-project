@@ -15,6 +15,8 @@ le projet ne dépend d'**aucun asset externe** et se lance tel quel.
 généré par le code du jeu. Le rendu dans Roblox Studio (éclairage Future, bloom, particules, beams) est plus riche.
 Vue de dessus de l'île : [`docs/previews/map.png`](docs/previews/map.png).</sub>
 
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phase 1 « Fondations » terminée).
+
 ---
 
 ## Sommaire
@@ -189,6 +191,8 @@ src/
 │   │   ├── Mutations.luau    5 mutations : chance, multiplicateur, apparence
 │   │   ├── Relics.luau       catalogue des 19 reliques (ordre = ordre du RiftDex)
 │   │   ├── Upgrades.luau     améliorations et tables de coûts explicites
+│   │   ├── Abilities.luau    emplacements de loadout + catalogue des capacités (V2)
+│   │   ├── Power.luau        coefficients du Power Level (V2)
 │   │   ├── Events.luau       4 événements : durée, effets, ambiance (lumière/atmosphère/météo)
 │   │   ├── Sounds.luau       registre audio (id / fallback / note de design)
 │   │   └── Theme.luau        couleurs, polices, rayons, couleurs des 8 sanctuaires
@@ -196,11 +200,15 @@ src/
 │   ├── Relics/               RelicFactory (assemblage visuel, habillage, mutations, LOD) + RelicShapes
 │   ├── Util/                 Signal, Trove, Format, RateLimiter, MathUtil
 │   ├── Economy.luau          formules pures (production, coûts, capacités) — partagées client/serveur
+│   ├── Power.luau            formule pure du Power Level (V2)
+│   ├── Status.luau           règles pures de contrôle : stun/root/ralentissement, anti stun-lock (V2)
 │   ├── Layout.luau           géométrie de la carte (positions des sanctuaires, piédestaux, spots)
 │   └── Net.luau              noms des RemoteEvents/RemoteFunctions
 ├── server/                   → ServerScriptService.Server
 │   ├── init.server.luau      bootstrap : monde, services, joueurs, sync, autosave, BindToClose
-│   ├── Core/                 Remotes (rate-limit + pcall), Sessions, DataSchema, Rolls, Snapshot, Types
+│   ├── Core/                 Remotes (rate-limit + pcall), Sessions, DataSchema, Rolls, Snapshot (Sync
+│   │                         chaud/froid), Scheduler (boucle unique de tous les jobs périodiques), Types
+│   ├── Abilities/            logique serveur de chaque capacité (Dash, Pulse) (V2)
 │   ├── Services/
 │   │   ├── DataService       DataStore : UpdateAsync, verrou de session, retries, autosave
 │   │   ├── PlotService       attribution des sanctuaires, file d'attente, protections, Sceau
@@ -208,7 +216,8 @@ src/
 │   │   ├── RelicService      entités reliques (états Rift/Carried/Placed/Dropped), ProximityPrompts
 │   │   ├── CarryService      revendiquer, porter, lâcher, déposer, fusion, vol sécurisé, déconnexions
 │   │   ├── StealService      règles de vol, vérification du temps de maintien, Égide, limites
-│   │   ├── AbilityService    Dash, Repousser, Sceau (validation serveur)
+│   │   ├── AbilityService    framework de capacités : loadout, validation, cooldowns, Sceau (V2)
+│   │   ├── StatusService     applique les contrôles (stun, root, ralentissement, bouclier) (V2)
 │   │   ├── EconomyService    Essence, Noyau, hors-ligne, recalculs
 │   │   ├── UpgradeService    achats validés côté serveur
 │   │   ├── DexService        découvertes RiftDex + bonus
@@ -222,6 +231,7 @@ src/
 └── client/                   → StarterPlayerScripts.Client
     ├── init.client.luau      bootstrap client + routage des effets serveur
     ├── ClientNet.luau
+    ├── Abilities/            prédiction + ressenti client de chaque capacité (V2)
     ├── Controllers/          Store (état), Settings, Audio, CameraFX, LightingFX, RelicRenderer,
     │                         RiftFX, SanctuaryFX, CharacterFX, Abilities, Prompts, WorldFX, Tutorial
     └── UI/                   couches HUD / modales / overlay, mise à l'échelle par résolution
@@ -236,8 +246,11 @@ tools/                        analyse statique, rendu d'aperçus
 - **Serveur autoritaire** : chaque relique est une entité serveur (Part invisible dans `workspace.Relics`)
   dont l'état est porté par des attributs. Les **visuels sont construits côté client** à partir de ces
   attributs (`RelicRenderer` + `RelicFactory`) : réplication minimale, effets riches, LOD par client.
-- Le serveur envoie un **instantané** de l'état du joueur (`Sync`) au plus toutes les 0,1 s quand il change ;
-  le client ne fait qu'afficher et demander.
+- Le serveur envoie l'état du joueur (`Sync`) en deux moitiés : **chaude** (Essence, cooldowns, portage,
+  statuts, Power) au plus toutes les 0,1 s quand elle change, et **froide** (RiftDex, améliorations, loadout,
+  réglages…) seulement quand elle change ; le client fusionne et ne fait qu'afficher et demander.
+- Tous les traitements périodiques serveur passent par `Core/Scheduler` (une seule connexion Heartbeat,
+  erreurs isolées par job).
 - Les **effets** (apparition, vol, dépôt, tier-up…) sont des messages `Fx` routés par type côté client.
 - Aucune valeur de design en dur : tout est dans `Shared/Config`.
 
@@ -262,7 +275,13 @@ Pour 6–8 joueurs : même procédure ; à partir du 9ᵉ joueur, la file d'atte
 - Studio : **File → Game Settings → Security → Enable Studio Access to API Services** (le jeu doit être
   publié). Sans cela le jeu fonctionne avec des **données temporaires** (message « Studio : DataStores
   indisponibles »), rien n'est écrit.
-- Store : `RiftHeist_Player_v1`, clé `u_<UserId>`, schéma versionné (`GameConfig.Data.SchemaVersion`).
+- Store : `RiftHeist_Player_v1`, clé `u_<UserId>`, schéma versionné (`GameConfig.Data.SchemaVersion`,
+  actuellement **2** : la V2 ajoute le loadout de capacités et le Power record ; les sauvegardes V1 sont migrées
+  automatiquement sans perte).
+- **Garde anti-écrasement** : un profil écrit par une version plus récente du jeu n'est jamais verrouillé,
+  normalisé ni réécrit par un serveur plus ancien (le joueur joue avec des données temporaires et est invité à
+  changer de serveur). Les serveurs V1 n'ont pas cette garde : à la publication de la V2, utiliser
+  **Shut Down All Servers**.
 - Chargement avec `UpdateAsync` + **verrou de session** (job id + horodatage, expiration 600 s) : un autre
   serveur ne peut pas écraser un profil en cours d'utilisation.
 - Jusqu'à 5 tentatives avec backoff. Si le chargement échoue, le joueur joue avec des données temporaires
@@ -299,6 +318,18 @@ Pour 6–8 joueurs : même procédure ; à partir du 9ᵉ joueur, la file d'atte
    dans les tables `en` **et** `fr`.
 4. Lancer `lune run tests/run.luau` : le test *Factory* construit chaque relique × chaque mutation et
    vérifie qu'il n'y a ni erreur ni propriété invalide.
+
+### Ajouter une capacité (framework V2)
+
+1. **`src/shared/Config/Abilities.luau`** : ajouter une entrée (`id`, `slot` = `Mobility` | `Control` | `Utility`,
+   `module`, `cooldown`, `lenience`, `default`, `needsMovement`, `icon`, `color`, `counterplay`, `tuning`).
+2. **`src/server/Abilities/<Module>.luau`** : `activate(ctx)` (effet serveur) et, si la capacité reçoit des
+   données du client, `readPayload(raw)` qui renvoie une version assainie ou `nil` pour refuser.
+   Tout contrôle sur un autre joueur passe par `StatusService` (jamais directement par `CharacterService.stun`).
+3. **`src/client/Abilities/<Module>.luau`** : `activate(ctx)` (prédiction locale + effets) qui renvoie le payload.
+4. **`src/shared/Locale/Strings.luau`** : `ability.<id>` en `en` et `fr`.
+
+Le cooldown, l'équipement, les statuts et la limite de débit sont gérés par le framework (`AbilityService`).
 
 ## 9. Modifier l'économie
 
@@ -375,7 +406,8 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **148 vérifications, 0 échec, 0 erreur d'exécution**.
+serveur et un vrai client tournent dedans. Résultat actuel : **283 vérifications, 0 échec, 0 erreur d'exécution**
+(148 V1 + 135 V2 phase 1, dans `tests/scenarios/V2Foundations.luau`).
 
 Scénarios couverts : solo complet (tutoriel → dépôt → Essence → achats → fusion → dissolution), achat sans
 argent, interactions à distance, spam de remotes, 2ᵉ joueur + protection Novice, vol → alerte → poursuite →
@@ -384,6 +416,11 @@ plein vol, victime qui quitte en plein vol, mort en portant, chute dans le vide,
 serveur plein (9ᵉ joueur en file d'attente), panne DataStore, reconnexion, événements, cohérence de
 l'économie, sauvegarde falsifiée, démarrage client (HUD, menus, découvertes, langues, qualité), construction
 de toutes les reliques × mutations, `BindToClose`.
+V2 phase 1 : migration d'une **vraie sauvegarde V1** (`tests/fixtures/save_v1.json`, produite par le code V1),
+garde contre les schémas plus récents (y compris en concurrence), champs V2 falsifiés, Power (formule, record,
+non modifiable par le client), règles de Status et anti stun-lock en conditions réelles (essaim d'attaquants),
+ralentissements/enracinement/bouclier, framework de capacités (validation, alias V1, loadout, spam), Sync
+chaud/froid (taille, fusion côté client, audit), Scheduler (jobs isolés), reconnexions.
 
 ### Aperçus du monde (direction artistique)
 ```bash
@@ -400,6 +437,10 @@ python3 tools/render/render_view.py tools/.cache/world.json view.png "0,41,-150"
 - Le client ne fait que *demander* : revendiquer, voler, déposer, acheter, capacités — le serveur vérifie
   distance, état de l'entité, propriétaire, recharges, coût, capacité.
 - Vol : le serveur mesure lui-même la durée de maintien (≥ 80 % de la durée requise).
+- Capacités : le client envoie seulement l'id ; le serveur vérifie qu'elle est connue, équipée, que le
+  personnage peut agir (statuts) et que le cooldown (stocké par capacité) est écoulé ; le loadout ne se modifie
+  qu'au Sanctuaire et seulement avec des capacités débloquées du bon emplacement. Tout contrôle passe par
+  `StatusService` (immunité après contrôle dur, ralentissements non cumulables, durées plafonnées).
 - `MovementGuard` : un déplacement horizontal > 120 studs/s fait lâcher les reliques portées ; au-delà de
   2,5× cette limite (téléportation), le personnage est ramené à sa dernière position valide.
 - Le serveur seul crée/détruit les reliques et modifie l'Essence ; les sauvegardes chargées sont assainies.

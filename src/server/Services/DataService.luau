@@ -6,6 +6,11 @@
 -- When DataStores are unreachable (Studio without API access, outage) the
 -- player gets temporary data and `canSave = false`, so a bad load can never
 -- overwrite a good save.
+--
+-- Forward compatibility: a record whose `schema` is NEWER than this build's
+-- (written by a more recent version of the game) is never locked, normalised
+-- or overwritten here. The player gets temporary data (status "newer"), and
+-- every save transform re-checks the stored schema before writing.
 
 local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
@@ -15,6 +20,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Core = script.Parent.Parent.Core
 local DataSchema = require(Core.DataSchema)
 local Types = require(Core.Types)
+local Sessions = require(Core.Sessions)
 
 type SaveData = Types.SaveData
 type Session = Types.Session
@@ -53,7 +59,8 @@ function DataService.init()
 	end
 end
 
--- Returns (data, canSave, status). status: "new" | "loaded" | "studio" | "unavailable" | "failed" | "left"
+-- Returns (data, canSave, status).
+-- status: "new" | "loaded" | "studio" | "unavailable" | "failed" | "left" | "newer"
 function DataService.load(player: Player): (SaveData, boolean, string)
 	local activeStore = store
 	if activeStore == nil or not DataService.available then
@@ -66,9 +73,16 @@ function DataService.load(player: Player): (SaveData, boolean, string)
 		local force = attempt == CONFIG.MaxRetries
 		local loaded: any = nil
 		local existed = false
+		local newer = false
 		local ok, err = pcall(function()
 			activeStore:UpdateAsync(key, function(old: any)
 				loaded = nil
+				newer = false
+				if DataSchema.isNewer(old) then
+					-- Written by a newer build: do not lock, do not touch.
+					newer = true
+					return nil
+				end
 				if type(old) == "table" and type(old.lock) == "table" and not force then
 					local lockJob = old.lock.job
 					local lockTime = tonumber(old.lock.time) or 0
@@ -84,6 +98,10 @@ function DataService.load(player: Player): (SaveData, boolean, string)
 				return record
 			end)
 		end)
+		if ok and newer then
+			warn(string.format("[DataService] Profile %d uses a newer schema than v%d; playing with temporary data", player.UserId, DataSchema.Version))
+			return DataSchema.default(), false, "newer"
+		end
 		if ok and loaded ~= nil then
 			return DataSchema.normalize(loaded), true, if existed then "loaded" else "new"
 		end
@@ -111,9 +129,16 @@ function DataService.save(session: Session, release: boolean): boolean
 
 	for attempt = 1, CONFIG.MaxRetries do
 		local stolen = false
+		local newer = false
 		local ok, err = pcall(function()
 			activeStore:UpdateAsync(key, function(old: any)
 				stolen = false
+				newer = false
+				if DataSchema.isNewer(old) then
+					-- A newer build wrote this profile since we loaded it: never downgrade it.
+					newer = true
+					return nil
+				end
 				if type(old) == "table" and type(old.lock) == "table" and old.lock.job ~= job then
 					-- Another server force-took this profile: never overwrite it.
 					stolen = true
@@ -123,6 +148,12 @@ function DataService.save(session: Session, release: boolean): boolean
 			end)
 		end)
 		if ok then
+			if newer then
+				warn("[DataService] Profile", session.userId, "was written by a newer schema; save refused")
+				session.canSave = false
+				Sessions.markCold(session)
+				return false
+			end
 			if stolen then
 				warn("[DataService] Profile", session.userId, "is owned by another server; save skipped")
 				return false

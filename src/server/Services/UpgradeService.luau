@@ -65,7 +65,8 @@ function UpgradeService.purchase(session: Session, upgradeId: string): (boolean,
 
 	Remotes.fxTo(session.player, "Purchase", { id = upgradeId, level = newLevel })
 	TutorialService.progress(session, "purchase")
-	Sessions.markDirty(session)
+	-- upgrades changed (Essence spent is hot and rides along)
+	Sessions.markCold(session)
 	return true, nil
 end
 

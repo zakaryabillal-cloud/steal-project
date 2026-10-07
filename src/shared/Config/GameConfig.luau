@@ -3,7 +3,7 @@
 -- Config/Rarities and Config/Mutations; formulas live in Shared/Economy.
 
 local GameConfig = {
-	Version = "1.0.0",
+	Version = "2.0.0-phase1",
 
 	Player = {
 		BaseWalkSpeed = 20,
@@ -69,9 +69,23 @@ local GameConfig = {
 			Knockback = 62,
 			Lift = 28,
 			Stun = 0.6,
-			-- Immunity after being hit so nobody gets stun-locked.
-			SteadyTime = 2.5,
+			-- Post-hit immunity (anti stun-lock) is GameConfig.Status.SteadyTime.
 		},
+	},
+
+	-- Crowd-control rules enforced by Shared/Status + StatusService.
+	Status = {
+		-- After any hard control (stun, root, knockback) the target is "steady":
+		-- immune to new hard control for max(SteadyTime, duration + SteadyGap).
+		SteadyTime = 2.5,
+		SteadyGap = 1,
+		-- Hard control never lasts longer than this, whatever the source asks.
+		MaxHardDuration = 2,
+		-- Slows never stack (strongest wins) and are capped.
+		MaxSlow = 0.6,
+		MaxSlowDuration = 3,
+		-- Self buffs (shield, phase) are capped too.
+		MaxBuffDuration = 4,
 	},
 
 	Sanctuary = {
@@ -112,11 +126,21 @@ local GameConfig = {
 
 	Data = {
 		StoreName = "RiftHeist_Player_v1",
-		SchemaVersion = 1,
+		-- Bump together with a MIGRATIONS entry in Server/Core/DataSchema.
+		-- History: 1 = launch (V1), 2 = abilities loadout + Power record (V2 phase 1).
+		SchemaVersion = 2,
 		AutosaveInterval = 90,
 		MaxRetries = 5,
 		-- A session lock older than this is considered abandoned (crashed server).
 		LockTimeout = 600,
+	},
+
+	Sync = {
+		-- Hot state (Essence, cooldowns, carrying, status, Power) is pushed at most this often.
+		HotInterval = 0.1,
+		-- Cold state (Dex, upgrades, loadout, settings...) is pushed only when marked
+		-- changed; this audit re-checks it in case a change was never marked.
+		ColdAuditInterval = 2,
 	},
 
 	Security = {

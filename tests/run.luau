@@ -789,6 +789,35 @@ end)
 -- Shutdown
 ----------------------------------------------------------------------------
 
+-- V2 phase 1: Foundations (schema v2, Power, Status, abilities, Sync, Scheduler).
+require("./scenarios/V2Foundations")({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	waitFor = waitFor,
+	sreq = sreq,
+	shared = shared,
+	remote = remote,
+	Engine = Engine,
+	Loader = Loader,
+	game = game,
+	sessionOf = sessionOf,
+	teleport = teleport,
+	insideOwnPlot = insideOwnPlot,
+	plotCenter = plotCenter,
+	hasNotification = hasNotification,
+	clearLog = clearLog,
+	alice = function()
+		return alice
+	end,
+	bob = function()
+		return bob
+	end,
+	setBob = function(player)
+		bob = player
+	end,
+})
+
 scenario("Shutdown: BindToClose saves everyone", function()
 	local sa = sessionOf(alice)
 	sa.data.essence += 12345

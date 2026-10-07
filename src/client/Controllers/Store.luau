@@ -1,6 +1,11 @@
 --!strict
 -- Client-side mirror of the player's private state (pushed by the server's
 -- Sync snapshots). Read-only from the client's point of view.
+--
+-- Each Sync carries the hot fields (Essence, cooldowns, carrying, status,
+-- Power) and, only when they changed, the cold fields (Dex, upgrades, loadout,
+-- settings...). Payloads are merged into a NEW state table so `changed`
+-- listeners can still compare (state, previous).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,6 +14,7 @@ local Shared = ReplicatedStorage.Shared
 local Signal = require(Shared.Util.Signal)
 local Economy = require(Shared.Economy)
 local Relics = require(Shared.Config.Relics)
+local Abilities = require(Shared.Config.Abilities)
 local ClientNet = require(script.Parent.Parent.ClientNet)
 
 export type State = {
@@ -28,6 +34,22 @@ export type State = {
 	noviceUntil: number,
 	canSave: boolean,
 	dataStatus: string,
+	-- V2
+	power: number,
+	powerPeak: number,
+	loadout: { string },
+	unlocked: { [string]: boolean },
+	status: StatusView,
+}
+
+export type StatusView = {
+	stunUntil: number,
+	steadyUntil: number,
+	rootUntil: number,
+	slow: number,
+	slowUntil: number,
+	shieldUntil: number,
+	phaseUntil: number,
 }
 
 local Store = {}
@@ -49,6 +71,11 @@ Store.state = {
 	noviceUntil = 0,
 	canSave = false,
 	dataStatus = "pending",
+	power = 0,
+	powerPeak = 0,
+	loadout = Abilities.defaultLoadout(),
+	unlocked = Abilities.defaultUnlocked(),
+	status = { stunUntil = 0, steadyUntil = 0, rootUntil = 0, slow = 0, slowUntil = 0, shieldUntil = 0, phaseUntil = 0 },
 } :: State
 
 Store.ready = false
@@ -59,7 +86,11 @@ Store.becameReady = Signal.new()
 function Store.init()
 	ClientNet.onSync(function(snapshot)
 		local previous = Store.state
-		Store.state = (snapshot :: any) :: State
+		local merged = table.clone(previous :: any)
+		for key, value in snapshot do
+			merged[key] = value
+		end
+		Store.state = merged :: State
 		local first = not Store.ready
 		Store.ready = true
 		Store.changed:Fire(Store.state, previous)

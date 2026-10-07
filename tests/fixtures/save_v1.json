@@ -1,0 +1,96 @@
+{
+  "coreStored": 2646.549924999999,
+  "dex": {
+    "ember_shard": {
+      "count": 1,
+      "first": 1750000010,
+      "mutations": {}
+    },
+    "storm_crystal": {
+      "count": 2,
+      "first": 1750000006,
+      "mutations": {
+        "Charged": true
+      }
+    },
+    "tide_pearl": {
+      "count": 1,
+      "first": 1750000015,
+      "mutations": {}
+    },
+    "void_cube": {
+      "count": 1,
+      "first": 1750000013,
+      "mutations": {
+        "Golden": true
+      }
+    }
+  },
+  "essence": 56440,
+  "lastSeen": 1750000039,
+  "lifetimeEssence": 60000,
+  "playTime": 37.35000014305115,
+  "relics": [
+    {
+      "id": "storm_crystal",
+      "level": 1,
+      "slot": 1,
+      "uid": "09a36c251f6dd1cd"
+    },
+    {
+      "id": "storm_crystal",
+      "level": 1,
+      "mutation": "Charged",
+      "slot": 2,
+      "uid": "4ed31286fdbf83e6"
+    },
+    {
+      "id": "ember_shard",
+      "level": 1,
+      "slot": 3,
+      "uid": "7837707dfc7689ca"
+    },
+    {
+      "id": "void_cube",
+      "level": 1,
+      "mutation": "Golden",
+      "slot": 4,
+      "uid": "3e45d2de2ea7c9fd"
+    },
+    {
+      "id": "tide_pearl",
+      "level": 1,
+      "slot": 5,
+      "uid": "a489652718b671d6"
+    }
+  ],
+  "schema": 1,
+  "settings": {
+    "language": "fr",
+    "music": 0.25,
+    "quality": "High",
+    "sfx": 1,
+    "shake": true
+  },
+  "stats": {
+    "claimed": 6,
+    "deposits": 5,
+    "essenceCollected": 0,
+    "lost": 0,
+    "rareFinds": 0,
+    "recovered": 0,
+    "stolen": 0
+  },
+  "tips": {
+    "firstGift": true,
+    "steal": true
+  },
+  "tutorial": 4,
+  "upgrades": {
+    "harness": 1,
+    "pedestal": 2,
+    "resonance": 1,
+    "stride": 0,
+    "tier": 1
+  }
+}

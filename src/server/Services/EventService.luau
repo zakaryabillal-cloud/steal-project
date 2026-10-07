@@ -9,6 +9,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local Events = require(Shared.Config.Events)
 
 local Remotes = require(script.Parent.Parent.Core.Remotes)
+local Scheduler = require(script.Parent.Parent.Core.Scheduler)
 
 local EventService = {}
 
@@ -84,18 +85,15 @@ function EventService.start()
 	workspace:SetAttribute("EventEndsAt", 0)
 	local nextAt = now() + GameConfig.Events.FirstDelay
 	workspace:SetAttribute("NextEventAt", nextAt)
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			if current then
-				if now() >= endsAt then
-					finish()
-					nextAt = now() + rng:NextNumber(GameConfig.Events.IntervalMin, GameConfig.Events.IntervalMax)
-					workspace:SetAttribute("NextEventAt", nextAt)
-				end
-			elseif now() >= nextAt then
-				begin(pick())
+	Scheduler.every("Events.tick", 1, function()
+		if current then
+			if now() >= endsAt then
+				finish()
+				nextAt = now() + rng:NextNumber(GameConfig.Events.IntervalMin, GameConfig.Events.IntervalMax)
+				workspace:SetAttribute("NextEventAt", nextAt)
 			end
+		elseif now() >= nextAt then
+			begin(pick())
 		end
 	end)
 end

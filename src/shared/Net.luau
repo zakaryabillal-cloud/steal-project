@@ -10,12 +10,14 @@ local Net = {}
 
 Net.Events = table.freeze({
 	-- Server -> client
-	Sync = "Sync", -- private player state snapshot
+	Sync = "Sync", -- private player state: hot fields always, cold fields when changed
 	Notify = "Notify", -- toast: (key, args, style)
 	FX = "FX", -- broadcast visual moment: (kind, payload)
 	Knockback = "Knockback", -- (impulse: Vector3, stun: number)
 	-- Client -> server
 	ClientReady = "ClientReady",
+	UseAbility = "UseAbility", -- (abilityId, payload?) equipped abilities
+	-- V1 aliases of UseAbility("dash") / UseAbility("pulse"), kept for compatibility.
 	Dash = "Dash",
 	Pulse = "Pulse",
 	Seal = "Seal",
@@ -27,6 +29,7 @@ Net.Events = table.freeze({
 Net.Functions = table.freeze({
 	Purchase = "Purchase", -- (upgradeId) -> (ok, reason)
 	Dissolve = "Dissolve", -- (relicUid) -> (ok, reason)
+	SetLoadout = "SetLoadout", -- (slotIndex, abilityId) -> (ok, reason)
 }) :: { [string]: string }
 
 local FOLDER_NAME = "Remotes"

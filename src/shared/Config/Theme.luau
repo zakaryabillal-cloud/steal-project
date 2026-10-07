@@ -18,6 +18,7 @@ Theme.Colors = {
 	Danger = Color3.fromRGB(255, 78, 104),
 	Warning = Color3.fromRGB(255, 196, 80),
 	Gold = Color3.fromRGB(255, 205, 90),
+	Power = Color3.fromRGB(255, 160, 96),
 	Shadow = Color3.fromRGB(0, 0, 0),
 }
 

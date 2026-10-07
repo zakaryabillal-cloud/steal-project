@@ -16,6 +16,7 @@ local Layout = require(Shared.Layout)
 local Core = script.Parent.Parent.Core
 local Remotes = require(Core.Remotes)
 local Rolls = require(Core.Rolls)
+local Scheduler = require(Core.Scheduler)
 local RelicService = require(script.Parent.RelicService)
 local EventService = require(script.Parent.EventService)
 
@@ -120,29 +121,21 @@ local function expiryTick()
 end
 
 function RiftService.start()
-	task.spawn(function()
-		task.wait(GameConfig.Rift.FirstSpawnDelay)
-		local elapsed = math.huge
-		while true do
-			local event = EventService.current()
-			local interval = (event and event.spawnInterval) or GameConfig.Rift.SpawnInterval
-			local maxActive = (event and event.maxActive) or GameConfig.Rift.MaxActive
-			if #forcedQueue > 0 then
-				RiftService.spawn(table.remove(forcedQueue, 1))
-				elapsed = 0
-			elseif elapsed >= interval and activeCount() < maxActive then
-				RiftService.spawn(nil)
-				elapsed = 0
-			end
-			elapsed += task.wait(0.25)
+	local elapsed = math.huge
+	Scheduler.every("Rift.spawn", 0.25, function(dt: number)
+		elapsed += dt
+		local event = EventService.current()
+		local interval = (event and event.spawnInterval) or GameConfig.Rift.SpawnInterval
+		local maxActive = (event and event.maxActive) or GameConfig.Rift.MaxActive
+		if #forcedQueue > 0 then
+			RiftService.spawn(table.remove(forcedQueue, 1))
+			elapsed = 0
+		elseif elapsed >= interval and activeCount() < maxActive then
+			RiftService.spawn(nil)
+			elapsed = 0
 		end
-	end)
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			expiryTick()
-		end
-	end)
+	end, { delay = GameConfig.Rift.FirstSpawnDelay })
+	Scheduler.every("Rift.expiry", 1, expiryTick)
 end
 
 return RiftService

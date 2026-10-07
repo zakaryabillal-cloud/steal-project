@@ -17,6 +17,7 @@ local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
 local Remotes = require(Core.Remotes)
+local Scheduler = require(Core.Scheduler)
 local SanctuaryBuilder = require(script.Parent.Parent.World.SanctuaryBuilder)
 
 type Session = Types.Session
@@ -106,11 +107,8 @@ function PlotService.init()
 		resetAttributes(plot)
 	end
 
-	task.spawn(function()
-		while true do
-			task.wait(0.25)
-			PlotService.tick()
-		end
+	Scheduler.every("Plot.tick", 0.25, function()
+		PlotService.tick()
 	end)
 end
 

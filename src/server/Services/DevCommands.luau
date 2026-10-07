@@ -97,7 +97,7 @@ local function run(player: Player, text: string)
 		player:Kick("Data reset (Studio). Press Play again.")
 		return
 	end
-	Sessions.markDirty(session)
+	Sessions.markCold(session)
 end
 
 function DevCommands.start()

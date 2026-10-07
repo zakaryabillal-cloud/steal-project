@@ -37,7 +37,7 @@ function TutorialService.progress(session: Session, action: string)
 	end
 	if nextStep ~= step then
 		session.data.tutorial = nextStep
-		Sessions.markDirty(session)
+		Sessions.markCold(session)
 	end
 end
 
@@ -47,7 +47,7 @@ function TutorialService.markTip(session: Session, tip: string)
 	end
 	if not session.data.tips[tip] then
 		session.data.tips[tip] = true
-		Sessions.markDirty(session)
+		Sessions.markCold(session)
 	end
 end
 

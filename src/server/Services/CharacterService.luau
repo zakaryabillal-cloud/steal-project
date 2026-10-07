@@ -1,6 +1,6 @@
 --!strict
 -- Character lifecycle: spawning at the owner's Sanctuary, respawn timing,
--- walk speed (upgrades, carry weight, stuns), collision groups for the seal
+-- walk speed (upgrades, carry weight, stuns, roots, slows), collision groups for the seal
 -- barrier, and the void kill plane.
 
 local Players = game:GetService("Players")
@@ -11,10 +11,12 @@ local GameConfig = require(Shared.Config.GameConfig)
 local Economy = require(Shared.Economy)
 local Layout = require(Shared.Layout)
 local Signal = require(Shared.Util.Signal)
+local Status = require(Shared.Status)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
+local Scheduler = require(Core.Scheduler)
 local RelicService = require(script.Parent.RelicService)
 
 type Session = Types.Session
@@ -50,7 +52,8 @@ function CharacterService.refreshSpeed(session: Session)
 	if not humanoid then
 		return
 	end
-	if now() < session.stunnedUntil then
+	local t = now()
+	if t < session.stunnedUntil or Status.isRooted(session.status, t) then
 		humanoid.WalkSpeed = 0
 		humanoid.JumpHeight = 0
 		return
@@ -62,10 +65,12 @@ function CharacterService.refreshSpeed(session: Session)
 			table.insert(ids, entity.id)
 		end
 	end
-	humanoid.WalkSpeed = Economy.walkSpeed(session.data.upgrades.stride) * Economy.carrySpeedMultiplier(ids)
+	humanoid.WalkSpeed = Economy.walkSpeed(session.data.upgrades.stride) * Economy.carrySpeedMultiplier(ids) * Status.speedFactor(session.status, t)
 	humanoid.JumpHeight = GameConfig.Player.JumpHeight
 end
 
+-- Low-level primitive. Gameplay code goes through StatusService.applyControl,
+-- which enforces the anti stun-lock rules before calling this.
 function CharacterService.stun(session: Session, duration: number)
 	session.stunnedUntil = math.max(session.stunnedUntil, now() + duration)
 	session.stealHold = nil
@@ -99,6 +104,7 @@ function CharacterService.onCharacter(session: Session, character: Model)
 	session.spawnProtectedUntil = now() + GameConfig.Player.SpawnProtection
 	session.teleportGraceUntil = now() + 3
 	session.stunnedUntil = 0
+	Status.clear(session.status)
 	session.lastPosition = nil
 	CharacterService.refreshSpeed(session)
 
@@ -129,16 +135,13 @@ function CharacterService.isProtected(session: Session): boolean
 end
 
 function CharacterService.start()
-	task.spawn(function()
-		while true do
-			task.wait(0.3)
-			for _, player in Players:GetPlayers() do
-				local character = player.Character
-				local root = character and character:FindFirstChild("HumanoidRootPart")
-				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-				if root and root:IsA("BasePart") and humanoid and humanoid.Health > 0 and root.Position.Y < GameConfig.Player.VoidKillY then
-					humanoid.Health = 0
-				end
+	Scheduler.every("Character.voidKill", 0.3, function()
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if root and root:IsA("BasePart") and humanoid and humanoid.Health > 0 and root.Position.Y < GameConfig.Player.VoidKillY then
+				humanoid.Health = 0
 			end
 		end
 	end)

@@ -5,6 +5,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
+local Status = require(ReplicatedStorage.Shared.Status)
 local Types = require(script.Parent.Types)
 
 type Session = Types.Session
@@ -41,7 +42,11 @@ function Sessions.create(player: Player, data: Types.SaveData): Session
 		robbedLog = {},
 		rate = 0,
 		multiplier = 1,
+		power = 0,
+		status = Status.new(),
 		dirty = true,
+		coldDirty = true,
+		lastCold = nil,
 		saving = false,
 		released = false,
 		lastNotice = {},
@@ -96,7 +101,15 @@ function Sessions.remove(player: Player)
 	end
 end
 
+-- Hot state changed (Essence, carrying, cooldowns, status, Power...).
 function Sessions.markDirty(session: Session)
+	session.dirty = true
+end
+
+-- Cold state changed (Dex, upgrades, loadout, settings, tutorial, stats...).
+-- Cold state is only sent when marked (plus a periodic audit, see Snapshot).
+function Sessions.markCold(session: Session)
+	session.coldDirty = true
 	session.dirty = true
 end
 

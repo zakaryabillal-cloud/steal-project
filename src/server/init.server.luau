@@ -4,7 +4,6 @@
 -- spawn; and on leave: resolve carried/stolen relics -> save -> free plot).
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
@@ -17,6 +16,7 @@ local Sessions = require(Core.Sessions)
 local Remotes = require(Core.Remotes)
 local Snapshot = require(Core.Snapshot)
 local DataSchema = require(Core.DataSchema)
+local Scheduler = require(Core.Scheduler)
 
 local Services = script.Services
 local DataService = require(Services.DataService)
@@ -28,6 +28,7 @@ local EventService = require(Services.EventService)
 local RiftService = require(Services.RiftService)
 local CarryService = require(Services.CarryService)
 local StealService = require(Services.StealService)
+local StatusService = require(Services.StatusService)
 local AbilityService = require(Services.AbilityService)
 local UpgradeService = require(Services.UpgradeService)
 local TutorialService = require(Services.TutorialService)
@@ -56,6 +57,7 @@ AbilityService.start()
 UpgradeService.start()
 MovementGuard.start()
 DevCommands.start()
+Snapshot.setStatusProvider(StatusService.snapshot)
 
 -- 3. Small client requests -------------------------------------------------------
 local ALLOWED_TIPS = { intro = true, steal = true, pulse = true, seal = true, fuse = true, dash = true, dex = true, shop = true }
@@ -63,7 +65,8 @@ local ALLOWED_TIPS = { intro = true, steal = true, pulse = true, seal = true, fu
 Remotes.on(Net.Events.ClientReady, { rate = 1, burst = 3 }, function(player: Player)
 	local session = Sessions.get(player)
 	if session then
-		session.dirty = true
+		-- The client (re)started listening: send the full state.
+		Sessions.markCold(session)
 	end
 end)
 
@@ -84,7 +87,7 @@ Remotes.on(Net.Events.Settings, { rate = 4, burst = 10 }, function(player: Playe
 	else
 		return
 	end
-	Sessions.markDirty(session)
+	Sessions.markCold(session)
 end)
 
 Remotes.on(Net.Events.TutorialSeen, { rate = 2, burst = 6 }, function(player: Player, tip: any)
@@ -146,6 +149,10 @@ local function makeLeaderstats(session: Session)
 	end
 	dex.Value = found
 	dex.Parent = folder
+	local power = Instance.new("IntValue")
+	power.Name = "Power"
+	power.Value = 0
+	power.Parent = folder
 	folder.Parent = session.player
 	session.leaderstats = folder
 end
@@ -187,13 +194,15 @@ local function onPlayerAdded(player: Player)
 		Remotes.notify(player, "n.studioData", nil, "info")
 	elseif status == "failed" or status == "unavailable" then
 		Remotes.notify(player, "n.dataWarning", nil, "danger")
+	elseif status == "newer" then
+		Remotes.notify(player, "n.dataNewer", nil, "danger")
 	elseif status == "loaded" and data.lastSeen > 0 then
 		Remotes.notify(player, "n.welcomeBack", { name = player.DisplayName }, "info")
 	end
 	if not plotIndex then
 		Remotes.notify(player, "n.waitingPlot", nil, "warning")
 	end
-	Sessions.markDirty(session)
+	Sessions.markCold(session)
 end
 
 local function onPlayerRemoving(player: Player)
@@ -232,7 +241,7 @@ PlotService.plotFreed:Connect(function(session: Session)
 	EconomyService.recompute(session)
 	CharacterService.refreshCollision(session)
 	CharacterService.spawn(session)
-	Sessions.markDirty(session)
+	Sessions.markCold(session)
 end)
 
 Players.PlayerAdded:Connect(function(player)
@@ -244,35 +253,33 @@ for _, player in Players:GetPlayers() do
 end
 
 -- 5. Sync, autosave, shutdown ------------------------------------------------------
-local syncAccumulator = 0
-RunService.Heartbeat:Connect(function(dt)
-	syncAccumulator += dt
-	if syncAccumulator < 0.1 then
-		return
-	end
-	syncAccumulator = 0
+Scheduler.every("Sync.push", GameConfig.Sync.HotInterval, function()
 	for _, session in Sessions.all() do
-		if session.dirty then
-			session.dirty = false
-			Remotes.sync(session.player, Snapshot.build(session))
+		local payload = Snapshot.next(session)
+		if payload then
+			Remotes.sync(session.player, payload)
 		end
 	end
 end)
 
-task.spawn(function()
-	while true do
-		task.wait(GameConfig.Data.AutosaveInterval)
-		local sessions = Sessions.all()
-		local spacing = GameConfig.Data.AutosaveInterval / math.max(#sessions, 1) * 0.5
-		for _, session in sessions do
-			if not session.released and session.canSave then
-				session.data.playTime = Sessions.playTime(session)
-				session.joinedAt = workspace:GetServerTimeNow()
-				session.data.lastSeen = os.time()
-				DataService.save(session, false)
-			end
-			task.wait(math.min(spacing, 5))
+Scheduler.every("Sync.audit", GameConfig.Sync.ColdAuditInterval, function()
+	for _, session in Sessions.all() do
+		Snapshot.audit(session)
+	end
+end)
+
+-- Yields between players (spacing); the Scheduler never re-enters a busy job.
+Scheduler.every("Data.autosave", GameConfig.Data.AutosaveInterval, function()
+	local sessions = Sessions.all()
+	local spacing = GameConfig.Data.AutosaveInterval / math.max(#sessions, 1) * 0.5
+	for _, session in sessions do
+		if not session.released and session.canSave then
+			session.data.playTime = Sessions.playTime(session)
+			session.joinedAt = workspace:GetServerTimeNow()
+			session.data.lastSeen = os.time()
+			DataService.save(session, false)
 		end
+		task.wait(math.min(spacing, 5))
 	end
 end)
 

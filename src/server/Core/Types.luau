@@ -3,6 +3,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(ReplicatedStorage.Shared.Economy)
+local Status = require(ReplicatedStorage.Shared.Status)
 
 export type SaveRelic = {
 	uid: string,
@@ -36,6 +37,19 @@ export type Stats = {
 	essenceCollected: number,
 }
 
+-- Schema 2 ------------------------------------------------------------------
+export type AbilityData = {
+	-- abilityId -> true. Always contains the default abilities.
+	unlocked: { [string]: boolean },
+	-- One ability id per loadout slot (Config/Abilities.Slots order), "" = empty.
+	loadout: { string },
+}
+
+export type PowerData = {
+	-- Highest Power ever reached. Used for unlocks so thefts never re-lock content.
+	peak: number,
+}
+
 export type SaveData = {
 	schema: number,
 	essence: number,
@@ -50,6 +64,31 @@ export type SaveData = {
 	tutorial: number,
 	tips: { [string]: boolean },
 	settings: Settings,
+	-- schema 2
+	abilities: AbilityData,
+	power: PowerData,
+}
+
+-- Runtime crowd-control state (never saved). See Shared/Status.
+export type StatusState = Status.State
+
+-- Abilities -------------------------------------------------------------------
+-- Passed to Server/Abilities/<Module>.activate after AbilityService validated
+-- ownership, loadout, character, status and cooldown.
+export type AbilityContext = {
+	session: Session,
+	player: Player,
+	root: BasePart,
+	abilityId: string,
+	now: number,
+	-- Sanitised by the module's readPayload (nil when the ability takes none).
+	payload: any,
+}
+
+export type AbilityModule = {
+	-- Returns the sanitised payload, or nil to reject the request.
+	readPayload: ((raw: any) -> any)?,
+	activate: (ctx: AbilityContext) -> (),
 }
 
 export type StealHold = {
@@ -81,7 +120,15 @@ export type Session = {
 	robbedLog: { number },
 	rate: number,
 	multiplier: number,
+	-- Current Power (derived, recomputed with the Essence rate).
+	power: number,
+	status: StatusState,
+	-- Hot state changed (pushed at most every Sync.HotInterval).
 	dirty: boolean,
+	-- Cold state changed (Dex, upgrades, loadout, settings...).
+	coldDirty: boolean,
+	-- Last cold snapshot sent, used by the audit to catch unmarked changes.
+	lastCold: { [string]: any }?,
 	saving: boolean,
 	released: boolean,
 	lastNotice: { [string]: number },

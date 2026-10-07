@@ -41,7 +41,7 @@ function DexService.register(session: Session, relicId: string, mutation: string
 		entry.mutations[mutation] = true
 		isNewMutation = true
 	end
-	Sessions.markDirty(session)
+	Sessions.markCold(session)
 	local stats = session.leaderstats
 	if stats then
 		local found = stats:FindFirstChild("RiftDex")

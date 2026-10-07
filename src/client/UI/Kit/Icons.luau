@@ -178,6 +178,15 @@ function Icons.seal(parent: Instance, color: Color3): Frame
 	return r
 end
 
+-- Lightning bolt: the Power Level mark.
+function Icons.power(parent: Instance, color: Color3): Frame
+	local r = root(parent, "PowerIcon")
+	bar(r, UDim2.fromScale(0.16, 0.48), UDim2.fromScale(0.57, 0.3), 24, color, false)
+	bar(r, UDim2.fromScale(0.42, 0.15), UDim2.fromScale(0.5, 0.5), -24, color, false)
+	bar(r, UDim2.fromScale(0.16, 0.48), UDim2.fromScale(0.43, 0.7), 24, color, false)
+	return r
+end
+
 function Icons.arrow(parent: Instance, color: Color3): Frame
 	local r = root(parent, "ArrowIcon")
 	bar(r, UDim2.fromScale(0.5, 0.16), UDim2.fromScale(0.36, 0.5), 45, color)

@@ -8,11 +8,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
 local Economy = require(Shared.Economy)
+local Power = require(Shared.Power)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
 local Remotes = require(Core.Remotes)
+local Scheduler = require(Core.Scheduler)
 local PlotService = require(script.Parent.PlotService)
 local RelicService = require(script.Parent.RelicService)
 local DexService = require(script.Parent.DexService)
@@ -39,27 +41,49 @@ local function publishCore(session: Session)
 	model:SetAttribute("Rate", session.rate)
 end
 
+local function setLeaderstat(session: Session, name: string, value: number)
+	local stats = session.leaderstats
+	if stats then
+		local stat = stats:FindFirstChild(name)
+		if stat and stat:IsA("IntValue") then
+			stat.Value = math.floor(value)
+		end
+	end
+end
+
+-- Recomputes everything derived from the displayed collection: Essence rate,
+-- multiplier and Power (current + record). Called after every change to
+-- placed relics, upgrades or the RiftDex.
 function EconomyService.recompute(session: Session)
 	local relicsFound, mutationsFound = DexService.counts(session)
 	local multiplier = Economy.playerMultiplier(session.data.upgrades, relicsFound, mutationsFound)
 	local total = 0
+	local placed: { Power.RelicLike } = {}
 	for _, entity in RelicService.placedBy(session.userId) do
 		total += Economy.relicBaseRate(entity.id, entity.level, entity.mutation)
+		table.insert(placed, { id = entity.id, level = entity.level, mutation = entity.mutation })
 	end
 	session.multiplier = multiplier
 	session.rate = total * multiplier
+
+	-- Power only counts relics displayed in the Sanctuary (a relic being
+	-- stolen leaves it immediately), so it drops on theft; the record never does.
+	-- Without a Sanctuary yet (queued), the collection is not displayed:
+	-- keep the previous value rather than flashing 0.
+	if session.plot ~= nil then
+		session.power = Power.total(placed, session.data.upgrades, relicsFound, mutationsFound)
+		if session.power > session.data.power.peak then
+			session.data.power.peak = session.power
+			Sessions.markCold(session)
+		end
+		setLeaderstat(session, "Power", session.power)
+	end
 	publishCore(session)
 	Sessions.markDirty(session)
 end
 
 local function updateLeaderstat(session: Session)
-	local stats = session.leaderstats
-	if stats then
-		local value = stats:FindFirstChild("Essence")
-		if value and value:IsA("IntValue") then
-			value.Value = math.floor(session.data.essence)
-		end
-	end
+	setLeaderstat(session, "Essence", session.data.essence)
 end
 
 function EconomyService.addEssence(session: Session, amount: number)
@@ -104,24 +128,43 @@ function EconomyService.applyOffline(session: Session)
 	end
 end
 
-local function collect(session: Session, root: BasePart)
+-- `immediate` skips the anti-spam throttle (used when production lands while
+-- the owner is already standing on the Core, so it never lingers there).
+local function collect(session: Session, root: BasePart, immediate: boolean?)
 	local stored = math.floor(session.data.coreStored)
 	if stored < 1 then
 		return
 	end
 	local t = os.clock()
-	if t - (lastCollect[session] or 0) < 0.4 then
+	if not immediate and t - (lastCollect[session] or 0) < 0.4 then
 		return
 	end
 	lastCollect[session] = t
 	session.data.coreStored -= stored
 	EconomyService.addEssence(session, stored)
 	session.data.stats.essenceCollected += stored
+	Sessions.markCold(session)
 	publishCore(session)
 	Remotes.fxTo(session.player, "Collect", { amount = stored, plot = session.plot })
 	Remotes.fx("CoreBurst", { plot = session.plot })
 	TutorialService.progress(session, "collect")
 	Sessions.touch(session)
+end
+
+local function standingOnCore(session: Session): BasePart?
+	local index = session.plot
+	if index == nil then
+		return nil
+	end
+	local _, _, root = Sessions.character(session)
+	if not root then
+		return nil
+	end
+	local offset = root.Position - PlotService.corePosition(index)
+	if math.abs(offset.Y) < 9 and Vector3.new(offset.X, 0, offset.Z).Magnitude <= GameConfig.Sanctuary.CollectRadius then
+		return root
+	end
+	return nil
 end
 
 local function productionTick()
@@ -138,23 +181,17 @@ local function productionTick()
 			end
 		end
 		publishCore(session)
+		local root = standingOnCore(session)
+		if root then
+			collect(session, root, true)
+		end
 	end
 end
 
 local function collectTick()
-	local radius = GameConfig.Sanctuary.CollectRadius
 	for _, session in Sessions.all() do
-		local index = session.plot
-		if index == nil then
-			continue
-		end
-		local _, _, root = Sessions.character(session)
-		if not root then
-			continue
-		end
-		local core = PlotService.corePosition(index)
-		local offset = root.Position - core
-		if math.abs(offset.Y) < 9 and Vector3.new(offset.X, 0, offset.Z).Magnitude <= radius then
+		local root = standingOnCore(session)
+		if root then
 			collect(session, root)
 		end
 	end
@@ -165,18 +202,8 @@ function EconomyService.forget(session: Session)
 end
 
 function EconomyService.start()
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			productionTick()
-		end
-	end)
-	task.spawn(function()
-		while true do
-			task.wait(0.2)
-			collectTick()
-		end
-	end)
+	Scheduler.every("Economy.production", 1, productionTick)
+	Scheduler.every("Economy.collect", 0.2, collectTick)
 end
 
 return EconomyService
