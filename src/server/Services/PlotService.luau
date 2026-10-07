@@ -68,6 +68,8 @@ local function resetAttributes(plot: Plot)
 	model:SetAttribute("ProtectionUntil", 0)
 	model:SetAttribute("PlacedCount", 0)
 	model:SetAttribute("UnderAttack", 0)
+	-- Cosmetic Sanctuary theme of the owner (display only, "" = none).
+	model:SetAttribute("Theme", "")
 end
 
 function PlotService.init()
@@ -276,6 +278,7 @@ local function applyOwner(plot: Plot, session: Session)
 	local model = plot.model
 	model:SetAttribute("OwnerId", session.userId)
 	model:SetAttribute("OwnerName", session.player.DisplayName)
+	model:SetAttribute("Theme", session.data.cosmetics.equipped.sanctuary or "")
 	session.player.RespawnLocation = plot.spawn
 	PlotService.setTier(plot, Economy.tier(session.data.upgrades))
 end

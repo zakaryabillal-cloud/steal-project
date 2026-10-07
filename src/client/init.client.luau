@@ -14,6 +14,7 @@ local Rarities = require(Shared.Config.Rarities)
 local Mutations = require(Shared.Config.Mutations)
 local Theme = require(Shared.Config.Theme)
 local Locale = require(Shared.Locale)
+local Layout = require(Shared.Layout)
 
 local ClientNet = require(script.ClientNet)
 
@@ -31,6 +32,7 @@ local CharacterFX = require(Controllers.CharacterFX)
 local Abilities = require(Controllers.Abilities)
 local AbilityFX = require(Controllers.AbilityFX)
 local GrappleTargeting = require(Controllers.GrappleTargeting)
+local CosmeticRenderer = require(Controllers.CosmeticRenderer)
 local Prompts = require(Controllers.Prompts)
 local WorldFX = require(Controllers.WorldFX)
 local Tutorial = require(Controllers.Tutorial)
@@ -52,6 +54,7 @@ local Inspect = require(Screens.Inspect)
 local SettingsMenu = require(Screens.SettingsMenu)
 local Discovery = require(Screens.Discovery)
 local Loadout = require(Screens.Loadout)
+local CosmeticsScreen = require(Screens.Cosmetics)
 
 local localPlayer = Players.LocalPlayer
 
@@ -87,6 +90,7 @@ SanctuaryFX.init()
 CharacterFX.init()
 AbilityFX.init()
 GrappleTargeting.init()
+CosmeticRenderer.init()
 Abilities.init()
 Prompts.init()
 WorldFX.init()
@@ -101,6 +105,7 @@ UI.registerModal("Shop", Shop.init(UI.modal, UI.close))
 UI.registerModal("Dex", Dex.init(UI.modal, UI.close))
 UI.registerModal("Settings", SettingsMenu.init(UI.modal, UI.close))
 UI.registerModal("Loadout", Loadout.init(UI.modal, UI.close))
+UI.registerModal("Cosmetics", CosmeticsScreen.init(UI.modal, UI.close))
 
 -- Abilities screen: L (keyboard) / D-pad up (controller) / HUD button (touch).
 game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
@@ -109,6 +114,8 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, processed
 	end
 	if input.KeyCode == Enum.KeyCode.L or input.KeyCode == Enum.KeyCode.DPadUp then
 		UI.toggle("Loadout")
+	elseif input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.DPadDown then
+		UI.toggle("Cosmetics")
 	end
 end)
 
@@ -184,6 +191,9 @@ end)
 
 ClientNet.on("Deposit", function(payload)
 	RelicRenderer.onDeposit(payload.uid, payload.from, payload.userId)
+	if type(payload.plot) == "number" and type(payload.slot) == "number" then
+		CosmeticRenderer.secured(payload.userId, Layout.relicPosition(payload.plot, payload.slot))
+	end
 	if isMe(payload.userId) then
 		task.delay(0.6, function()
 			CameraFX.shake(0.12)
@@ -193,6 +203,7 @@ end)
 
 ClientNet.on("Fuse", function(payload)
 	RelicRenderer.onFuse(payload.uid, payload.target, payload.from, payload.level)
+	CosmeticRenderer.secured(payload.userId, RelicRenderer.positionOf(payload.target))
 	if isMe(payload.userId) then
 		Tutorial.onFuse()
 	end

@@ -10,6 +10,7 @@ local Relics = require(Shared.Config.Relics)
 local Mutations = require(Shared.Config.Mutations)
 local Upgrades = require(Shared.Config.Upgrades)
 local Abilities = require(Shared.Config.Abilities)
+local Cosmetics = require(Shared.Config.Cosmetics)
 local PowerConfig = require(Shared.Config.Power)
 local Economy = require(Shared.Economy)
 local Layout = require(Shared.Layout)
@@ -58,6 +59,10 @@ function DataSchema.default(): SaveData
 		power = {
 			peak = 0,
 		},
+		cosmetics = {
+			owned = Cosmetics.starters(),
+			equipped = {},
+		},
 	}
 end
 
@@ -90,6 +95,15 @@ local MIGRATIONS: { [number]: (any) -> any } = {
 			raw.abilities.harmonyOff = {}
 		end
 		raw.schema = 3
+		return raw
+	end,
+	-- 3 -> 4 (V2 phase 5): cosmetics inventory. Everyone gets the starters
+	-- (added by normalize); nothing is equipped.
+	[3] = function(raw: any): any
+		if type(raw.cosmetics) ~= "table" then
+			raw.cosmetics = { owned = {}, equipped = {} }
+		end
+		raw.schema = 4
 		return raw
 	end,
 }
@@ -245,6 +259,28 @@ function DataSchema.normalize(raw: any): SaveData
 		data.power.peak = math.floor(num(raw.power.peak, 0, 0, PowerConfig.MaxPeak))
 	end
 
+	-- Cosmetics: only known ids, only `true`; starters always owned; each
+	-- equipped entry must be an owned cosmetic of that very category.
+	if type(raw.cosmetics) == "table" then
+		local owned = data.cosmetics.owned
+		if type(raw.cosmetics.owned) == "table" then
+			for cosmeticId, flag in raw.cosmetics.owned do
+				if flag == true and Cosmetics.get(cosmeticId) then
+					owned[cosmeticId] = true
+				end
+			end
+		end
+		if type(raw.cosmetics.equipped) == "table" then
+			for _, category in Cosmetics.Categories do
+				local chosen = raw.cosmetics.equipped[category.id]
+				local def = Cosmetics.get(chosen)
+				if def and def.category == category.id and owned[def.id] then
+					data.cosmetics.equipped[category.id] = def.id
+				end
+			end
+		end
+	end
+
 	-- Relics: valid ids only, unique uids, unique slots within unlocked range.
 	local unlocked = Economy.unlockedPedestals(data.upgrades)
 	local usedSlots: { [number]: boolean } = {}
@@ -328,6 +364,10 @@ function DataSchema.serialize(data: SaveData): { [string]: any }
 		},
 		power = {
 			peak = data.power.peak,
+		},
+		cosmetics = {
+			owned = table.clone(data.cosmetics.owned),
+			equipped = table.clone(data.cosmetics.equipped),
 		},
 	}
 end

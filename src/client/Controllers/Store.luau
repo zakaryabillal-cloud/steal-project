@@ -15,6 +15,7 @@ local Signal = require(Shared.Util.Signal)
 local Economy = require(Shared.Economy)
 local Relics = require(Shared.Config.Relics)
 local Abilities = require(Shared.Config.Abilities)
+local Cosmetics = require(Shared.Config.Cosmetics)
 local ClientNet = require(script.Parent.Parent.ClientNet)
 
 export type State = {
@@ -43,6 +44,8 @@ export type State = {
 	-- Harmony relics displayed in the Sanctuary (hot) and the switched-off ones (cold).
 	harmonies: { string },
 	harmonyOff: { [string]: boolean },
+	-- Cosmetics (cold): owned set and equipped id per category.
+	cosmetics: { owned: { [string]: boolean }, equipped: { [string]: string } },
 }
 
 export type StatusView = {
@@ -81,6 +84,7 @@ Store.state = {
 	status = { stunUntil = 0, steadyUntil = 0, rootUntil = 0, slow = 0, slowUntil = 0, shieldUntil = 0, phaseUntil = 0 },
 	harmonies = {},
 	harmonyOff = {},
+	cosmetics = { owned = Cosmetics.starters(), equipped = {} },
 } :: State
 
 Store.ready = false

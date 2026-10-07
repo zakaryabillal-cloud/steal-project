@@ -294,6 +294,15 @@ function Icons.eye(parent: Instance, color: Color3): Frame
 	return r
 end
 
+-- Four-point sparkle: cosmetics ("Style").
+function Icons.style(parent: Instance, color: Color3): Frame
+	local r = root(parent, "StyleIcon")
+	bar(r, UDim2.fromScale(0.18, 0.86), UDim2.fromScale(0.5, 0.5), 0, color)
+	bar(r, UDim2.fromScale(0.86, 0.18), UDim2.fromScale(0.5, 0.5), 0, color)
+	bar(r, UDim2.fromScale(0.12, 0.4), UDim2.fromScale(0.8, 0.2), 45, color).BackgroundTransparency = 0.3
+	return r
+end
+
 -- Three stacked slots: the loadout.
 function Icons.loadout(parent: Instance, color: Color3): Frame
 	local r = root(parent, "LoadoutIcon")

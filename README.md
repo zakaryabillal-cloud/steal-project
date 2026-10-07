@@ -19,7 +19,7 @@ Carte V2 : [`docs/previews/map.png`](docs/previews/map.png) · comparaison V1 �
 [`docs/previews/compare_v1_v2.png`](docs/previews/compare_v1_v2.png). Ce que ce rendu ne montre pas
 (beams, particules, lumières…) : voir [`docs/V2_PLAN.md`](docs/V2_PLAN.md) §7.</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique » et 4 « Capacités » terminées).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités » et 5 « Cosmétiques » terminées).
 
 ### La carte V2 en bref
 
@@ -145,6 +145,17 @@ relique exclusive *Sceau d'Éclipse*). Chaque événement change l'éclairage, l
   Utilitaire −15 %, Cosmic Eye → révèle leurres et phases). Détails et valeurs : `docs/V2_PLAN.md` §9.
 - Tout est validé par le serveur (équipement, recharge, portée, destination, ligne de vue, cible, statuts).
 
+### Cosmétiques (purement visuels)
+
+26 cosmétiques originaux en 7 catégories : **Traînées**, **Auras**, **Effets de transport** (autour de la relique
+portée), **Thèmes de Sanctuaire**, **Effets d'arrivée** (réapparition), **Effets de sécurisation** (dépôt / fusion)
+et **Titres** (au-dessus de la tête). Raretés Commun / Rare / Épique / Légendaire, **aucun effet de jeu** (vitesse,
+Power, Essence, recharges, portée, vol, boss, chances, PvP : rien ne lit les cosmétiques). 6 sont offerts ; les
+autres se débloquent automatiquement avec la progression existante (Power record, casses, dépôts, récupérations,
+RiftDex, palier du Sanctuaire, temps de jeu) et restent acquis pour toujours. Écran **Style** (touche C, croix bas,
+bouton « Style » du menu) : filtre par catégorie, état verrouillé / possédé / équipé, condition de déblocage avec
+progression, bouton **Essayer** (aperçu local 5 s, même verrouillé). Détails : `docs/V2_PLAN.md` §10.
+
 ### Rythme visé
 
 - 30 s : comprendre (tutoriel par le monde, faisceau, flèche de bord d'écran).
@@ -162,6 +173,7 @@ relique exclusive *Sceau d'Éclipse*). Chaque événement change l'éclairage, l
 | Capacité Utilitaire (Bouclier / Leurre / Phase) | R | R2 | bouton (si équipée) |
 | Sceller le sanctuaire | G | Y | bouton |
 | Écran Capacités (loadout, déblocages, harmonies) | L | croix haut | bouton rond à gauche des capacités |
+| Écran Style (cosmétiques) | C | croix bas | bouton « Style » du menu |
 | Fermer un menu | Échap | B | ✕ |
 
 Blink et Leurre partent dans la direction du déplacement (sinon vers l'avant du personnage). Le Grappin vise
@@ -303,8 +315,9 @@ Pour 6–8 joueurs : même procédure ; à partir du 9ᵉ joueur, la file d'atte
   publié). Sans cela le jeu fonctionne avec des **données temporaires** (message « Studio : DataStores
   indisponibles »), rien n'est écrit.
 - Store : `RiftHeist_Player_v1`, clé `u_<UserId>`, schéma versionné (`GameConfig.Data.SchemaVersion`,
-  actuellement **2** : la V2 ajoute le loadout de capacités et le Power record ; les sauvegardes V1 sont migrées
-  automatiquement sans perte).
+  actuellement **4** : la V2 ajoute le loadout de capacités et le Power record (2), les interrupteurs
+  d'harmonies (3) et l'inventaire de cosmétiques (4) ; les sauvegardes V1 à V3 sont migrées automatiquement
+  sans perte).
 - **Garde anti-écrasement** : un profil écrit par une version plus récente du jeu n'est jamais verrouillé,
   normalisé ni réécrit par un serveur plus ancien (le joueur joue avec des données temporaires et est invité à
   changer de serveur). Les serveurs V1 n'ont pas cette garde : à la publication de la V2, utiliser
@@ -446,6 +459,7 @@ Actives **uniquement dans Studio** (`RunService:IsStudio()`), via le chat :
 | `/rh novice` | termine la protection Novice |
 | `/rh abilities [off]` | toutes les capacités équipables pour la session (**jamais sauvegardé** ; les vrais déblocages ne changent pas) |
 | `/rh cooldowns` | remet à zéro tes recharges |
+| `/rh cosmetics [off\|reset]` | tous les cosmétiques équipables pour la session (**jamais sauvegardé**) · `off` : retire ce qui n'est pas possédé · `reset` : inventaire ramené aux 6 cosmétiques de départ (les déblocages reviennent selon ta progression) |
 | `/rh reset` | réinitialise les données (kick) |
 
 ## 12. Tests automatisés et outils
@@ -463,10 +477,10 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **741 vérifications, 0 échec, 0 erreur d'exécution**
+serveur et un vrai client tournent dedans. Résultat actuel : **856 vérifications, 0 échec, 0 erreur d'exécution**
 (148 V1 + 135 V2 phase 1 dans `tests/scenarios/V2Foundations.luau` + 68 V2 phase 2 dans
 `tests/scenarios/V2World.luau` + 101 V2 phase 3 dans `tests/scenarios/V2Audio.luau` + 289 V2 phase 4 dans
-`tests/scenarios/V2Abilities.luau`). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
+`tests/scenarios/V2Abilities.luau` + 115 V2 phase 5 dans `tests/scenarios/V2Cosmetics.luau`). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
 groupes de collision, terrain en voxels) pour valider Blink, Grappin, lignes de vue et pièges.
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
@@ -496,6 +510,13 @@ fausses harmonies, ancres inventées), spam, `MovementGuard` (Dash, Grappin, té
 réapparition / déconnexion pendant une capacité, balayage des objets orphelins, HUD et écran Capacités côté client,
 et **3 poursuites à 2 joueurs** (vol → mobilité → contrôle → contre-jeu → récupération ou sécurisation) sans
 duplication, perte, téléportation abusive ni contournement de recharge.
+V2 phase 5 : catalogue et budgets, analyse du code source (aucun module de gameplay ne lit les cosmétiques),
+schéma 4 (migration d'une sauvegarde de phase 4 et d'une vraie sauvegarde V1, inventaire falsifié, sauvegarde d'un
+schéma plus récent jamais réécrite), équipement refusé pour un id inventé / non possédé / de mauvaise catégorie /
+illisible, inventaire client falsifié, spam et changements rapides, déblocage Studio jamais sauvegardé,
+déblocages automatiques, aucun effet de jeu avec un cosmétique dans chaque catégorie, rendu client (chaque
+catégorie, transport, dépôt, réapparition, aperçu), 8 joueurs équipés (LOD, plafonds d'auras / lumières, aucune
+boucle ajoutée, nettoyage au départ), écran Style.
 
 ### Aperçus du monde (direction artistique)
 ```bash
@@ -525,6 +546,10 @@ FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard 
   2,5× cette limite (téléportation), le personnage est ramené à sa dernière position valide. Le Dash relève
   le seuil à 160 studs/s pendant 0,6 s (plus de fenêtre de grâce totale) ; le Grappin reste sous le seuil ;
   le Blink est un déplacement fait par le serveur et signalé au garde.
+- Cosmétiques : le client envoie seulement (catégorie, id) ; le serveur vérifie l'id, la catégorie et la
+  **possession** (inventaire serveur), puis publie l'équipement en attributs (`Cos_<catégorie>`, `Theme`). Aucune
+  remote ne peut ajouter un cosmétique ; les déblocages sont calculés par le serveur à partir de ses propres
+  données ; l'inventaire chargé est assaini (ids inconnus, mauvaise catégorie, non possédé).
 - Le serveur seul crée/détruit les reliques et modifie l'Essence ; les sauvegardes chargées sont assainies.
 
 ## 14. Performance
@@ -535,6 +560,10 @@ FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard 
   `CanQuery` désactivé sur le décor non collidable).
 - Terrain écrit en blocs (`WriteVoxels`) ; ≈ 3 000 parts au total pour toute l'île.
 - Interface mise à l'échelle par résolution (`UIScale`), boutons tactiles dédiés sur mobile.
+- Cosmétiques : **une seule** boucle (Heartbeat, 4 fois par seconde) pour tous les joueurs ; traînées et particules
+  natives ; effets des autres coupés au-delà d'une distance (traînée 160, aura 90, transport 120, thème 220,
+  titre 60 studs, × réglage Qualité) ; au plus 8 auras et 3 lumières d'aura actives ; Qualité Basse coupe les auras
+  et effets de transport des autres ; budgets de particules vérifiés au chargement de la config.
 
 ## 15. Scénarios de test manuels
 
@@ -558,6 +587,8 @@ FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard 
 | Leurre au-dessus d'un piège runique | le piège part sur le leurre, le joueur passe |
 | Phase spectrale contre un joueur qui bloque | on le traverse ; les murs et les Sceaux bloquent toujours |
 | Changer de loadout hors de son Sanctuaire | boutons « Au Sanctuaire » désactivés, refus serveur |
+| Équiper un cosmétique verrouillé | bouton « Équiper » grisé ; une requête forcée est refusée par le serveur |
+| Porter une relique avec un titre équipé | le titre se masque, l'effet de transport s'allume ; le marqueur de transport reste lisible |
 
 ---
 

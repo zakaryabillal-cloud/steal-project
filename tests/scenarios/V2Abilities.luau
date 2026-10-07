@@ -235,7 +235,7 @@ return function(ctx)
 		}
 		local before = DataSchema.normalize(v2)
 		check(v2.schema == 2 and v2.abilities.harmonyOff == nil, "normalize never mutates the stored v2 record")
-		check(before.schema == 3 and next(before.abilities.harmonyOff) == nil, "v2 -> v3: every harmony starts enabled")
+		check(before.schema == GameConfig.Data.SchemaVersion and next(before.abilities.harmonyOff) == nil, "v2 -> current: every harmony starts enabled")
 		check(before.essence == 1234 and before.power.peak == 321 and before.abilities.unlocked.blink and before.abilities.loadout[1] == "blink" and #before.relics == 1, "v2 progression kept (Essence, Power record, unlocks, loadout, relics)")
 		local tampered = table.clone(v2)
 		tampered.schema = 3
@@ -244,7 +244,7 @@ return function(ctx)
 		check(data.abilities.harmonyOff.magma_heart == true, "known switch kept")
 		check(data.abilities.harmonyOff.ember_shard == nil and data.abilities.harmonyOff.void_cube == nil and data.abilities.harmonyOff[5] == nil and data.abilities.harmonyOff.cosmic_eye == nil, "unknown relics / non-true values dropped")
 		local round = DataSchema.normalize(DataSchema.serialize(data))
-		check(round.abilities.harmonyOff.magma_heart == true and round.schema == 3, "serialize -> normalize round trip keeps the switches")
+		check(round.abilities.harmonyOff.magma_heart == true and round.schema == GameConfig.Data.SchemaVersion, "serialize -> normalize round trip keeps the switches")
 		tampered.abilities.harmonyOff = "all"
 		check(next(DataSchema.normalize(tampered).abilities.harmonyOff) == nil, "wrong type falls back to all enabled")
 		check(Snapshot.ColdKeys and table.find(Snapshot.ColdKeys, "harmonyOff") and table.find(Snapshot.HotKeys, "harmonies"), "Sync: switches cold, displayed harmonies hot")

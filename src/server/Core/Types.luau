@@ -47,6 +47,14 @@ export type AbilityData = {
 	harmonyOff: { [string]: boolean },
 }
 
+-- Schema 4 -------------------------------------------------------------------
+export type CosmeticData = {
+	-- cosmeticId -> true. Always contains the starter cosmetics.
+	owned: { [string]: boolean },
+	-- category -> equipped cosmetic id (absent = nothing equipped).
+	equipped: { [string]: string },
+}
+
 export type PowerData = {
 	-- Highest Power ever reached. Used for unlocks so thefts never re-lock content.
 	peak: number,
@@ -69,6 +77,8 @@ export type SaveData = {
 	-- schema 2
 	abilities: AbilityData,
 	power: PowerData,
+	-- schema 4
+	cosmetics: CosmeticData,
 }
 
 -- Runtime crowd-control state (never saved). See Shared/Status.
@@ -147,6 +157,8 @@ export type Session = {
 	abilityState: { [string]: any },
 	-- Studio test unlock (/rh abilities): never saved.
 	devAbilities: boolean,
+	-- Studio test unlock (/rh cosmetics): never saved.
+	devCosmetics: boolean,
 	-- Temporary raise of the movement guard threshold (dash).
 	moveAllowance: { speed: number, untilTime: number }?,
 	-- Hot state changed (pushed at most every Sync.HotInterval).

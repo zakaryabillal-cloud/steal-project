@@ -10,6 +10,8 @@
 --   /rh abilities [off]           every ability equippable for this session
 --                                 (never saved: normal unlocks are untouched)
 --   /rh cooldowns                 reset your ability cooldowns
+--   /rh cosmetics [off|reset]     every cosmetic equippable for this session
+--                                 (never saved) / back to the starters only
 --   /rh reset                     wipe your temporary data
 
 local Players = game:GetService("Players")
@@ -34,6 +36,7 @@ local PlotService = require(script.Parent.PlotService)
 local RiftService = require(script.Parent.RiftService)
 local EventService = require(script.Parent.EventService)
 local AbilityService = require(script.Parent.AbilityService)
+local CosmeticService = require(script.Parent.CosmeticService)
 
 local DevCommands = {}
 
@@ -97,6 +100,14 @@ local function run(player: Player, text: string)
 		session.data.playTime = GameConfig.Steal.NoviceSeconds + 1
 	elseif command == "abilities" then
 		AbilityService.setDevUnlock(session, string.lower(args[3] or "") ~= "off")
+	elseif command == "cosmetics" then
+		local option = string.lower(args[3] or "")
+		if option == "reset" then
+			CosmeticService.setDevUnlock(session, false)
+			CosmeticService.reset(session)
+		else
+			CosmeticService.setDevUnlock(session, option ~= "off")
+		end
 	elseif command == "cooldowns" then
 		table.clear(session.cooldowns)
 		Sessions.markDirty(session)
@@ -141,7 +152,7 @@ function DevCommands.start()
 	if not ok then
 		warn("[DevCommands] TextChatCommand unavailable; using Player.Chatted only")
 	end
-	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|reset")
+	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|cosmetics|reset")
 end
 
 return DevCommands

@@ -29,7 +29,7 @@ Snapshot.HotKeys = table.freeze({
 })
 Snapshot.ColdKeys = table.freeze({
 	"upgrades", "dex", "stats", "tutorial", "tips", "settings", "canSave", "dataStatus", "loadout", "unlocked", "powerPeak",
-	"harmonyOff",
+	"harmonyOff", "cosmetics",
 })
 
 -- Status snapshot provider, injected by StatusService's owner (avoids a
@@ -74,6 +74,21 @@ function Snapshot.unlockedView(session: Types.Session): { [string]: boolean }
 	return view
 end
 
+-- Cosmetics as the client sees them (Studio test unlock included).
+local allCosmetics: { string } = {}
+for _, def in require(ReplicatedStorage.Shared.Config.Cosmetics).list do
+	table.insert(allCosmetics, def.id)
+end
+function Snapshot.cosmeticsView(session: Types.Session): { [string]: any }
+	local owned = table.clone(session.data.cosmetics.owned)
+	if session.devCosmetics then
+		for _, id in allCosmetics do
+			owned[id] = true
+		end
+	end
+	return { owned = owned, equipped = table.clone(session.data.cosmetics.equipped) }
+end
+
 function Snapshot.cold(session: Types.Session): { [string]: any }
 	local data = session.data
 	local dex = {}
@@ -93,6 +108,7 @@ function Snapshot.cold(session: Types.Session): { [string]: any }
 		unlocked = Snapshot.unlockedView(session),
 		powerPeak = data.power.peak,
 		harmonyOff = table.clone(data.abilities.harmonyOff),
+		cosmetics = Snapshot.cosmeticsView(session),
 	}
 end
 

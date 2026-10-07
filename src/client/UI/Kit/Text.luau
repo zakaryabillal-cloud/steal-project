@@ -32,6 +32,8 @@ function Text.args(args: { [string]: any }?): { [string]: any }
 		elseif key == "mutation" and type(value) == "string" then
 			local mutation = Mutations.get(value)
 			out[key] = "<b>" .. Style.colored(Locale.mutation(value), if mutation then mutation.color else Style.Colors.Text) .. "</b>"
+		elseif key == "cosmetic" and type(value) == "string" then
+			out[key] = "<b>" .. Locale.t("cos." .. value) .. "</b>"
 		elseif key == "ability" and type(value) == "string" then
 			out[key] = "<b>" .. Locale.t("ability." .. value) .. "</b>"
 		elseif key == "upgrade" and type(value) == "string" then

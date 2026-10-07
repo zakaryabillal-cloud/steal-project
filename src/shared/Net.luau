@@ -32,6 +32,7 @@ Net.Functions = table.freeze({
 	SetLoadout = "SetLoadout", -- (slotIndex, abilityId) -> (ok, reason)
 	UnlockAbility = "UnlockAbility", -- (abilityId) -> (ok, reason)
 	SetHarmony = "SetHarmony", -- (relicId, enabled) -> (ok, reason)
+	EquipCosmetic = "EquipCosmetic", -- (category, cosmeticId | "") -> (ok, reason)
 }) :: { [string]: string }
 
 local FOLDER_NAME = "Remotes"

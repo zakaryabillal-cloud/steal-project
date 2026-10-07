@@ -243,7 +243,7 @@ end
 local function menuButton(parent: Instance, name: string, order: number, label: string, icon: (Instance, Color3) -> Frame): Button.Button
 	local button = Button.new({
 		name = name,
-		size = UDim2.fromOffset(78, 64),
+		size = UDim2.fromOffset(57, 64),
 		color = Theme.Colors.Panel,
 		transparency = Theme.Transparency.Panel,
 		corner = Theme.Radius.Large,
@@ -268,11 +268,13 @@ local function menuButton(parent: Instance, name: string, order: number, label: 
 		AnchorPoint = Vector2.new(0.5, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextSize = 12,
+		TextScaled = true,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Theme.Colors.TextDim,
 		Text = label,
 		Parent = button.instance,
 	})
+	Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 8, Parent = caption })
 	caption:SetAttribute("Key", label)
 	menuButtons[name] = button
 	return button
@@ -286,10 +288,11 @@ local function buildMenu(parent: Instance)
 		LayoutOrder = 2,
 		Parent = parent,
 	})
-	Style.list(row, 8, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Left)
+	Style.list(row, 6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Left)
 	local upgrades = menuButton(row, "Shop", 1, Locale.t("hud.upgrades"), Icons.upgrades)
 	local dex = menuButton(row, "Dex", 2, Locale.t("hud.dex"), Icons.dex)
-	menuButton(row, "Settings", 3, Locale.t("hud.settings"), Icons.settings)
+	menuButton(row, "Cosmetics", 3, Locale.t("hud.cosmetics"), Icons.style)
+	menuButton(row, "Settings", 4, Locale.t("hud.settings"), Icons.settings)
 
 	upgradesBadge = Create("Frame", {
 		Size = UDim2.fromOffset(18, 18),
@@ -739,7 +742,7 @@ local function refreshMenuText()
 	for name, button in menuButtons do
 		local caption = button.instance:FindFirstChild("Caption") :: TextLabel?
 		if caption then
-			caption.Text = if name == "Shop" then Locale.t("hud.upgrades") elseif name == "Dex" then Locale.t("hud.dex") else Locale.t("hud.settings")
+			caption.Text = if name == "Shop" then Locale.t("hud.upgrades") elseif name == "Dex" then Locale.t("hud.dex") elseif name == "Cosmetics" then Locale.t("hud.cosmetics") else Locale.t("hud.settings")
 		end
 	end
 	if goalFrame then

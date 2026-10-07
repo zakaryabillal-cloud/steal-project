@@ -1,6 +1,6 @@
 # RIFT HEIST — Plan V2 (validé)
 
-> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique) et 4 (Capacités) terminées.** Phases 5 à 11 : non commencées (attente d'autorisation).
+> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique), 4 (Capacités) et 5 (Cosmétiques) terminées.** Phases 6 à 11 : non commencées (attente d'autorisation).
 
 Boucle principale conservée : *Faille → Reliques → Vol/PvP → Sanctuaire → Essence → Progression → contenu plus difficile → récompenses rares.*
 Boucle secondaire V2 : *Collecter → améliorer → Power ↑ → boss → drops exclusifs / Forge → build & collection → contenu supérieur*,
@@ -25,7 +25,7 @@ qui coexiste avec *Voler → poursuivre → défendre → sécuriser* sans le re
 ## 2. Architecture V2 (cible)
 
 ```
-Shared/Config/  Abilities, Power (✅ phase 1) · Bosses, Loot, Daily, Cosmetics, Store, Music (à venir)
+Shared/Config/  Abilities, Power (✅ phase 1), Music (✅ phase 3), Cosmetics (✅ phase 5) · Bosses, Loot, Daily, Store (à venir)
                 Events (étendu en phase 7)
 Shared/         Power, Status (✅ phase 1)
 Server/Core/    Scheduler (✅ phase 1)
@@ -35,8 +35,8 @@ Server/Services StatusService, AbilityService (framework) (✅ phase 1)
 Server/Abilities/<Module>   logique serveur d'une capacité (✅ les 9 + Common)
 Server/Bosses/<Id>          un module par boss (à venir)
 Client/Abilities/<Module>   prédiction + ressenti client (✅ les 9)
-Client/Controllers          MusicDirector (✅ phase 3), AbilityFX + GrappleTargeting (✅ phase 4) · BossFX, Telegraphs, CosmeticFX, EventWorldFX (à venir)
-Client/UI/Screens           Loadout (✅ phase 4) · BossPortal, BossHud, Codex, Daily, Premium, Forge (à venir)
+Client/Controllers          MusicDirector (✅ phase 3), AbilityFX + GrappleTargeting (✅ phase 4), CosmeticRenderer (✅ phase 5) · BossFX, Telegraphs, EventWorldFX (à venir)
+Client/UI/Screens           Loadout (✅ phase 4), Cosmetics (✅ phase 5) · BossPortal, BossHud, Codex, Daily, Premium, Forge (à venir)
 ```
 
 Principes : le serveur décide (positions, touches, loot, achats), le client affiche ; boss = ancre serveur + visuels
@@ -53,7 +53,7 @@ Sync découpé chaud / froid.
 | 2 | Monde V2 | +35 % de surface (anneau extérieur, grottes, corniche, ruines, landmarks, points de grappin), routes alternatives Faille↔Sanctuaires (trajet direct inchangé : 172 studs), panneaux de Sanctuaire en studs + distance max 150 | ✅ |
 | 3 | Audio dynamique | MusicDirector (Boss > Poursuite > Événement > Faille > Exploration), fondus, Sounds v2 documenté, aucun ID inventé | ✅ |
 | 4 | Capacités | Blink, Grappin (points dédiés), Onde de givre, Piège runique, Bouclier, Leurre, Phase spectrale ; déblocages par Power record + Essence/matériaux ; UI de loadout (au Sanctuaire) ; harmonisations (Storm Crystal, Void Cube, Magma Heart, Frost Lotus, Chrono Glass, Cosmic Eye) | ✅ |
-| 5 | Cosmétiques (moteur) | possession / équipement / rendu (traînées, auras, skins de Sanctuaire, effets de dépôt, titres, emotes) | — |
+| 5 | Cosmétiques (moteur) | possession / équipement / rendu : 7 catégories (traînées, auras, effets de transport, thèmes de Sanctuaire, arrivée, sécurisation, titres), 26 cosmétiques, déblocages par la progression, écran Style, budgets de rendu | ✅ |
 | 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, Forge, protection Expédition, piédestaux trophées | — |
 | 7 | Boss 2 & 3 | Forgeheart, Tempest Seraph | — |
 | 8 | Événements V2 | Rift Overload, Void Storm, Golden Surge, Eclipse enrichis + Marée Céleste, Chute d'Étoile ; WorldDirector (pas de chevauchement boss / événement modifiant la carte) | — |
@@ -72,7 +72,8 @@ Store inchangé : `RiftHeist_Player_v1`, clé `u_<UserId>`. Le numéro de **sch�
 | 1 | lancement (V1) | — |
 | **2** | `abilities = { unlocked, loadout }`, `power = { peak }` | **1 ✅** |
 | **3** | `abilities.harmonyOff` (interrupteurs d'harmonies) | **4 ✅** |
-| 4+ | `boss`, `materials`, `cosmetics`, `daily`, `boosts`, `receipts` (chacun dans sa phase, avec sa migration) | 5–10 |
+| **4** | `cosmetics = { owned, equipped }` | **5 ✅** |
+| 5+ | `boss`, `materials`, `daily`, `boosts`, `receipts` (chacun dans sa phase, avec sa migration) | 6–10 |
 
 Règles :
 - les migrations **ajoutent** des champs, ne suppriment jamais de progression ; `normalize` assainit tout ensuite ;
@@ -421,3 +422,117 @@ Préparer 2 joueurs (*Test → Clients and Servers*, 2 joueurs), `/rh abilities`
     transport ; manette : R1/L1/R2/Y et croix haut.
 11. **Sons** : les 12 nouveaux emplacements utilisent des sons intégrés provisoires ; remplacer par vos sons
     (`Config/Sounds.luau`, champ `id`).
+
+---
+
+## 10. Phase 5 — Cosmétiques : ce qui a été livré
+
+**Règle absolue : aucun avantage de jeu.** Les cosmétiques ne sont lus que par `CosmeticService` (possession,
+équipement, publication), `DataSchema` / `Snapshot` (sauvegarde, Sync) et, côté client, `CosmeticRenderer`, l'écran
+Style et le `Store`. Un test analyse tout `src/` et échoue si un autre module charge `Config/Cosmetics` ou
+`CosmeticService`. Le rendu est 100 % client et rien n'en revient au serveur. Un test équipe un cosmétique dans
+chaque catégorie et vérifie que vitesse, saut, Power, taux d'Essence, multiplicateur, recharges et réglages des
+capacités, groupe de collision, capacité de transport et harmonies sont identiques.
+
+### Catégories (`Config/Cosmetics.Categories`)
+
+| Catégorie | Rendu | Visibilité PvP |
+|---|---|---|
+| **Traînée** (`trail`) | `Trail` natif sur le `HumanoidRootPart` (durée ≤ 0,6 s, largeur ≤ 2) | fine, courte, jamais devant la caméra |
+| **Aura** (`aura`) | `ParticleEmitter` léger autour du personnage (≤ 12 particules/s, taille ≤ 1,6) ; lumière seulement pour l'aura Légendaire | plafonds de nombre et de distance |
+| **Transport** (`carry`) | particules autour de la relique portée, **seulement pendant le transport** | n'occulte pas le marqueur de transport (petites particules ≤ 0,4, rayon 1,6–2,2 studs, 4 studs au-dessus du personnage, ≤ 9/s) |
+| **Thème de Sanctuaire** (`sanctuary`) | recolore les pièces / lumières d'accent du Sanctuaire + particules d'ambiance | ne touche **jamais** la barrière du Sceau ni l'anneau de dépôt |
+| **Arrivée** (`arrival`) | effet unique à la réapparition (anneau, pilier, éclat) | ≤ 40 particules, 1,5 s de recharge par joueur |
+| **Sécurisation** (`secure`) | effet unique au dépôt ou à la fusion, sur la relique | idem |
+| **Titre** (`title`) | `BillboardGui` « « Titre » » au-dessus de la tête (60 studs max) | **masqué pendant le transport** |
+
+Emplacements futurs prévus sans contenu simulé : sources de déblocage `boss`, `event`, `daily`, `premium`
+(`UnlockKinds`, `auto = false`), champ `unlock.productId` réservé à la phase 10, `CosmeticService.grant(session, id,
+source)` qui n'accepte que la source déclarée par le cosmétique (aucune remote n'y mène).
+
+### Collection de départ (26)
+
+| Catégorie | Commun | Rare | Épique | Légendaire |
+|---|---|---|---|---|
+| Traînées | Poussière d'étoiles — *offert* | Sillage de la Faille — Power record 150 | Traînée d'orage — 5 casses | Sillage du Néant — Power record 600 |
+| Auras | Braises errantes — 10 dépôts | Halo de givre — 3 reliques récupérées | Couronne céleste — 12 reliques au RiftDex | Manteau d'éclipse — 5 dépôts Légendaire+ |
+| Transport | Scintillement — *offert* | Orbite — 25 reliques revendiquées | Queue de comète — Power record 300 | — |
+| Thèmes | Pierre d'aube — *offert* | Floraison nébulaire — palier 2 | Flèche d'orage — palier 3 | Singularité — Power record 1 000 |
+| Arrivée | Étincelle stellaire — *offert* | Porte de la Faille — Power record 80 | Chute d'étoiles — 2 h de jeu | — |
+| Sécurisation | Carillon de cristal — *offert* | Éclosion de nova — 25 dépôts | — | Supernova — 10 casses |
+| Titres | Vagabond de la Faille — *offert* | Collectionneur — 8 reliques au RiftDex | Cambrioleur — 3 casses · Gardien — 5 reliques récupérées | Né de la Faille — Power record 500 |
+
+Tous les noms sont originaux (FR/EN dans `Locale/Strings`). Textures : uniquement des textures **intégrées** à
+Roblox (`rbxasset://textures/particles/...`) ; aucun ID d'asset externe (vérifié au chargement de la config et par
+les tests).
+
+### Déblocages
+
+Calculés par le serveur à partir de ses propres données (`power.peak`, `stats`, RiftDex, palier, temps de jeu
+cumulé) : au chargement, à chaque nouveau Power record et toutes les 2 s (`Scheduler`, job `Cosmetics.unlocks`).
+Un cosmétique débloqué l'est **pour toujours** (un vol ne retire rien). Notification « Nouveau cosmétique : … »,
+ou une seule notification groupée au-delà de 3 d'un coup (rattrapage d'un ancien joueur).
+
+### Sauvegarde (schéma 4)
+
+`cosmetics = { owned = { [id] = true }, equipped = { [catégorie] = id } }`. Migration 3 → 4 : ajoute un inventaire
+vide ; `normalize` donne ensuite toujours les 6 cosmétiques de départ. Assainissement : seuls les ids connus avec
+la valeur `true` sont gardés (un ensemble : pas de doublon possible), un équipement doit être possédé **et** de la
+bonne catégorie, toute autre valeur est retirée. Les sauvegardes V1 / phase 4 migrent sans perte ; un schéma plus
+récent (5+) n'est jamais réécrit (garde de la phase 1). Le déblocage Studio (`/rh cosmetics`) n'est jamais écrit :
+un cosmétique non possédé encore équipé est retiré au prochain chargement.
+
+### Réplication
+
+Le serveur publie l'équipement en attributs : `Cos_<catégorie>` sur le `Player`, `Theme` sur le modèle du Sanctuaire
+(remis à vide quand le Sanctuaire est libéré). Inventaire + équipement voyagent dans la moitié **froide** du Sync
+(envoyée seulement quand elle change). Aucun message réseau par effet.
+
+### Protections serveur
+
+Remote `EquipCosmetic(catégorie, id | "")` : limiteur 4/s (rafale 8) ; types vérifiés (chaînes ≤ 32 caractères),
+catégorie connue, id connu, id de cette catégorie, **possédé** selon l'inventaire serveur ; `""` retire. Le client
+ne peut ni ajouter, ni acheter, ni débloquer quoi que ce soit ; un inventaire falsifié dans son `Store` est écrasé
+au Sync suivant.
+
+### Budgets et performance (`Config/Cosmetics.Budget`)
+
+Une **seule** connexion `Heartbeat` (mise à jour 4×/s) pour tous les joueurs ; effets natifs (`Trail`,
+`ParticleEmitter`) qui s'animent seuls ; distances × réglage Qualité : traînée 160, aura 90, transport 120, thème 220,
+titre 60 studs ; au plus **8 auras** et **3 lumières** actives (les plus proches ; la tienne compte dans les lumières) ;
+Qualité Basse coupe les auras et effets de transport des autres ; recharge de 1,5 s par joueur sur les effets uniques.
+Nettoyage : effets parentés au personnage (disparaissent avec lui), reconstruits une seule fois à la réapparition,
+titres détruits au départ du joueur et au changement de cosmétique.
+
+### Écarts au plan (et pourquoi)
+
+1. **Pas d'emotes** (citées dans le plan initial) : elles demandent des animations, donc des IDs d'asset ; interdit
+   sans IDs fournis. Les « effets d'arrivée » et « de sécurisation » les remplacent.
+2. **Pas de cosmétiques de boss / événement / quotidien / boutique** : les sources sont prêtes mais rien n'est simulé.
+3. **Titres** à la place des « nameplates » complètes : le nom Roblox du joueur reste affiché normalement, le titre
+   s'ajoute au-dessus.
+4. **Thèmes de Sanctuaire = recoloration** des pièces d'accent existantes (+ particules), pas de géométrie ajoutée :
+   aucune pièce de plus à collisionner, la lisibilité du Sanctuaire (barrière, anneau, piédestaux) est intacte.
+5. Bouton **Essayer** : aperçu local 5 s de n'importe quel cosmétique (même verrouillé), jamais envoyé au serveur.
+
+### Tests (phase 5)
+
+`tests/scenarios/V2Cosmetics.luau` : **+115 vérifications, 856 au total, 0 échec**.
+
+### À vérifier dans Roblox Studio (phase 5)
+
+Préparer 2 joueurs (*Test → Clients and Servers*), `/rh cosmetics` sur chacun.
+
+1. **Écran Style** (C / croix bas / bouton « Style ») : onglets, cartes, états, conditions, progression ; sur
+   téléphone (onglets qui défilent, cartes lisibles, boutons ≥ 44 px) et à la manette (navigation).
+2. **Traînées** : visibles en courant, en Dash, en Blink (pas de trait parasite à travers un mur), discrètes.
+3. **Auras** : ne masquent pas le personnage ni une relique au sol ; Manteau d'éclipse : lumière douce.
+4. **Transport** : l'effet s'allume en portant, le titre se masque, le marqueur de transport reste lisible pour
+   l'autre joueur ; il s'éteint au dépôt, au lâcher, au vol.
+5. **Thèmes** : chaque thème à chaque palier (`/rh tier 1..5`) ; la barrière du Sceau (G) garde sa couleur ; les
+   couleurs reviennent en retirant le thème ; le Sanctuaire d'un autre joueur affiche son thème.
+6. **Arrivée / sécurisation** : à la réapparition, au dépôt, à la fusion ; pas de répétition en spam.
+7. **Titres** : lisibles, à la bonne hauteur, disparaissent au-delà de 60 studs.
+8. **Performance** : 8 joueurs avec tout équipé (MicroProfiler, Qualité Basse / Haute) ; mort, réapparition,
+   départ d'un joueur : rien ne reste dans `Workspace.CosmeticFX` ni `PlayerGui.CosmeticFX`.
+9. **Sauvegarde** : équiper, quitter, revenir ; `/rh cosmetics off` retire ce qui n'est pas possédé.

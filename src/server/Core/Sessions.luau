@@ -47,6 +47,7 @@ function Sessions.create(player: Player, data: Types.SaveData): Session
 		status = Status.new(),
 		abilityState = {},
 		devAbilities = false,
+		devCosmetics = false,
 		moveAllowance = nil,
 		dirty = true,
 		coldDirty = true,
