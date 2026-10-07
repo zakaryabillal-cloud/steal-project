@@ -1,0 +1,5 @@
+# Toolchain pinned with Rokit (https://github.com/rojo-rbx/rokit). `rokit install` fetches these.
+[tools]
+rojo = "rojo-rbx/rojo@7.6.1"
+luau-lsp = "JohnnyMorganz/luau-lsp@1.55.0"
+lune = "lune-org/lune@0.10.4"

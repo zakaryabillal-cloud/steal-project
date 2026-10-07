@@ -1,0 +1,154 @@
+{
+  "name": "RiftHeist",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "CameraMaxZoomDistance": 70,
+        "CameraMinZoomDistance": 6,
+        "CharacterWalkSpeed": 20,
+        "CharacterUseJumpPower": false,
+        "CharacterJumpHeight": 7.6,
+        "LoadCharacterAppearance": true
+      },
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": false,
+        "RespawnTime": 3
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false,
+        "FallenPartsDestroyHeight": -400,
+        "Gravity": 196.2
+      },
+      "Terrain": {
+        "$className": "Terrain",
+        "$properties": {
+          "Decoration": true
+        }
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 20.6,
+        "GeographicLatitude": 23,
+        "Brightness": 2.6,
+        "Ambient": [
+          0.16,
+          0.14,
+          0.27
+        ],
+        "OutdoorAmbient": [
+          0.43,
+          0.39,
+          0.62
+        ],
+        "ColorShift_Top": [
+          0.55,
+          0.45,
+          0.85
+        ],
+        "ColorShift_Bottom": [
+          0.1,
+          0.05,
+          0.2
+        ],
+        "EnvironmentDiffuseScale": 0.6,
+        "EnvironmentSpecularScale": 0.7,
+        "ExposureCompensation": 0.35,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.25
+      },
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.33,
+          "Offset": 0.18,
+          "Color": [
+            0.62,
+            0.5,
+            0.86
+          ],
+          "Decay": [
+            0.3,
+            0.2,
+            0.55
+          ],
+          "Glare": 0.35,
+          "Haze": 1.7
+        }
+      },
+      "Sky": {
+        "$className": "Sky",
+        "$properties": {
+          "StarCount": 5000,
+          "CelestialBodiesShown": true,
+          "MoonAngularSize": 16,
+          "SunAngularSize": 12
+        }
+      },
+      "Bloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.9,
+          "Size": 30,
+          "Threshold": 1.55
+        }
+      },
+      "ColorCorrection": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.03,
+          "Contrast": 0.12,
+          "Saturation": 0.18,
+          "TintColor": [
+            0.97,
+            0.95,
+            1
+          ]
+        }
+      },
+      "SunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": {
+          "Intensity": 0.04,
+          "Spread": 0.6
+        }
+      },
+      "DepthOfField": {
+        "$className": "DepthOfFieldEffect",
+        "$properties": {
+          "FarIntensity": 0.12,
+          "FocusDistance": 90,
+          "InFocusRadius": 150,
+          "NearIntensity": 0
+        }
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "AmbientReverb": "NoReverb",
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}
