@@ -5,7 +5,7 @@
 --   * MusicPlayer (real harness Sounds): crossfades, never more than two
 --     audible tracks, resume, cache limit, stingers, cleanup, no-id silence.
 --   * MusicDirector live in the client (alice): Rift zone, chase as victim /
---     thief / bystander, events, boss attribute, shipped config is silent.
+--     thief / bystander, events, boss attribute, shipped config (5 ids).
 
 local Vector3 = require("@lune/roblox").Vector3
 
@@ -41,6 +41,14 @@ return function(ctx)
 			return set[key] == true
 		end
 	end
+	-- The only slots the shipped config fills (patch on top of phase 3).
+	local CONFIGURED = {
+		Explore = "rbxassetid://9046476113",
+		Rift = "rbxassetid://9042760875",
+		Chase = "rbxassetid://9046474891",
+		ChaseIntense = "rbxassetid://1842546506",
+		["Stinger.ChaseStart"] = "rbxassetid://9044615289",
+	}
 	local function testIds()
 		local map = {}
 		for key in Music.Tracks do
@@ -50,17 +58,30 @@ return function(ctx)
 	end
 
 	--------------------------------------------------------------------------
-	scenario("V2 Audio: shipped config invents no asset id", function()
-		local filled = {}
+	scenario("V2 Audio: shipped config (5 configured slots, the rest stays empty)", function()
+		local unexpected, undocumented = {}, {}
 		for key, track in Music.Tracks do
-			if track.id ~= "" then
-				table.insert(filled, key)
+			local expected = CONFIGURED[key]
+			if expected then
+				check(track.id == expected, "configured slot " .. key .. " = " .. expected .. " (got " .. tostring(track.id) .. ")")
+				check(string.match(track.id, "^rbxassetid://%d+$") ~= nil, "slot " .. key .. " holds a well-formed rbxassetid")
+			elseif track.id ~= "" then
+				table.insert(unexpected, key)
 			end
 			if track.mood == "" or track.context == "" or (track.kind ~= "Loop" and track.kind ~= "OneShot") then
-				table.insert(filled, key .. " (undocumented)")
+				table.insert(undocumented, key)
 			end
 		end
-		check(#filled == 0, "every music slot is empty and documented (" .. table.concat(filled, ", ") .. ")")
+		local configured = 0
+		for key in CONFIGURED do
+			check(Music.Tracks[key] ~= nil, "configured key is a real music slot: " .. key)
+			configured += 1
+		end
+		check(configured == 5, "exactly 5 slots configured")
+		check(#unexpected == 0, "every other music slot stays empty (" .. table.concat(unexpected, ", ") .. ")")
+		check(#undocumented == 0, "every music slot is documented (" .. table.concat(undocumented, ", ") .. ")")
+		check(Music.Tracks["Stinger.ChaseStart"].kind == "OneShot", "chase stinger slot is a one-shot")
+		check(Music.Tracks.Explore.kind == "Loop" and Music.Tracks.Rift.kind == "Loop" and Music.Tracks.Chase.kind == "Loop" and Music.Tracks.ChaseIntense.kind == "Loop", "configured main slots are loops")
 		local sfxIds = {}
 		for key, def in Sounds do
 			if def.id ~= "" then
@@ -190,12 +211,37 @@ return function(ctx)
 		m = MusicState.new()
 		d = m:update(0, { Boss = { boss = "Unknown", phase = 2 } }, only({ "Boss.Default.2", "Boss.Default.1" }))
 		check(d and d.key == "Boss.Default.2", "unknown boss -> Boss.Default")
+		-- With the shipped config: the still-empty Event/Boss slots fall through
+		-- to whatever configured music is below them.
+		local shipped = function(key)
+			return Music.Tracks[key] ~= nil and Music.Tracks[key].id ~= ""
+		end
+		m = MusicState.new()
+		m:update(0, {}, shipped)
+		m:update(5, { Event = { event = "VoidStorm" } }, shipped)
+		m:update(6, { Event = { event = "VoidStorm" } }, shipped)
+		check(m.current == "Explore" and m.currentKey == "Explore", "shipped: event without music -> exploration keeps playing")
+		m:update(7, { Event = { event = "VoidStorm" }, Rift = {} }, shipped)
+		m:update(9, { Event = { event = "VoidStorm" }, Rift = {} }, shipped)
+		check(m.current == "Rift" and m.currentKey == "Rift", "shipped: empty event slot falls through to Rift")
+		m:update(12, { Boss = { boss = "VoidWarden", phase = 2 }, Rift = {} }, shipped)
+		check(m.current == "Rift", "shipped: boss without music -> Rift keeps playing")
+		d = m:update(13, { Boss = { boss = "VoidWarden", phase = 2 }, Chase = { intense = true }, Rift = {} }, shipped)
+		m:update(13.5, { Boss = { boss = "VoidWarden", phase = 2 }, Chase = { intense = true }, Rift = {} }, shipped)
+		check(m.current == "Chase" and m.currentKey == "ChaseIntense", "shipped: intense chase plays ChaseIntense (" .. tostring(m.currentKey) .. ")")
+		check(shipped("Stinger.ChaseStart") and not shipped("Stinger.BossIntro"), "shipped: chase stinger set, boss stinger still empty")
 	end)
 
 	--------------------------------------------------------------------------
 	scenario("V2 Audio: crossfades, two tracks max, resume, cleanup", function()
 		local clock = 0
 		local ids = testIds()
+		-- The live director now plays the shipped Explore track in the same
+		-- SoundService: only count the Sounds this test creates.
+		local before = {}
+		for _, d in SoundService:GetChildren() do
+			before[d] = true
+		end
 		local player = MusicPlayer.new({
 			parent = SoundService,
 			resolveId = function(key)
@@ -264,7 +310,7 @@ return function(ctx)
 		player:destroy()
 		local leftovers = 0
 		for _, d in SoundService:GetChildren() do
-			if string.sub(d.Name, 1, 6) == "Music_" and d.Parent ~= nil then
+			if string.sub(d.Name, 1, 6) == "Music_" and d.Parent ~= nil and not before[d] then
 				leftovers += 1
 			end
 		end
@@ -289,7 +335,15 @@ return function(ctx)
 	scenario("V2 Audio: live director (Rift zone, chases, events, boss)", function()
 		check(MusicDirector.isRunning(), "MusicDirector started with the client")
 		local info = MusicDirector.debugInfo()
-		check(info.created == 0 and #info.audible == 0, "shipped config: music silent, no Sound created")
+		local exploreSound = nil
+		for _, d in SoundService:GetChildren() do
+			if d.Name == "Music_Explore" then
+				exploreSound = d
+			end
+		end
+		check(info.state == "Explore" and info.key == "Explore", "shipped config: exploration music selected (" .. tostring(info.key) .. ")")
+		check(#info.audible == 1 and info.audible[1].key == "Explore", "shipped config: exactly one audible music track (" .. #info.audible .. ")")
+		check(exploreSound ~= nil and exploreSound.SoundId == CONFIGURED.Explore and exploreSound.Looped, "Explore Sound uses the configured id and loops")
 
 		MusicDirector.debugSetIds(testIds())
 		local RelicService = sreq("Services.RelicService")
@@ -388,7 +442,7 @@ return function(ctx)
 		check(maxAudible <= 2, "never more than two music tracks audible during the whole session (max " .. maxAudible .. ")")
 		check(MusicDirector.debugInfo().sounds <= 1 + Music.Settings.MaxCachedTracks + 1, "bounded number of music Sounds")
 
-		-- Cleanup: stop releases everything; restart restores the shipped (silent) config.
+		-- Cleanup: stop releases everything; restart restores the shipped config.
 		MusicDirector.stop()
 		local leftovers = 0
 		for _, d in SoundService:GetChildren() do
@@ -400,6 +454,7 @@ return function(ctx)
 		MusicDirector.debugSetIds(nil)
 		MusicDirector.start()
 		wait(1)
-		check(MusicDirector.isRunning() and MusicDirector.debugInfo().created == 0, "restarted with the shipped silent config")
+		info = MusicDirector.debugInfo()
+		check(MusicDirector.isRunning() and info.key == "Explore" and info.created == 1 and #info.audible == 1, "restarted with the shipped config (Explore only)")
 	end)
 end

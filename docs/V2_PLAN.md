@@ -253,6 +253,11 @@ audibles au maximum, reprise, cache borné, stingers, nettoyage, directeur en co
 Faille, poursuite victime / voleur / spectateur, événement, boss via attributs), et vérification qu'aucun ID
 n'est fourni dans la configuration livrée.
 
+Patch de configuration (après validation de la phase 3) : 5 emplacements renseignés par l'utilisateur —
+`Explore`, `Rift`, `Chase`, `ChaseIntense`, `Stinger.ChaseStart`. Les tests vérifient désormais que ces 5
+emplacements portent exactement ces IDs, que tous les autres restent vides, et que les emplacements
+Événement / Boss encore vides retombent bien sur la musique inférieure (101 vérifications audio, 452 au total).
+
 Correctif du harnais de test (explique l'échec intermittent signalé en phase 2) : le faux moteur choisissait
 la valeur par défaut d'une énumération dans un ordre instable ; `Part.Shape` valait parfois `Ball` au lieu de
 `Block` et le test des routes calculait le dessus d'une sphère pour les tabliers de pont. Les valeurs par défaut

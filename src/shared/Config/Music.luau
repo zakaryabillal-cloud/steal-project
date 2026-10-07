@@ -58,11 +58,11 @@ local Music = {}
 -- ═══════════════════════════════════════════════════════════════════════
 local ASSET_IDS: { [string]: string } = {
 	-- World
-	Explore = "",
-	Rift = "",
+	Explore = "rbxassetid://9046476113",
+	Rift = "rbxassetid://9042760875",
 	-- Chase
-	Chase = "",
-	ChaseIntense = "",
+	Chase = "rbxassetid://9046474891",
+	ChaseIntense = "rbxassetid://1842546506",
 	-- World events
 	["Event.Default"] = "",
 	["Event.RiftOverload"] = "",
@@ -84,7 +84,7 @@ local ASSET_IDS: { [string]: string } = {
 	["Boss.EclipseOracle.1"] = "",
 	["Boss.EclipseOracle.2"] = "",
 	-- Stingers (one-shots)
-	["Stinger.ChaseStart"] = "",
+	["Stinger.ChaseStart"] = "rbxassetid://9044615289",
 	["Stinger.BossIntro"] = "",
 	["Stinger.BossVictory"] = "",
 	["Stinger.BossDefeat"] = "",

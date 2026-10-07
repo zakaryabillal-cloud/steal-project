@@ -392,6 +392,8 @@ retour naturel à la musique précédente (reprise là où elle s'était arrêt�
    ambiance, tempo, durée, contexte — est juste en dessous, dans `Music.Tracks`).
 3. Rien d'autre à modifier : le directeur musical l'utilise automatiquement.
 
+Déjà renseignés : `Explore`, `Rift`, `Chase`, `ChaseIntense` et `Stinger.ChaseStart`. Tous les autres
+(événements, boss, autres stingers) sont encore vides.
 Un emplacement sans `id` reste **muet** (aucun `Sound` n'est créé) et l'état inférieur continue de jouer.
 Emplacements : `Explore`, `Rift`, `Chase`, `ChaseIntense`, `Event.<Id>` (+ `Event.Default`),
 `Boss.<BossId>.<phase>` (+ `Boss.Default.<phase>`), et les stingers `Stinger.ChaseStart`, `Stinger.BossIntro`,
@@ -438,9 +440,9 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **426 vérifications, 0 échec, 0 erreur d'exécution**
+serveur et un vrai client tournent dedans. Résultat actuel : **452 vérifications, 0 échec, 0 erreur d'exécution**
 (148 V1 + 135 V2 phase 1 dans `tests/scenarios/V2Foundations.luau` + 68 V2 phase 2 dans
-`tests/scenarios/V2World.luau` + 75 V2 phase 3 dans `tests/scenarios/V2Audio.luau`).
+`tests/scenarios/V2World.luau` + 101 V2 phase 3 dans `tests/scenarios/V2Audio.luau`).
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
 déclarée dans `WorldFeatures.Routes` **dans les deux sens** avec un « marcheur » géométrique (hauteur de marche
