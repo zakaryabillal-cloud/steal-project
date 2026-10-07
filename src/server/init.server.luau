@@ -221,6 +221,8 @@ local function onPlayerRemoving(player: Player)
 	activeSaves += 1
 
 	local ok, err = pcall(function()
+		-- Traps, decoys, flights... first: nothing may outlive the player.
+		AbilityService.release(session)
 		CarryService.onLeave(session)
 	end)
 	if not ok then

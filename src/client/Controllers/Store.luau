@@ -40,6 +40,9 @@ export type State = {
 	loadout: { string },
 	unlocked: { [string]: boolean },
 	status: StatusView,
+	-- Harmony relics displayed in the Sanctuary (hot) and the switched-off ones (cold).
+	harmonies: { string },
+	harmonyOff: { [string]: boolean },
 }
 
 export type StatusView = {
@@ -76,6 +79,8 @@ Store.state = {
 	loadout = Abilities.defaultLoadout(),
 	unlocked = Abilities.defaultUnlocked(),
 	status = { stunUntil = 0, steadyUntil = 0, rootUntil = 0, slow = 0, slowUntil = 0, shieldUntil = 0, phaseUntil = 0 },
+	harmonies = {},
+	harmonyOff = {},
 } :: State
 
 Store.ready = false

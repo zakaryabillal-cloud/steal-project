@@ -25,14 +25,21 @@ local CharacterService = {}
 
 -- (session, lastPosition: Vector3?)
 CharacterService.died = Signal.new()
+-- (session, character) after a new character is set up.
+CharacterService.spawned = Signal.new()
 
 local function now(): number
 	return workspace:GetServerTimeNow()
 end
 
+-- Collision group of the session's character (see WorldBuilder).
 local function groupFor(session: Session): string
-	return if session.plot then "Owner" .. session.plot else "Default"
+	if Status.isPhased(session.status, now()) then
+		return "Phase" .. (session.plot or 0)
+	end
+	return if session.plot then "Owner" .. session.plot else "Wanderer"
 end
+CharacterService.groupFor = groupFor
 
 function CharacterService.refreshCollision(session: Session)
 	local character = session.player.Character
@@ -106,7 +113,9 @@ function CharacterService.onCharacter(session: Session, character: Model)
 	session.stunnedUntil = 0
 	Status.clear(session.status)
 	session.lastPosition = nil
+	session.moveAllowance = nil
 	CharacterService.refreshSpeed(session)
+	CharacterService.spawned:Fire(session, character)
 
 	if session.plot == nil then
 		-- No Sanctuary yet: wait near the Rift instead of inside someone's base.

@@ -16,7 +16,7 @@ Net.Events = table.freeze({
 	Knockback = "Knockback", -- (impulse: Vector3, stun: number)
 	-- Client -> server
 	ClientReady = "ClientReady",
-	UseAbility = "UseAbility", -- (abilityId, payload?) equipped abilities
+	UseAbility = "UseAbility", -- (abilityId, payload?) equipped abilities; payload = direction or anchor index
 	-- V1 aliases of UseAbility("dash") / UseAbility("pulse"), kept for compatibility.
 	Dash = "Dash",
 	Pulse = "Pulse",
@@ -30,6 +30,8 @@ Net.Functions = table.freeze({
 	Purchase = "Purchase", -- (upgradeId) -> (ok, reason)
 	Dissolve = "Dissolve", -- (relicUid) -> (ok, reason)
 	SetLoadout = "SetLoadout", -- (slotIndex, abilityId) -> (ok, reason)
+	UnlockAbility = "UnlockAbility", -- (abilityId) -> (ok, reason)
+	SetHarmony = "SetHarmony", -- (relicId, enabled) -> (ok, reason)
 }) :: { [string]: string }
 
 local FOLDER_NAME = "Remotes"

@@ -7,8 +7,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
+local AbilityConfig = require(Shared.Config.Abilities)
 local Economy = require(Shared.Economy)
 local Power = require(Shared.Power)
+local Signal = require(Shared.Util.Signal)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
@@ -23,6 +25,9 @@ local TutorialService = require(script.Parent.TutorialService)
 type Session = Types.Session
 
 local EconomyService = {}
+
+-- (session, previousPeak, newPeak) when the Power record goes up.
+EconomyService.peakRaised = Signal.new()
 
 local lastCollect: { [Session]: number } = {}
 
@@ -59,12 +64,19 @@ function EconomyService.recompute(session: Session)
 	local multiplier = Economy.playerMultiplier(session.data.upgrades, relicsFound, mutationsFound)
 	local total = 0
 	local placed: { Power.RelicLike } = {}
+	local harmonyRelics: { string } = {}
 	for _, entity in RelicService.placedBy(session.userId) do
 		total += Economy.relicBaseRate(entity.id, entity.level, entity.mutation)
 		table.insert(placed, { id = entity.id, level = entity.level, mutation = entity.mutation })
+		if AbilityConfig.harmony(entity.id) and not table.find(harmonyRelics, entity.id) then
+			table.insert(harmonyRelics, entity.id)
+		end
 	end
+	table.sort(harmonyRelics)
 	session.multiplier = multiplier
 	session.rate = total * multiplier
+	-- Harmonies follow the displayed collection (a relic out on a heist does not count).
+	session.harmonyRelics = harmonyRelics
 
 	-- Power only counts relics displayed in the Sanctuary (a relic being
 	-- stolen leaves it immediately), so it drops on theft; the record never does.
@@ -73,8 +85,10 @@ function EconomyService.recompute(session: Session)
 	if session.plot ~= nil then
 		session.power = Power.total(placed, session.data.upgrades, relicsFound, mutationsFound)
 		if session.power > session.data.power.peak then
+			local previous = session.data.power.peak
 			session.data.power.peak = session.power
 			Sessions.markCold(session)
+			EconomyService.peakRaised:Fire(session, previous, session.power)
 		end
 		setLeaderstat(session, "Power", session.power)
 	end

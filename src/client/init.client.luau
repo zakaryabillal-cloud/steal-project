@@ -29,6 +29,8 @@ local RiftFX = require(Controllers.RiftFX)
 local SanctuaryFX = require(Controllers.SanctuaryFX)
 local CharacterFX = require(Controllers.CharacterFX)
 local Abilities = require(Controllers.Abilities)
+local AbilityFX = require(Controllers.AbilityFX)
+local GrappleTargeting = require(Controllers.GrappleTargeting)
 local Prompts = require(Controllers.Prompts)
 local WorldFX = require(Controllers.WorldFX)
 local Tutorial = require(Controllers.Tutorial)
@@ -49,6 +51,7 @@ local Dex = require(Screens.Dex)
 local Inspect = require(Screens.Inspect)
 local SettingsMenu = require(Screens.SettingsMenu)
 local Discovery = require(Screens.Discovery)
+local Loadout = require(Screens.Loadout)
 
 local localPlayer = Players.LocalPlayer
 
@@ -82,6 +85,8 @@ RelicRenderer.init()
 RiftFX.init()
 SanctuaryFX.init()
 CharacterFX.init()
+AbilityFX.init()
+GrappleTargeting.init()
 Abilities.init()
 Prompts.init()
 WorldFX.init()
@@ -95,6 +100,27 @@ Hud.init(UI.hud, UI.fullscreen, { touch = UI.touch, open = UI.toggle })
 UI.registerModal("Shop", Shop.init(UI.modal, UI.close))
 UI.registerModal("Dex", Dex.init(UI.modal, UI.close))
 UI.registerModal("Settings", SettingsMenu.init(UI.modal, UI.close))
+UI.registerModal("Loadout", Loadout.init(UI.modal, UI.close))
+
+-- Abilities screen: L (keyboard) / D-pad up (controller) / HUD button (touch).
+game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+	if processed then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.L or input.KeyCode == Enum.KeyCode.DPadUp then
+		UI.toggle("Loadout")
+	end
+end)
+
+-- Refused ability: one short explanation (no spam).
+local lastRefusal = 0
+Abilities.refused:Connect(function(abilityId: string, reason: string)
+	local text = Abilities.reasonText(abilityId, reason)
+	if text ~= "" and os.clock() - lastRefusal > 1.2 then
+		lastRefusal = os.clock()
+		Notifications.push(text, "warning", 2.2)
+	end
+end)
 UI.registerModal("Inspect", Inspect.init(UI.modal, UI.close))
 Discovery.init(UI.overlay, UI.fullscreen)
 Tutorial.init({

@@ -219,4 +219,92 @@ function Icons.shield(parent: Instance, color: Color3): Frame
 	return r
 end
 
+-- V2 abilities ------------------------------------------------------------
+
+-- Two diamonds with a gap: a short teleport.
+function Icons.blink(parent: Instance, color: Color3): Frame
+	local r = root(parent, "BlinkIcon")
+	bar(r, UDim2.fromScale(0.26, 0.26), UDim2.fromScale(0.28, 0.6), 45, color, false).BackgroundTransparency = 0.55
+	bar(r, UDim2.fromScale(0.34, 0.34), UDim2.fromScale(0.68, 0.38), 45, color, false)
+	bar(r, UDim2.fromScale(0.3, 0.08), UDim2.fromScale(0.48, 0.5), -28, color).BackgroundTransparency = 0.3
+	return r
+end
+
+-- Hook on a line.
+function Icons.grapple(parent: Instance, color: Color3): Frame
+	local r = root(parent, "GrappleIcon")
+	bar(r, UDim2.fromScale(0.62, 0.09), UDim2.fromScale(0.42, 0.58), -45, color)
+	local hook = ring(r, 0.36, 3, color)
+	hook.Position = UDim2.fromScale(0.7, 0.3)
+	return r
+end
+
+-- Six-armed snowflake.
+function Icons.frost(parent: Instance, color: Color3): Frame
+	local r = root(parent, "FrostIcon")
+	for _, angle in { 0, 60, 120 } do
+		bar(r, UDim2.fromScale(0.8, 0.1), UDim2.fromScale(0.5, 0.5), angle, color)
+	end
+	ring(r, 0.3, 2, color, 0.3)
+	return r
+end
+
+-- Rune circle with a cross mark.
+function Icons.trap(parent: Instance, color: Color3): Frame
+	local r = root(parent, "TrapIcon")
+	ring(r, 0.82, 3, color)
+	ring(r, 0.5, 2, color, 0.4)
+	bar(r, UDim2.fromScale(0.36, 0.09), UDim2.fromScale(0.5, 0.5), 45, color)
+	bar(r, UDim2.fromScale(0.36, 0.09), UDim2.fromScale(0.5, 0.5), -45, color)
+	return r
+end
+
+-- Two silhouettes, the back one faded.
+function Icons.decoy(parent: Instance, color: Color3): Frame
+	local r = root(parent, "DecoyIcon")
+	for i, x in { 0.36, 0.62 } do
+		local alpha = if i == 1 then 0.55 else 0
+		local head = ring(r, 0.22, 0, color)
+		head.Position = UDim2.fromScale(x, 0.3)
+		head.BackgroundTransparency = alpha
+		head.BackgroundColor3 = color
+		bar(r, UDim2.fromScale(0.26, 0.36), UDim2.fromScale(x, 0.64), 0, color).BackgroundTransparency = alpha
+	end
+	return r
+end
+
+-- Ghost: rounded body with wavy hem.
+function Icons.phase(parent: Instance, color: Color3): Frame
+	local r = root(parent, "PhaseIcon")
+	bar(r, UDim2.fromScale(0.52, 0.62), UDim2.fromScale(0.5, 0.46), 0, color).BackgroundTransparency = 0.25
+	for _, x in { 0.33, 0.5, 0.67 } do
+		bar(r, UDim2.fromScale(0.15, 0.2), UDim2.fromScale(x, 0.78), 0, color).BackgroundTransparency = 0.25
+	end
+	return r
+end
+
+-- Eye: the Cosmic Eye harmony.
+function Icons.eye(parent: Instance, color: Color3): Frame
+	local r = root(parent, "EyeIcon")
+	local white = bar(r, UDim2.fromScale(0.86, 0.46), UDim2.fromScale(0.5, 0.5), 0, color)
+	white.BackgroundTransparency = 0.5
+	local pupil = ring(r, 0.32, 0, color)
+	pupil.BackgroundTransparency = 0
+	pupil.BackgroundColor3 = color
+	return r
+end
+
+-- Three stacked slots: the loadout.
+function Icons.loadout(parent: Instance, color: Color3): Frame
+	local r = root(parent, "LoadoutIcon")
+	for i, y in { 0.26, 0.5, 0.74 } do
+		local dot = ring(r, 0.2, 0, color)
+		dot.Position = UDim2.fromScale(0.22, y)
+		dot.BackgroundTransparency = 0
+		dot.BackgroundColor3 = color
+		bar(r, UDim2.fromScale(0.5, 0.12), UDim2.fromScale(0.62, y), 0, color).BackgroundTransparency = if i == 2 then 0 else 0.35
+	end
+	return r
+end
+
 return Icons

@@ -7,6 +7,9 @@
 --   /rh pedestals <0-9>           set pedestal upgrade level
 --   /rh core <amount>             fill the Core
 --   /rh novice                    skip novice protection (to test thefts)
+--   /rh abilities [off]           every ability equippable for this session
+--                                 (never saved: normal unlocks are untouched)
+--   /rh cooldowns                 reset your ability cooldowns
 --   /rh reset                     wipe your temporary data
 
 local Players = game:GetService("Players")
@@ -30,6 +33,7 @@ local EconomyService = require(script.Parent.EconomyService)
 local PlotService = require(script.Parent.PlotService)
 local RiftService = require(script.Parent.RiftService)
 local EventService = require(script.Parent.EventService)
+local AbilityService = require(script.Parent.AbilityService)
 
 local DevCommands = {}
 
@@ -91,6 +95,11 @@ local function run(player: Player, text: string)
 		end
 	elseif command == "novice" then
 		session.data.playTime = GameConfig.Steal.NoviceSeconds + 1
+	elseif command == "abilities" then
+		AbilityService.setDevUnlock(session, string.lower(args[3] or "") ~= "off")
+	elseif command == "cooldowns" then
+		table.clear(session.cooldowns)
+		Sessions.markDirty(session)
 	elseif command == "reset" then
 		session.data = DataSchema.default()
 		session.canSave = false
@@ -132,7 +141,7 @@ function DevCommands.start()
 	if not ok then
 		warn("[DevCommands] TextChatCommand unavailable; using Player.Chatted only")
 	end
-	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|reset")
+	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|reset")
 end
 
 return DevCommands

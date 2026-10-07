@@ -3,7 +3,7 @@
 -- Config/Rarities and Config/Mutations; formulas live in Shared/Economy.
 
 local GameConfig = {
-	Version = "2.0.0-phase1",
+	Version = "2.0.0-phase4",
 
 	Player = {
 		BaseWalkSpeed = 20,
@@ -57,12 +57,55 @@ local GameConfig = {
 		AfkSeconds = 150,
 	},
 
+	-- Ability tuning (catalogue, unlocks and harmonies: Config/Abilities).
+	-- Every value is enforced by the server; clients only predict with it.
 	Abilities = {
+		-- Mobility ------------------------------------------------------------
 		Dash = {
 			Cooldown = 3.2,
 			Speed = 82,
 			Duration = 0.18,
+			-- Movement guard allowance after a dash (studs/s, seconds) instead
+			-- of the V1 blanket grace window.
+			GuardSpeed = 160,
+			GuardTime = 0.6,
 		},
+		Blink = {
+			Cooldown = 6,
+			-- Short teleport, never through geometry (server raycasts).
+			Range = 16,
+			-- Range multiplier while carrying a relic.
+			CarryFactor = 0.5,
+			-- Visible wind-up; a stun or root during it cancels the blink.
+			Windup = 0.3,
+			-- Shorter than this = blocked (no cooldown spent).
+			MinDistance = 3,
+			-- Distance kept from the wall that stopped the blink.
+			WallMargin = 1.8,
+			-- Highest drop allowed at the destination (no blinking into the void).
+			MaxDrop = 14,
+			-- Free space needed above the destination ground.
+			Headroom = 5.5,
+			-- Step used to walk the destination back from a wall / ledge.
+			Step = 1.5,
+		},
+		Grapple = {
+			Cooldown = 9,
+			-- Only towards the prepared anchors (WorldFeatures.GrapplePoints).
+			Range = 45,
+			-- Extra range the server forgives (latency between aim and request).
+			RangeLenience = 3,
+			MinDistance = 8,
+			-- Pull speed (studs/s): below Security.MaxHorizontalSpeed on purpose.
+			Speed = 80,
+			CarryFactor = 0.8,
+			ArriveDistance = 5,
+			-- Flight time = distance / speed + ExtraTime.
+			ExtraTime = 0.6,
+			-- Upward hop on arrival so the player lands on the ledge.
+			Hop = 38,
+		},
+		-- Control -------------------------------------------------------------
 		Pulse = {
 			Cooldown = 7,
 			Radius = 12,
@@ -71,6 +114,67 @@ local GameConfig = {
 			Stun = 0.6,
 			-- Post-hit immunity (anti stun-lock) is GameConfig.Status.SteadyTime.
 		},
+		FrostWave = {
+			Cooldown = 9,
+			Radius = 14,
+			-- A slow (never a knockback, never a relic drop).
+			Slow = 0.4,
+			SlowDuration = 2.5,
+		},
+		RuneTrap = {
+			Cooldown = 12,
+			-- Delay before the trap can trigger (visible arming).
+			ArmTime = 1,
+			TriggerRadius = 4.5,
+			Slow = 0.6,
+			SlowDuration = 2,
+			Lifetime = 45,
+			-- The trap is placed on the ground under the caster (no client position).
+			MaxGroundDrop = 8,
+			-- Visual diameter (studs).
+			Size = 9,
+		},
+		-- Utility -------------------------------------------------------------
+		Shield = {
+			Cooldown = 16,
+			-- Blocks hard control (stun, root, knockback and the relic drop of
+			-- Pulse) for this long. Slows still apply; nothing else is blocked.
+			Duration = 2,
+			-- Mobility trade-off: the bearer is slowed while shielded.
+			SelfSlow = 0.2,
+		},
+		Decoy = {
+			Cooldown = 15,
+			Duration = 4,
+			-- The decoy runs ahead at the owner's current walk speed.
+			MaxLength = 60,
+			MinSpeed = 10,
+			-- Popped by any control ability (or trap) reaching it.
+			PopRadius = 3,
+		},
+		Phase = {
+			Cooldown = 14,
+			-- Pass through other players (never through walls or the map).
+			Duration = 1.5,
+		},
+	},
+
+	-- Relic harmonies: owning one of these relics on a pedestal of your own
+	-- Sanctuary changes one ability (Config/Abilities.Harmonies).
+	Harmonies = {
+		-- Storm Crystal -> Dash leaves a static trail that briefly slows.
+		StormTrail = { Duration = 1.6, HalfWidth = 3, Slow = 0.25, SlowDuration = 1.5, MaxLength = 18, Sample = 0.25 },
+		-- Void Cube -> longer Blink, smaller penalty while carrying.
+		VoidBlink = { Range = 20, CarryFactor = 0.75 },
+		-- Magma Heart -> Pulse becomes Eruption: telegraphed, bigger, slower.
+		Eruption = { Cooldown = 10, Radius = 15, Knockback = 78, Lift = 34, Stun = 0.8, Windup = 0.35 },
+		-- Frost Lotus -> stronger Frost Wave (still within the slow caps).
+		FrostLotus = { Radius = 16, Slow = 0.5, SlowDuration = 3 },
+		-- Chrono Glass -> Utility cooldowns x0.85.
+		ChronoGlass = { CooldownFactor = 0.85 },
+		-- Cosmic Eye -> reveals decoys and phasing players nearby; your
+		-- control abilities end their Spectral Phase.
+		CosmicEye = { RevealRadius = 45, TouchPopRadius = 4 },
 	},
 
 	-- Crowd-control rules enforced by Shared/Status + StatusService.
@@ -127,8 +231,9 @@ local GameConfig = {
 	Data = {
 		StoreName = "RiftHeist_Player_v1",
 		-- Bump together with a MIGRATIONS entry in Server/Core/DataSchema.
-		-- History: 1 = launch (V1), 2 = abilities loadout + Power record (V2 phase 1).
-		SchemaVersion = 2,
+		-- History: 1 = launch (V1), 2 = abilities loadout + Power record (V2 phase 1),
+		-- 3 = harmony toggles (V2 phase 4).
+		SchemaVersion = 3,
 		AutosaveInterval = 90,
 		MaxRetries = 5,
 		-- A session lock older than this is considered abandoned (crashed server).

@@ -13,7 +13,7 @@ local CharacterFX = require(Controllers.CharacterFX)
 local Dash = {}
 
 function Dash.activate(ctx: Context.ClientContext): any
-	local tuning = ctx.def.tuning
+	local tuning = ctx.tuning
 	local root = ctx.root
 	local move = ctx.humanoid.MoveDirection
 	local direction: Vector3

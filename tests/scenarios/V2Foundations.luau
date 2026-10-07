@@ -94,7 +94,7 @@ return function(ctx)
 		local raw = deepCopy(fixture)
 		local data = DataSchema.normalize(raw)
 		check(deepEqual(raw, fixture), "normalize never mutates the stored record")
-		check(data.schema == 2, "schema bumped to 2")
+		check(data.schema == GameConfig.Data.SchemaVersion, "schema bumped to the current version (" .. tostring(data.schema) .. ")")
 		check(data.essence == fixture.essence and data.lifetimeEssence == fixture.lifetimeEssence, "Essence preserved")
 		check(data.coreStored == math.floor(fixture.coreStored), "Core preserved (whole Essence, as in V1)")
 		check(data.lastSeen == fixture.lastSeen and data.playTime == fixture.playTime, "lastSeen + playTime preserved")
@@ -134,7 +134,7 @@ return function(ctx)
 		Engine.removePlayer(vet)
 		advance(2)
 		local saved = Engine.dataStoreData[STORE .. "4242"]
-		check(saved and saved.schema == 2 and saved.lock == nil, "saved back as schema 2, lock released")
+		check(saved and saved.schema == GameConfig.Data.SchemaVersion and saved.lock == nil, "saved back with the current schema, lock released")
 		check(saved.essence == fixture.essence and saved.lifetimeEssence == fixture.lifetimeEssence, "Essence intact after a V2 session")
 		check(deepEqual(saved.relics, fixture.relics), "relics intact after a V2 session")
 		check(deepEqual(saved.upgrades, fixture.upgrades) and deepEqual(saved.dex, fixture.dex), "upgrades + RiftDex intact after a V2 session")
@@ -173,12 +173,12 @@ return function(ctx)
 		advance(2)
 		check(deepEqual(Engine.dataStoreData[STORE .. "5151"], future), "newer record untouched (no lock, no downgrade)")
 
-		-- Race: we loaded schema 2, then a newer server took the profile over.
+		-- Race: we loaded the current schema, then a newer server took the profile over.
 		local racer = Engine.addPlayer("Racer", 5252)
 		advance(3)
 		local r = sessionOf(racer)
 		check(r and r.canSave, "racer loaded normally")
-		local newer = { schema = 3, essence = 999, newThing = 1, lock = { job = "harness-job", time = os.time() } }
+		local newer = { schema = GameConfig.Data.SchemaVersion + 1, essence = 999, newThing = 1, lock = { job = "harness-job", time = os.time() } }
 		Engine.dataStoreData[STORE .. "5252"] = deepCopy(newer)
 		r.data.essence = 5
 		check(saveNow(r) == false, "save refused once a newer schema owns the record")
@@ -214,7 +214,7 @@ return function(ctx)
 
 		local v1 = deepCopy(fixture)
 		v1.schema = "1"
-		check(DataSchema.normalize(v1).schema == 2 and #DataSchema.normalize(v1).relics == 5, "non-numeric schema treated as V1 and migrated")
+		check(DataSchema.normalize(v1).schema == GameConfig.Data.SchemaVersion and #DataSchema.normalize(v1).relics == 5, "non-numeric schema treated as V1 and migrated")
 		v1.schema = nil
 		check(#DataSchema.normalize(v1).relics == 5, "missing schema treated as V1")
 	end)
@@ -269,7 +269,8 @@ return function(ctx)
 		check(Status.speedFactor(state, 200) == 1, "slows expire")
 		Status.applyBuff(state, 300, "shield", 1)
 		check(not Status.resolveHard(state, 0, 300.5, 0.5).ok, "shield blocks hard control")
-		check(not Status.applySlow(state, 300.5, "d", 0.3, 1), "shield blocks slows")
+		-- V2 phase 4: the shield blocks hard control only; slows still apply.
+		check(Status.applySlow(state, 300.5, "d", 0.3, 1) == true, "shield lets slows through (hard control only)")
 		check(not Status.applyBuff(state, 300, "godmode", 5), "unknown buff rejected")
 	end)
 
@@ -371,7 +372,9 @@ return function(ctx)
 
 		Engine.fireServer(remote("UseAbility"), alice, "pulse", { cooldown = 0, radius = 1e9 })
 		advance(0.1)
-		check(math.abs(s.cooldowns.pulse - now() - Abilities.get("pulse").cooldown) < 0.2, "client payload cannot change cooldowns")
+		-- Effective cooldown: a displayed Magma Heart turns Pulse into Eruption (phase 4).
+		local pulseCooldown = Abilities.cooldown(Abilities.get("pulse"), AbilityService.activeHarmonies(s))
+		check(math.abs(s.cooldowns.pulse - now() - pulseCooldown) < 0.2, "client payload cannot change cooldowns")
 
 		s.cooldowns.dash = 0
 		Engine.fireServer(remote("Dash"), alice)

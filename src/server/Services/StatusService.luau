@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Status = require(Shared.Status)
 local Abilities = require(Shared.Config.Abilities)
+local Signal = require(Shared.Util.Signal)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
@@ -18,6 +19,9 @@ local CharacterService = require(script.Parent.CharacterService)
 type Session = Types.Session
 
 local StatusService = {}
+
+-- (target, kind) after a hard control landed (grapple cut, wind-ups cancelled).
+StatusService.controlled = Signal.new()
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -55,6 +59,7 @@ function StatusService.applyControl(target: Session, kind: string, duration: num
 		refreshLater(target, result.duration)
 	end
 	Sessions.markDirty(target)
+	StatusService.controlled:Fire(target, kind)
 	return true, nil
 end
 
@@ -73,13 +78,78 @@ function StatusService.applySlow(target: Session, source: string, amount: number
 	return true, nil
 end
 
+-- Slow the caster puts on themselves (Shield's mobility trade-off). Same
+-- rules as any slow (strongest wins, capped) but never blocked by protection.
+function StatusService.applySelfSlow(session: Session, source: string, amount: number, duration: number): (boolean, string?)
+	local ok, reason = Status.applySlow(session.status, now(), source, amount, duration)
+	if not ok then
+		return false, reason
+	end
+	CharacterService.refreshSpeed(session)
+	refreshLater(session, math.max(0, Status.slowEnds(session.status, now()) - now()))
+	Sessions.markDirty(session)
+	return true, nil
+end
+
+-- Removes one slow source (e.g. the Shield's own slow when it ends early).
+function StatusService.clearSlow(session: Session, source: string)
+	if session.status.slows[source] then
+		session.status.slows[source] = nil
+		CharacterService.refreshSpeed(session)
+		Sessions.markDirty(session)
+	end
+end
+
+-- Mirrors shield / phase end times on the character so every client can
+-- draw them (server time; 0 = none).
+local function publishBuffs(session: Session)
+	local character = session.player.Character
+	if character then
+		local state = session.status
+		character:SetAttribute("ShieldUntil", state.shieldUntil)
+		character:SetAttribute("PhaseUntil", state.phaseUntil)
+	end
+end
+
 -- Self buff ("shield" | "phase").
 function StatusService.applyBuff(session: Session, kind: string, duration: number): (boolean, string?)
 	local ok, reason = Status.applyBuff(session.status, now(), kind, duration)
 	if ok then
+		publishBuffs(session)
+		if kind == "phase" then
+			-- Pass through players now, collide again when it ends.
+			CharacterService.refreshCollision(session)
+			local untilTime = session.status.phaseUntil
+			task.delay(math.max(0, untilTime - now()) + 0.05, function()
+				if not session.released and now() >= session.status.phaseUntil then
+					CharacterService.refreshCollision(session)
+				end
+			end)
+		end
 		Sessions.markDirty(session)
 	end
 	return ok, reason
+end
+
+-- Ends a self buff early. Returns true when one was active.
+function StatusService.endBuff(session: Session, kind: string): boolean
+	local ended = Status.endBuff(session.status, now(), kind)
+	if ended then
+		publishBuffs(session)
+		if kind == "phase" then
+			CharacterService.refreshCollision(session)
+		end
+		Sessions.markDirty(session)
+	end
+	return ended
+end
+
+function StatusService.isPhased(session: Session): boolean
+	return Status.isPhased(session.status, now())
+end
+
+function StatusService.isShielded(session: Session): boolean
+	return Status.isShielded(session.status, now())
 end
 
 -- Can `session` use ability `def` right now? Returns (ok, reason?).

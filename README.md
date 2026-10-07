@@ -19,7 +19,7 @@ Carte V2 : [`docs/previews/map.png`](docs/previews/map.png) · comparaison V1 �
 [`docs/previews/compare_v1_v2.png`](docs/previews/compare_v1_v2.png). Ce que ce rendu ne montre pas
 (beams, particules, lumières…) : voir [`docs/V2_PLAN.md`](docs/V2_PLAN.md) §7.</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 » et 3 « Audio dynamique » terminées).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique » et 4 « Capacités » terminées).
 
 ### La carte V2 en bref
 
@@ -28,7 +28,7 @@ mais l'île est **~37 % plus grande** : une **couronne** vallonnée avec un sent
 une **corniche haute** domine trois d'entre eux, **deux grottes** passent sous la rivière, quatre **cols en ruines**
 relient des Sanctuaires voisins, une **route céleste** d'îles flottantes mène à la corniche, et trois landmarks se
 répondent à 90° : **Observatoire**, **Arche brisée**, **Plateau du boss** (portail dormant). 14 **points de grappin**
-sont déjà placés pour la future capacité Grappin. Détails : `src/shared/WorldFeatures.luau`.
+servent à la capacité Grappin (seules cibles possibles). Détails : `src/shared/WorldFeatures.luau`.
 
 ---
 
@@ -129,12 +129,21 @@ relique exclusive *Sceau d'Éclipse*). Chaque événement change l'éclairage, l
 - **Sceau** (G) : barrière temporaire du sanctuaire (20–36 s selon le palier, recharge 110 s) qui éjecte les intrus ;
 - les reliques posées et le Noyau ne sont **jamais** perdus en se déconnectant.
 
-### Combat léger
+### Capacités (loadout de 3 emplacements + Sceau)
 
-- **Dash** (Q / R1 / bouton tactile) : élan court, recharge 3,2 s.
-- **Repousser** (F / L1 / bouton tactile) : onde de choc qui repousse et étourdit 0,6 s ; un joueur touché fait
-  **tomber** ce qu'il porte, puis bénéficie de 2,5 s de stabilité (pas de chaîne d'étourdissements).
-- Tout est validé par le serveur (distance, recharges, état).
+| Emplacement | Capacités (la 1ʳᵉ est donnée d'office) |
+|---|---|
+| **Mobilité** (Q / R1) | **Dash** (élan, 3,2 s) · **Blink** (téléportation de 16 studs après 0,3 s, jamais à travers un mur, 8 studs en portant, 6 s) · **Grappin** (vers les 14 points de grappin seulement, 45 studs, ligne de vue, 9 s) |
+| **Contrôle** (F / L1) | **Repousser** (recul + étourdit 0,6 s + fait lâcher, 7 s) · **Onde de givre** (ralentit 40 % 2,5 s, sans recul, 9 s) · **Piège runique** (rune visible, s'arme en 1 s, ralentit 60 % 2 s, 1 par joueur, 12 s) |
+| **Utilitaire** (R / R2) | **Bouclier** (2 s d'immunité au contrôle dur, porteur ralenti de 20 %, 16 s) · **Leurre** (copie qui court 4 s avec une copie de ta relique, 15 s) · **Phase spectrale** (1,5 s à traverser les joueurs, jamais les murs, relique visible, 14 s) |
+
+- **Anti stun-lock** : après un contrôle dur, 2,5 s d'immunité ; ralentissements non cumulables (≤ 60 %, ≤ 3 s).
+- **Déblocage** : Power record + Essence (Bouclier 40/400 … Phase spectrale 420/35 000), écran **Capacités**
+  (touche L, croix haut, bouton rond près des capacités). On **équipe seulement dans son Sanctuaire**.
+- **Harmonies** : 6 reliques exposées chez soi modifient une capacité (Storm Crystal → traînée de Dash,
+  Void Cube → Blink 20 studs, Magma Heart → Éruption, Frost Lotus → Onde de givre renforcée, Chrono Glass →
+  Utilitaire −15 %, Cosmic Eye → révèle leurres et phases). Détails et valeurs : `docs/V2_PLAN.md` §9.
+- Tout est validé par le serveur (équipement, recharge, portée, destination, ligne de vue, cible, statuts).
 
 ### Rythme visé
 
@@ -148,10 +157,15 @@ relique exclusive *Sceau d'Éclipse*). Chaque événement change l'éclairage, l
 | Action | Clavier | Manette | Mobile |
 |---|---|---|---|
 | Interagir (revendiquer, voler, inspecter) | E (appui / maintien) | X | toucher / maintenir la carte |
-| Dash | Q | R1 | bouton |
-| Repousser | F | L1 | bouton |
+| Capacité de Mobilité (Dash / Blink / Grappin) | Q | R1 | bouton |
+| Capacité de Contrôle (Repousser / Onde de givre / Piège) | F | L1 | bouton (le plus gros) |
+| Capacité Utilitaire (Bouclier / Leurre / Phase) | R | R2 | bouton (si équipée) |
 | Sceller le sanctuaire | G | Y | bouton |
+| Écran Capacités (loadout, déblocages, harmonies) | L | croix haut | bouton rond à gauche des capacités |
 | Fermer un menu | Échap | B | ✕ |
+
+Blink et Leurre partent dans la direction du déplacement (sinon vers l'avant du personnage). Le Grappin vise
+le point de grappin marqué (cercle cyan) le plus proche de la direction de la caméra.
 
 ## 3. Installation
 
@@ -334,15 +348,22 @@ Pour 6–8 joueurs : même procédure ; à partir du 9ᵉ joueur, la file d'atte
 
 ### Ajouter une capacité (framework V2)
 
-1. **`src/shared/Config/Abilities.luau`** : ajouter une entrée (`id`, `slot` = `Mobility` | `Control` | `Utility`,
-   `module`, `cooldown`, `lenience`, `default`, `needsMovement`, `icon`, `color`, `counterplay`, `tuning`).
-2. **`src/server/Abilities/<Module>.luau`** : `activate(ctx)` (effet serveur) et, si la capacité reçoit des
-   données du client, `readPayload(raw)` qui renvoie une version assainie ou `nil` pour refuser.
-   Tout contrôle sur un autre joueur passe par `StatusService` (jamais directement par `CharacterService.stun`).
-3. **`src/client/Abilities/<Module>.luau`** : `activate(ctx)` (prédiction locale + effets) qui renvoie le payload.
-4. **`src/shared/Locale/Strings.luau`** : `ability.<id>` en `en` et `fr`.
+1. **`src/shared/Config/GameConfig.luau`** (`Abilities.<Nom>`) : les valeurs ; **`src/shared/Config/Abilities.luau`** :
+   une entrée (`id`, `slot` = `Mobility` | `Control` | `Utility`, `module`, `cooldown`, `lenience`, `default`,
+   `needsMovement`, `payload` = `none` | `direction` | `anchor`, `icon`, `color`, `counterplay`, `tuning`,
+   `unlock = { power, essence, materials = {} }` si elle n'est pas donnée d'office).
+2. **`src/server/Abilities/<Module>.luau`** : `activate(ctx)` (effet), et au besoin `readPayload(raw)` (assainit
+   ou refuse), `validate(ctx)` (refus sans coût avant le cooldown), `tick(now)` (travail périodique, un seul job
+   pour toutes les capacités) et `cleanup(session, reason)` (mort, réapparition, départ, déséquipement, balayage).
+   `ctx.tuning` / `ctx.cooldown` incluent déjà les harmonies. Tout contrôle sur un autre joueur passe par
+   `StatusService` ; les questions de géométrie par `Server/Abilities/Common` (raycasts, sol, ligne de vue).
+3. **`src/client/Abilities/<Module>.luau`** : `activate(ctx)` (prédiction + effets) qui renvoie le payload,
+   `canUse(ctx)` et `denied(reason)` au besoin ; les effets vus par tous vont dans `Controllers/AbilityFX`.
+4. **`src/shared/Locale/Strings.luau`** : `ability.<id>`, `ability.<id>.desc`, `ability.<id>.stats` (en et fr) ;
+   une icône dans `UI/Kit/Icons.luau`.
 
-Le cooldown, l'équipement, les statuts et la limite de débit sont gérés par le framework (`AbilityService`).
+Le cooldown, l'équipement, les statuts, la limite de débit, le nettoyage et l'écran Capacités sont gérés par le
+framework (`AbilityService`, `UI/Screens/Loadout`).
 
 ## 9. Modifier l'économie
 
@@ -423,6 +444,8 @@ Actives **uniquement dans Studio** (`RunService:IsStudio()`), via le chat :
 | `/rh tier <1-5>` | change le palier du sanctuaire (avec animation) |
 | `/rh pedestals <n>` | niveau de l'amélioration piédestaux |
 | `/rh novice` | termine la protection Novice |
+| `/rh abilities [off]` | toutes les capacités équipables pour la session (**jamais sauvegardé** ; les vrais déblocages ne changent pas) |
+| `/rh cooldowns` | remet à zéro tes recharges |
 | `/rh reset` | réinitialise les données (kick) |
 
 ## 12. Tests automatisés et outils
@@ -440,9 +463,11 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **452 vérifications, 0 échec, 0 erreur d'exécution**
+serveur et un vrai client tournent dedans. Résultat actuel : **741 vérifications, 0 échec, 0 erreur d'exécution**
 (148 V1 + 135 V2 phase 1 dans `tests/scenarios/V2Foundations.luau` + 68 V2 phase 2 dans
-`tests/scenarios/V2World.luau` + 101 V2 phase 3 dans `tests/scenarios/V2Audio.luau`).
+`tests/scenarios/V2World.luau` + 101 V2 phase 3 dans `tests/scenarios/V2Audio.luau` + 289 V2 phase 4 dans
+`tests/scenarios/V2Abilities.luau`). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
+groupes de collision, terrain en voxels) pour valider Blink, Grappin, lignes de vue et pièges.
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
 déclarée dans `WorldFeatures.Routes` **dans les deux sens** avec un « marcheur » géométrique (hauteur de marche
@@ -463,6 +488,14 @@ garde contre les schémas plus récents (y compris en concurrence), champs V2 fa
 non modifiable par le client), règles de Status et anti stun-lock en conditions réelles (essaim d'attaquants),
 ralentissements/enracinement/bouclier, framework de capacités (validation, alias V1, loadout, spam), Sync
 chaud/froid (taille, fusion côté client, audit), Scheduler (jobs isolés), reconnexions.
+V2 phase 4 : chaque capacité dans une arène de test (murs fins, rebords, plafonds, vide, Sanctuaire scellé),
+les 14 points de grappin réels (tous atteignables), recharges, portée, obstacles, transport d'une relique,
+anti stun-lock, harmonies (les 6), déblocages et matériaux futurs, schéma 3, loadout au Sanctuaire uniquement,
+déblocage de test Studio, requêtes falsifiées (capacité non équipée, ids inconnus, payloads, faux cooldowns,
+fausses harmonies, ancres inventées), spam, `MovementGuard` (Dash, Grappin, téléportation déguisée), mort /
+réapparition / déconnexion pendant une capacité, balayage des objets orphelins, HUD et écran Capacités côté client,
+et **3 poursuites à 2 joueurs** (vol → mobilité → contrôle → contre-jeu → récupération ou sécurisation) sans
+duplication, perte, téléportation abusive ni contournement de recharge.
 
 ### Aperçus du monde (direction artistique)
 ```bash
@@ -480,12 +513,18 @@ FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard 
 - Le client ne fait que *demander* : revendiquer, voler, déposer, acheter, capacités — le serveur vérifie
   distance, état de l'entité, propriétaire, recharges, coût, capacité.
 - Vol : le serveur mesure lui-même la durée de maintien (≥ 80 % de la durée requise).
-- Capacités : le client envoie seulement l'id ; le serveur vérifie qu'elle est connue, équipée, que le
-  personnage peut agir (statuts) et que le cooldown (stocké par capacité) est écoulé ; le loadout ne se modifie
-  qu'au Sanctuaire et seulement avec des capacités débloquées du bon emplacement. Tout contrôle passe par
-  `StatusService` (immunité après contrôle dur, ralentissements non cumulables, durées plafonnées).
+- Capacités : le client envoie l'id et **au plus une direction ou un index de point de grappin** ; le serveur
+  vérifie qu'elle est connue, équipée, que le personnage peut agir (statuts), que le cooldown (stocké par
+  capacité) est écoulé, puis calcule lui-même destinations (raycasts), cibles, ligne de vue, placement des
+  pièges, ancre (lue dans `WorldFeatures`) et harmonies (reliques réellement exposées). Le loadout et les
+  harmonies ne se modifient qu'au Sanctuaire ; les déblocages exigent le Power record et l'Essence. Tout
+  contrôle passe par `StatusService` (immunité après contrôle dur, ralentissements non cumulables, durées
+  plafonnées). Pièges, leurres, préparations et vols de grappin sont nettoyés à la mort, au départ, au
+  déséquipement et par un balayage périodique.
 - `MovementGuard` : un déplacement horizontal > 120 studs/s fait lâcher les reliques portées ; au-delà de
-  2,5× cette limite (téléportation), le personnage est ramené à sa dernière position valide.
+  2,5× cette limite (téléportation), le personnage est ramené à sa dernière position valide. Le Dash relève
+  le seuil à 160 studs/s pendant 0,6 s (plus de fenêtre de grâce totale) ; le Grappin reste sous le seuil ;
+  le Blink est un déplacement fait par le serveur et signalé au garde.
 - Le serveur seul crée/détruit les reliques et modifie l'Essence ; les sauvegardes chargées sont assainies.
 
 ## 14. Performance
@@ -513,6 +552,12 @@ FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard 
 | Double revendication simultanée | un seul joueur l'obtient |
 | Sanctuaires tous occupés | 9ᵉ joueur en file, sanctuaire attribué dès qu'une place se libère |
 | Reconnexion | progression, reliques posées et niveau du sanctuaire restaurés, gains hors-ligne affichés |
+| Blink vers un mur / un vide / un Sanctuaire scellé | s'arrête avant le mur, reste au sol, refusé (sans coût) |
+| Grappin sans point en vue | bouton grisé, message « Aucun point de grappin en vue », rien n'est dépensé |
+| Bouclier contre Repousser | ni étourdi ni lâcher ; l'Onde de givre ralentit quand même |
+| Leurre au-dessus d'un piège runique | le piège part sur le leurre, le joueur passe |
+| Phase spectrale contre un joueur qui bloque | on le traverse ; les murs et les Sceaux bloquent toujours |
+| Changer de loadout hors de son Sanctuaire | boutons « Au Sanctuaire » désactivés, refus serveur |
 
 ---
 

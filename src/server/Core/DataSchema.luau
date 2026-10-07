@@ -53,6 +53,7 @@ function DataSchema.default(): SaveData
 		abilities = {
 			unlocked = Abilities.defaultUnlocked(),
 			loadout = Abilities.defaultLoadout(),
+			harmonyOff = {},
 		},
 		power = {
 			peak = 0,
@@ -79,6 +80,16 @@ local MIGRATIONS: { [number]: (any) -> any } = {
 			raw.power = { peak = 0 }
 		end
 		raw.schema = 2
+		return raw
+	end,
+	-- 2 -> 3 (V2 phase 4): harmony toggles. Every harmony starts enabled.
+	[2] = function(raw: any): any
+		if type(raw.abilities) == "table" and type(raw.abilities.harmonyOff) ~= "table" then
+			-- Shallow copy: never touch the caller's nested table.
+			raw.abilities = table.clone(raw.abilities)
+			raw.abilities.harmonyOff = {}
+		end
+		raw.schema = 3
 		return raw
 	end,
 }
@@ -220,6 +231,14 @@ function DataSchema.normalize(raw: any): SaveData
 				end
 			end
 		end
+		-- Harmony toggles: only known harmony relics, only `true` entries.
+		if type(raw.abilities.harmonyOff) == "table" then
+			for relicId, flag in raw.abilities.harmonyOff do
+				if flag == true and Abilities.harmony(relicId) then
+					data.abilities.harmonyOff[relicId] = true
+				end
+			end
+		end
 	end
 
 	if type(raw.power) == "table" then
@@ -305,6 +324,7 @@ function DataSchema.serialize(data: SaveData): { [string]: any }
 		abilities = {
 			unlocked = table.clone(data.abilities.unlocked),
 			loadout = table.clone(data.abilities.loadout),
+			harmonyOff = table.clone(data.abilities.harmonyOff),
 		},
 		power = {
 			peak = data.power.peak,

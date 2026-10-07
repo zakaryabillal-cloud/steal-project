@@ -10,7 +10,8 @@
 --   * Hard control never lasts more than MaxHardDuration.
 --   * Slows never stack: only the strongest active slow applies, capped at
 --     MaxSlow. Slows do not grant steady (they never remove control).
---   * A shield blocks every incoming control (hard and slows).
+--   * A shield blocks hard control only (V2 phase 4: "short protection
+--     against hard CC, never invincibility"). Slows still apply.
 
 local GameConfig = require(script.Parent.Config.GameConfig)
 
@@ -74,16 +75,13 @@ function Status.resolveHard(state: State, steadyUntil: number, now: number, dura
 	return { ok = true, reason = nil, duration = clamped, steadyUntil = steady }
 end
 
--- Applies a slow from `source`. Returns (ok, reason).
+-- Applies a slow from `source` (a shield does not block slows). Returns (ok, reason).
 function Status.applySlow(state: State, now: number, source: string, amount: number, duration: number): (boolean, string?)
 	if type(amount) ~= "number" or type(duration) ~= "number" or not finite(amount) or not finite(duration) then
 		return false, "invalid"
 	end
 	if amount <= 0 or duration <= 0 then
 		return false, "invalid"
-	end
-	if Status.isShielded(state, now) then
-		return false, "shield"
 	end
 	state.slows[source] = {
 		amount = math.min(amount, RULES.MaxSlow),
@@ -137,6 +135,22 @@ function Status.applyBuff(state: State, now: number, kind: string, duration: num
 		state.phaseUntil = math.max(state.phaseUntil, untilTime)
 	end
 	return true, nil
+end
+
+-- Ends a self buff early (e.g. the Cosmic Eye ending a Spectral Phase).
+function Status.endBuff(state: State, now: number, kind: string): boolean
+	if kind == "shield" and state.shieldUntil > now then
+		state.shieldUntil = now
+		return true
+	elseif kind == "phase" and state.phaseUntil > now then
+		state.phaseUntil = now
+		return true
+	end
+	return false
+end
+
+function Status.isPhased(state: State, now: number): boolean
+	return now < state.phaseUntil
 end
 
 function Status.clear(state: State)

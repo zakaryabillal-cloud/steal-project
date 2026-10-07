@@ -1,6 +1,6 @@
 # RIFT HEIST — Plan V2 (validé)
 
-> Statut : **Phases 1 (Fondations), 2 (Monde V2) et 3 (Audio dynamique) terminées.** Phases 4 à 11 : non commencées (attente d'autorisation).
+> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique) et 4 (Capacités) terminées.** Phases 5 à 11 : non commencées (attente d'autorisation).
 
 Boucle principale conservée : *Faille → Reliques → Vol/PvP → Sanctuaire → Essence → Progression → contenu plus difficile → récompenses rares.*
 Boucle secondaire V2 : *Collecter → améliorer → Power ↑ → boss → drops exclusifs / Forge → build & collection → contenu supérieur*,
@@ -32,11 +32,11 @@ Server/Core/    Scheduler (✅ phase 1)
 Server/Services StatusService, AbilityService (framework) (✅ phase 1)
                 WorldDirector, BossService, LootService, ForgeService, CodexService,
                 DailyService, BoostService, CosmeticService, MarketService (à venir)
-Server/Abilities/<Module>   logique serveur d'une capacité (✅ Dash, Pulse)
+Server/Abilities/<Module>   logique serveur d'une capacité (✅ les 9 + Common)
 Server/Bosses/<Id>          un module par boss (à venir)
-Client/Abilities/<Module>   prédiction + ressenti client (✅ Dash, Pulse)
-Client/Controllers          MusicDirector, BossFX, Telegraphs, StatusFX, CosmeticFX, EventWorldFX (à venir)
-Client/UI/Screens           Loadout, BossPortal, BossHud, Codex, Daily, Premium, Forge (à venir)
+Client/Abilities/<Module>   prédiction + ressenti client (✅ les 9)
+Client/Controllers          MusicDirector (✅ phase 3), AbilityFX + GrappleTargeting (✅ phase 4) · BossFX, Telegraphs, CosmeticFX, EventWorldFX (à venir)
+Client/UI/Screens           Loadout (✅ phase 4) · BossPortal, BossHud, Codex, Daily, Premium, Forge (à venir)
 ```
 
 Principes : le serveur décide (positions, touches, loot, achats), le client affiche ; boss = ancre serveur + visuels
@@ -52,7 +52,7 @@ Sync découpé chaud / froid.
 | 1 | Fondations | Schéma v2 + migration, garde anti-écrasement, Scheduler, StatusService, framework de capacités (Dash/Repousser portés), Power + record + HUD, Sync chaud/froid | ✅ |
 | 2 | Monde V2 | +35 % de surface (anneau extérieur, grottes, corniche, ruines, landmarks, points de grappin), routes alternatives Faille↔Sanctuaires (trajet direct inchangé : 172 studs), panneaux de Sanctuaire en studs + distance max 150 | ✅ |
 | 3 | Audio dynamique | MusicDirector (Boss > Poursuite > Événement > Faille > Exploration), fondus, Sounds v2 documenté, aucun ID inventé | ✅ |
-| 4 | Capacités | Blink, Grappin (points dédiés), Onde de givre, Piège runique, Bouclier, Leurre, Phase spectrale ; déblocages par Power record + Essence/matériaux ; UI de loadout (au Sanctuaire) ; harmonisations (Storm Crystal, Void Cube, Magma Heart, Frost Lotus, Chrono Glass, Cosmic Eye) | — |
+| 4 | Capacités | Blink, Grappin (points dédiés), Onde de givre, Piège runique, Bouclier, Leurre, Phase spectrale ; déblocages par Power record + Essence/matériaux ; UI de loadout (au Sanctuaire) ; harmonisations (Storm Crystal, Void Cube, Magma Heart, Frost Lotus, Chrono Glass, Cosmic Eye) | ✅ |
 | 5 | Cosmétiques (moteur) | possession / équipement / rendu (traînées, auras, skins de Sanctuaire, effets de dépôt, titres, emotes) | — |
 | 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, Forge, protection Expédition, piédestaux trophées | — |
 | 7 | Boss 2 & 3 | Forgeheart, Tempest Seraph | — |
@@ -71,7 +71,8 @@ Store inchangé : `RiftHeist_Player_v1`, clé `u_<UserId>`. Le numéro de **sch�
 |---|---|---|
 | 1 | lancement (V1) | — |
 | **2** | `abilities = { unlocked, loadout }`, `power = { peak }` | **1 ✅** |
-| 3+ | `boss`, `materials`, `cosmetics`, `daily`, `boosts`, `receipts` (chacun dans sa phase, avec sa migration) | 5–10 |
+| **3** | `abilities.harmonyOff` (interrupteurs d'harmonies) | **4 ✅** |
+| 4+ | `boss`, `materials`, `cosmetics`, `daily`, `boosts`, `receipts` (chacun dans sa phase, avec sa migration) | 5–10 |
 
 Règles :
 - les migrations **ajoutent** des champs, ne suppriment jamais de progression ; `normalize` assainit tout ensuite ;
@@ -262,3 +263,161 @@ Correctif du harnais de test (explique l'échec intermittent signalé en phase 2
 la valeur par défaut d'une énumération dans un ordre instable ; `Part.Shape` valait parfois `Ball` au lieu de
 `Block` et le test des routes calculait le dessus d'une sphère pour les tabliers de pont. Les valeurs par défaut
 sont désormais déterministes et `Part.Shape = Block` comme dans Roblox. Le jeu n'était pas en cause.
+
+---
+
+## 9. Phase 4 — Capacités : ce qui a été livré
+
+Le framework de la phase 1 est **étendu, pas réécrit** : `AbilityService` (validation, cooldown par id,
+rate limit), `StatusService` (anti stun-lock), `Scheduler` (un seul job `Abilities.tick` à 0,1 s pour toutes
+les capacités), Sync chaud/froid, `MovementGuard`. Dash, Repousser, Sceau et les remotes V1 `Dash`/`Pulse`
+restent compatibles.
+
+### Loadout
+
+| Emplacement | Clavier | Manette | Capacités |
+|---|---|---|---|
+| Mobilité | Q | R1 | Dash *(base)*, Blink, Grappin |
+| Contrôle | F | L1 | Repousser *(base)*, Onde de givre, Piège runique |
+| Utilitaire | R | R2 | Bouclier, Leurre, Phase spectrale (vide au départ) |
+| Sceau (hors loadout) | G | Y | inchangé |
+
+Écran **Capacités** (touche L, croix directionnelle haut, ou bouton rond à gauche des boutons de capacités) :
+une carte par capacité (description, valeurs effectives harmonies comprises, état Équiper / Équipée /
+Retirer / Débloquer) et la liste des 6 harmonies avec leur interrupteur. **Équiper et changer une harmonie
+seulement dans son propre Sanctuaire** ; le serveur vérifie : capacité connue et débloquée, bon emplacement,
+emplacement valide, personnage vivant **dans** le Sanctuaire dont la session est propriétaire.
+
+### Valeurs définitives (`GameConfig.Abilities` / `GameConfig.Harmonies`)
+
+| Capacité | Recharge | Effet | Contre-jeu |
+|---|---|---|---|
+| **Dash** | 3,2 s | élan 82 studs/s pendant 0,18 s (appliqué par le client) | direction prévisible |
+| **Blink** | 6 s | téléportation de **16 studs** après **0,3 s** de préparation visible ; ×0,5 en portant (8 studs) ; jamais à travers un obstacle (5 rayons : genoux, taille, tête, 2 latéraux ; marge 1,8) ; sol requis à ≤ 14 studs sous l'arrivée, 5,5 studs de hauteur libre ; jamais dans un Sanctuaire scellé d'un autre | un étourdissement ou un enracinement pendant la préparation l'annule |
+| **Grappin** | 9 s | uniquement vers les **14 ancres** ; portée 45 (+3 de tolérance réseau), minimum 8 ; ligne de vue depuis la tête ; traction 80 studs/s (×0,8 en portant), arrivée à 5 studs + petit saut | câble visible ; tout contrôle dur le coupe |
+| **Repousser** | 7 s | rayon 12, recul 62, étourdit 0,6 s, fait lâcher les reliques | immunité 2,5 s après un contrôle dur |
+| **Onde de givre** | 9 s | rayon 14, ralentit **40 % pendant 2,5 s**, bloquée par les murs ; jamais de recul ni de lâcher | contournable, un ralentissement ne se cumule pas |
+| **Piège runique** | 12 s | posé **sous le lanceur** (sol trouvé par le serveur), s'arme en **1 s**, rayon 4,5, ralentit **60 % pendant 2 s**, dure 45 s, **1 par joueur** (le nouveau remplace l'ancien) ; interdit dans le Sanctuaire d'un autre | rune visible de tous ; le propriétaire ne le déclenche pas ; un leurre le fait partir |
+| **Bouclier** | 16 s | **2 s** d'immunité au **contrôle dur** (étourdissement, enracinement, recul → donc au lâcher du Repousser) ; le porteur est **ralenti de 20 %** ; les ralentissements passent | bulle visible ; attendre 2 s ; geler la cible |
+| **Leurre** | 15 s | copie du joueur (avatar + copie visuelle des reliques portées + même marqueur de transport) qui court **4 s** en ligne droite à sa vitesse (60 studs max), s'arrête avant murs et vides | éclate au premier contrôle (Repousser, Onde, piège) ; l'Œil cosmique le révèle |
+| **Phase spectrale** | 14 s | **1,5 s** à traverser les **joueurs** uniquement (groupe de collision `Phase<i>`) ; murs, carte et barrières des autres Sanctuaires bloquent toujours | corps fantomatique, relique portée **toujours visible**, contrôle toujours possible ; l'Œil cosmique la révèle et la coupe |
+
+Toutes les durées et intensités respectent l'anti stun-lock (`GameConfig.Status`) : contrôle dur ≤ 2 s puis
+immunité, ralentissements non cumulables (le plus fort, ≤ 60 %, ≤ 3 s), bonus ≤ 4 s (vérifié au chargement
+de la config et par les tests).
+
+### Les 6 harmonies
+
+Une harmonie est active quand la relique est **posée sur un piédestal de son propre Sanctuaire** (une relique
+portée, ou en train d'être volée, ne compte pas) et n'est pas désactivée dans l'écran Capacités. Calculée par le
+serveur à chaque changement de collection (`EconomyService.recompute`) ; le client ne peut rien revendiquer.
+
+| Relique | Capacité | Effet exact |
+|---|---|---|
+| **Storm Crystal** | Dash | traînée statique entre le départ et la position vue par le serveur 0,25 s plus tard (≤ 18 studs, 1,6 s, largeur 3 de chaque côté) : ralentit de 25 % pendant 1,5 s, une fois par traînée |
+| **Void Cube** | Blink | portée 20 studs ; en portant ×0,75 (15 studs au lieu de 8) |
+| **Magma Heart** | Repousser → **Éruption** | anneau annoncé 0,35 s, puis rayon 15, recul 78, levée 34, étourdit 0,8 s ; recharge 10 s ; sortir de l'anneau l'esquive, étourdir le lanceur l'annule |
+| **Frost Lotus** | Onde de givre | rayon 16, ralentit 50 % pendant 3 s |
+| **Chrono Glass** | emplacement Utilitaire | recharges ×0,85 (Bouclier 13,6 s, Leurre 12,75 s, Phase 11,9 s) |
+| **Cosmic Eye** | passif | révèle à son porteur (et à lui seul) les leurres et les joueurs en Phase spectrale à ≤ 45 studs ; un leurre touché (≤ 4 studs) éclate ; **tout effet de contrôle du porteur met fin à une Phase spectrale** |
+
+### Déblocages
+
+Achat avec de l'Essence une fois le **Power record** atteint (un vol ne reverrouille jamais rien), depuis
+l'écran Capacités (n'importe où). Une notification signale chaque capacité qui devient déblocable.
+
+| Capacité | Power record | Essence |
+|---|---|---|
+| Bouclier | 40 | 400 |
+| Onde de givre | 70 | 1 000 |
+| Blink | 110 | 2 500 |
+| Piège runique | 170 | 6 000 |
+| Leurre | 240 | 12 000 |
+| Grappin | 320 | 20 000 |
+| Phase spectrale | 420 | 35 000 |
+
+`unlock.materials` est prévu pour les matériaux de boss / Forge (phase 6+) : toute exigence non nulle refuse
+le déblocage (`materials`) tant que le système n'existe pas ; aucune capacité de lancement n'en demande.
+Test en Studio : `/rh abilities` (tout équipable pour la session, **jamais sauvegardé** : le loadout est
+re-validé au prochain chargement), `/rh abilities off`, `/rh cooldowns`.
+
+### Sécurité (serveur autoritaire)
+
+- Le client envoie **au plus une direction** (Blink, Leurre ; tout vecteur fini est normalisé, une « position »
+  n'est qu'une direction) ou **un index d'ancre** (Grappin). Destinations, raycasts, cibles, placement des
+  pièges, ancres (lues dans `WorldFeatures`, jamais dans le workspace), harmonies et cooldowns effectifs : serveur.
+- `validate` avant le cooldown : un Blink bloqué, une ancre hors de portée / sans vue, un piège sans sol ou
+  dans un Sanctuaire étranger sont refusés **sans coût** ; le client reçoit `AbilityDenied` et annule sa prédiction.
+- `MovementGuard` : l'ancienne fenêtre de grâce totale après un Dash est remplacée par un **seuil relevé**
+  (160 studs/s pendant 0,6 s) ; le Grappin reste sous le seuil normal (80 < 120) ; le Blink est un déplacement
+  serveur signalé au garde. Une téléportation déguisée en Dash ou en Grappin est toujours détectée.
+- Nettoyage : mort, réapparition, déconnexion (`AbilityService.release` avant la résolution des reliques),
+  déséquipement, expiration, et balayage toutes les secondes (pièges orphelins, effets de capacités non équipées).
+- Spam : limites de débit des remotes (`UseAbility` 4/s, `SetLoadout` 2/s, `UnlockAbility` 1/s,
+  `SetHarmony` 2/s) + cooldowns ; tout est contenu par `pcall`.
+
+### Données
+
+Schéma **3** : `abilities.harmonyOff` (interrupteurs d'harmonies). Migration 2 → 3 (tout activé), assainissement
+(seules les reliques à harmonie connues, seules les valeurs `true`), garde contre les schémas plus récents
+inchangée. Sync : `harmonies` (reliques à harmonie exposées) dans la moitié chaude, `harmonyOff` dans la froide.
+
+### Écarts au plan (et pourquoi)
+
+1. **Bouclier = contrôle dur uniquement.** La phase 1 bloquait aussi les ralentissements ; la spec de la phase 4
+   (« protection courte contre le hard CC, pas d'invincibilité ») est appliquée dans `Shared/Status` : les
+   ralentissements passent. Le test de la phase 1 qui vérifiait l'ancien comportement a été mis à jour.
+2. **Schéma 3** pour les interrupteurs d'harmonies (au lieu de les ranger dans un champ existant) ; les tests de
+   la phase 1 qui codaient « 2 = actuel / 3 = futur » comparent maintenant à `SchemaVersion` / `SchemaVersion + 1`.
+3. **Ancre `ObservatoryRoof` déplacée** : placée en phase 2 sur l'axe de la tour, 70 studs au-dessus du sol, elle
+   n'était atteignable de nulle part (hors portée depuis le sol, dôme et tour bloquant la vue depuis le balcon).
+   Une coursive (`RoofDeck`, rayon 10) a été ajoutée autour du dôme et l'ancre posée juste à son bord, côté Faille,
+   4 studs au-dessus : on la grappine depuis le balcon et on atterrit sur la coursive. Les 13 autres ancres
+   sont inchangées ; un test vérifie que les 14 sont atteignables.
+4. **Fenêtre de grâce du Dash supprimée** (faille V1 : 0,6 s pendant lesquelles une téléportation n'était pas
+   détectée) au profit d'un seuil relevé.
+5. **Harmonies désactivables** (écran Capacités) : Éruption a un vrai compromis (recharge 10 s) ; on peut
+   préférer le Repousser rapide.
+6. **Repousser** : en français, « Repousser » remplace « Onde » pour éviter la confusion avec l'Onde de givre.
+7. **Le leurre n'existe que côté client** (aucune instance serveur) : impossible de le voler, de le faire déposer
+   ou de dupliquer quoi que ce soit. Un exploit peut toutefois lire le message réseau et savoir qu'il s'agit
+   d'un leurre (inévitable pour un affichage client ; sans effet sur le jeu).
+8. **Sons des capacités** : 12 emplacements ajoutés dans `Config/Sounds.luau`, sur des sons intégrés à Roblox
+   (`rbxasset://`), `id` vide, aucun ID inventé.
+
+### Tests (phase 4)
+
+`tests/scenarios/V2Abilities.luau` : **+289 vérifications, 741 au total, 0 échec** (les 452 précédentes incluses).
+Le harnais gagne `workspace:Raycast` (pièces bloc / sphère / cylindre, terrain en voxels issu de `WriteVoxels` et
+des remplissages), `RaycastParams`, la matrice des groupes de collision (limite de 32 groupes vérifiée).
+
+### À vérifier dans Roblox Studio (phase 4)
+
+Préparer 2 joueurs (*Test → Clients and Servers*, 2 joueurs), `/rh abilities` et `/rh essence` sur chacun,
+`/rh novice` pour pouvoir voler, `/rh spawn <id>` pour obtenir une relique à harmonie.
+
+1. **Écran Capacités** (L / croix haut / bouton rond) : lisible sur PC, manette (navigation) et mobile (cartes,
+   boutons ≥ 44 px, défilement) ; « Au Sanctuaire » hors de chez soi ; équiper / retirer / débloquer ; badge « ! ».
+2. **Blink** : préparation visible (0,3 s) ; contre un mur, une rambarde, un pilier fin, une porte : jamais au
+   travers ; au bord d'une falaise : reste au sol ; depuis la corniche vers le bas (≤ 14 studs) ; en portant
+   (8 studs) ; un étourdissement pendant la préparation l'annule ; sensation du déplacement fait par le serveur
+   (léger à-coup possible selon la latence).
+3. **Grappin** : le cercle cyan suit la caméra ; les 14 points, en particulier `ObservatoryRoof` depuis le balcon
+   (atterrissage sur la coursive) ; traction fluide jusqu'au point + petit saut ; câble visible des deux joueurs ;
+   un Repousser coupe le câble ; sans point en vue, bouton grisé.
+4. **Onde de givre / Piège runique** : lisibilité de l'anneau et de la rune (armement, déclenchement) ; ralenti
+   ressenti ; pas de recul ; un piège par joueur ; le piège disparaît à la mort / au départ.
+5. **Bouclier** : bulle visible ; Repousser sans effet ; ralenti de 20 % ressenti ; l'Onde de givre ralentit quand même.
+6. **Leurre** : crédible à distance (avatar, animation de course issue du script Animate du joueur, relique copiée,
+   marqueur de transport, contour rouge pour la victime) ; éclate sur un Repousser ; révélé (contour violet +
+   « LEURRE ») avec un Cosmic Eye exposé.
+7. **Phase spectrale** : traverser l'autre joueur (dans un couloir / sur un pont) ; impossible de traverser un mur,
+   la barrière d'un Sanctuaire scellé ; la relique portée reste bien visible ; fantôme lisible pour l'autre joueur.
+8. **Harmonies** : exposer chaque relique, vérifier l'effet et l'interrupteur ; se faire voler la relique → l'effet
+   disparaît ; la récupérer → il revient.
+9. **Poursuite complète à 2** : vol → Blink/Dash/Grappin → Onde / Repousser → Bouclier / Phase / Leurre →
+   récupération ou sécurisation ; surveiller la sortie serveur (aucun avertissement `MovementGuard` en jeu normal).
+10. **Mobile** : boutons de capacités + bouton Capacités + puces d'état sans recouvrir le saut ni le panneau de
+    transport ; manette : R1/L1/R2/Y et croix haut.
+11. **Sons** : les 12 nouveaux emplacements utilisent des sons intégrés provisoires ; remplacer par vos sons
+    (`Config/Sounds.luau`, champ `id`).

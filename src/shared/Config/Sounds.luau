@@ -79,6 +79,20 @@ local Sounds: { [string]: SoundDef } = {
 	Hit = def(LAND, 0.6, 0.6, 0.05, "Impact thud for getting knocked back."),
 	Splash = def(WATER, 0.5, 1, 0.08, "Water splash."),
 
+	-- V2 abilities (built-in fallbacks until you upload your own) -------------
+	BlinkCharge = def(WIND, 0.35, 2.2, 0, "Short rising shimmer (0.3s) before a Blink."),
+	Blink = def(JUMP, 0.5, 1.9, 0.05, "Snappy teleport 'zip' + sparkle."),
+	Grapple = def(JUMP, 0.45, 0.6, 0.04, "Hook throw + cable whir."),
+	FrostWave = def(WATER, 0.45, 1.6, 0.04, "Icy crackle burst, crystalline."),
+	EruptionCharge = def(WIND, 0.4, 0.5, 0, "Low magma rumble building up (0.35s)."),
+	Eruption = def(BOOM, 0.55, 0.75, 0.04, "Heavy molten blast."),
+	TrapPlace = def(LAND, 0.4, 1.4, 0.04, "Rune stamped into the ground, soft magical thud."),
+	TrapTrigger = def(BOOM, 0.4, 1.9, 0.04, "Rune snap + binding chime."),
+	Shield = def(BOOM, 0.3, 2.2, 0, "Bright force-field shimmer."),
+	Phase = def(WIND, 0.4, 1.8, 0, "Ghostly airy whoosh."),
+	Decoy = def(JUMP, 0.35, 1.2, 0.05, "Quick illusion 'pop-in'."),
+	DecoyPop = def(SLIDER, 0.45, 0.8, 0.05, "Illusion bursting like a soap bubble."),
+
 	-- World ------------------------------------------------------------------
 	EventStart = def(BOOM, 0.4, 0.45, 0, "Deep horn / sky rumble announcing a Rift event."),
 	AmbientWorld = def("", 0.25, 1, 0, "Looping ambient night bed under the music: wind, soft chimes, distant hum (1-3 min seamless loop).", true),

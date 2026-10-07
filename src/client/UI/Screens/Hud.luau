@@ -7,6 +7,7 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -36,6 +37,7 @@ local Controllers = UIRoot.Parent.Controllers
 local Store = require(Controllers.Store)
 local Audio = require(Controllers.Audio)
 local Abilities = require(Controllers.Abilities)
+local GrappleTargeting = require(Controllers.GrappleTargeting)
 local RelicRenderer = require(Controllers.RelicRenderer)
 local SanctuaryFX = require(Controllers.SanctuaryFX)
 local ClientNet = require(UIRoot.Parent.ClientNet)
@@ -78,11 +80,21 @@ type AbilityView = {
 	countdown: TextLabel,
 	stroke: UIStroke,
 	wasReady: boolean,
+	-- Dims the button when it cannot be used right now (no grapple anchor).
+	dim: Frame,
+	color: Color3,
 }
 local abilityViews: { AbilityView } = {}
 local abilityCluster: Frame
 -- Loadout slot index -> its button (nil when the slot is empty).
 local slotViews: { [number]: AbilityView } = {}
+-- Loadout screen button (next to the ability buttons) and its badge.
+local loadoutButton: Button.Button
+local loadoutBadge: Frame
+-- Active status chips (shield, phase, slowed, stunned).
+local statusRow: Frame
+type StatusChip = { frame: Frame, label: TextLabel }
+local statusChips: { [string]: StatusChip } = {}
 local shownLoadout = ""
 -- Button size and position per loadout slot (Mobility, Control, Utility).
 local SLOT_LAYOUT = {
@@ -400,6 +412,16 @@ local function abilityButton(parent: Instance, key: string, size: number, positi
 		Parent = frame,
 	})
 	Style.corner(overlay, UDim.new(1, 0))
+	local dim = Create("Frame", {
+		Name = "Unavailable",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(8, 6, 16),
+		BackgroundTransparency = 0.45,
+		ZIndex = 3,
+		Visible = false,
+		Parent = frame,
+	})
+	Style.corner(dim, UDim.new(1, 0))
 	local gradient = Create("UIGradient", { Rotation = 90, Parent = overlay })
 	local countdown = Style.text({
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -422,7 +444,17 @@ local function abilityButton(parent: Instance, key: string, size: number, positi
 		Style.corner(chip, UDim.new(0, 6))
 		Style.text({ Text = keyLabel, TextXAlignment = Enum.TextXAlignment.Center, TextSize = 13, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, ZIndex = 6, Parent = chip })
 	end
-	return { key = key, frame = frame, overlay = overlay, gradient = gradient, countdown = countdown, stroke = stroke, wasReady = true }
+	return { key = key, frame = frame, overlay = overlay, gradient = gradient, countdown = countdown, stroke = stroke, wasReady = true, dim = dim, color = color }
+end
+
+local GAMEPAD_LABEL: { [Enum.KeyCode]: string } = {
+	[Enum.KeyCode.ButtonR1] = "R1",
+	[Enum.KeyCode.ButtonL1] = "L1",
+	[Enum.KeyCode.ButtonR2] = "R2",
+	[Enum.KeyCode.ButtonY] = "Y",
+}
+local function isGamepad(): boolean
+	return UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled
 end
 
 -- (Re)builds one button per equipped loadout slot when the loadout changes.
@@ -450,7 +482,8 @@ local function refreshAbilitySlots()
 		if def then
 			local layout = SLOT_LAYOUT[index]
 			local icon = (Icons :: any)[def.icon] or Icons.pulse
-			local view = abilityButton(abilityCluster, def.id, layout.size, layout.position, slot.keyboard.Name, icon, def.color, function()
+			local keyLabel = if isGamepad() then GAMEPAD_LABEL[slot.gamepad] or slot.gamepad.Name else slot.keyboard.Name
+			local view = abilityButton(abilityCluster, def.id, layout.size, layout.position, keyLabel, icon, def.color, function()
 				Abilities.useSlot(index)
 			end)
 			slotViews[index] = view
@@ -468,8 +501,149 @@ local function buildAbilities(parent: Instance)
 		BackgroundTransparency = 1,
 		Parent = parent,
 	})
-	table.insert(abilityViews, abilityButton(abilityCluster, "seal", 60, UDim2.new(1, -58, 1, -148), "G", Icons.seal, Color3.fromRGB(255, 205, 100), Abilities.seal))
+	table.insert(abilityViews, abilityButton(abilityCluster, "seal", 60, UDim2.new(1, -58, 1, -148), if isGamepad() then "Y" else "G", Icons.seal, Color3.fromRGB(255, 205, 100), Abilities.seal))
 	refreshAbilitySlots()
+
+	-- Loadout screen: small round button left of the ability buttons.
+	loadoutButton = Button.new({
+		name = "LoadoutButton",
+		size = UDim2.fromOffset(46, 46),
+		position = UDim2.new(1, -214, 1, -42),
+		anchor = Vector2.new(0.5, 0.5),
+		color = Theme.Colors.Panel,
+		transparency = 0.1,
+		corner = UDim.new(1, 0),
+		parent = abilityCluster,
+		onClick = function()
+			openModal("Loadout")
+		end,
+	})
+	local holder = Create("Frame", {
+		Size = UDim2.fromScale(0.52, 0.52),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		Parent = loadoutButton.instance,
+	})
+	Icons.loadout(holder, Theme.Colors.Text)
+	loadoutBadge = Create("Frame", {
+		Size = UDim2.fromOffset(16, 16),
+		Position = UDim2.new(1, 2, 0, -2),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundColor3 = Theme.Colors.Success,
+		Visible = false,
+		ZIndex = 3,
+		Parent = loadoutButton.instance,
+	})
+	Style.corner(loadoutBadge, UDim.new(1, 0))
+	Style.text({ Text = "!", TextXAlignment = Enum.TextXAlignment.Center, TextSize = 12, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, ZIndex = 4, Parent = loadoutBadge })
+	if not touch then
+		local chip = Create("Frame", {
+			Size = UDim2.fromOffset(22, 18),
+			Position = UDim2.new(0.5, 0, 1, 4),
+			AnchorPoint = Vector2.new(0.5, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			ZIndex = 5,
+			Parent = loadoutButton.instance,
+		})
+		Style.corner(chip, UDim.new(0, 6))
+		Style.text({ Text = if isGamepad() then "↑" else "L", TextXAlignment = Enum.TextXAlignment.Center, TextSize = 12, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, ZIndex = 6, Parent = chip })
+	end
+
+	-- Status chips above the buttons (only while something is active).
+	statusRow = Create("Frame", {
+		Name = "StatusRow",
+		Size = UDim2.fromOffset(230, 24),
+		Position = UDim2.new(1, 0, 1, -196),
+		AnchorPoint = Vector2.new(1, 1),
+		BackgroundTransparency = 1,
+		Parent = abilityCluster,
+	})
+	Style.list(statusRow, 6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right)
+end
+
+local STATUS_ORDER = { "shield", "phase", "stun", "root", "slow" }
+local STATUS_COLOR: { [string]: Color3 } = {
+	shield = Color3.fromRGB(255, 215, 120),
+	phase = Color3.fromRGB(120, 255, 220),
+	stun = Color3.fromRGB(255, 230, 140),
+	root = Color3.fromRGB(255, 160, 120),
+	slow = Color3.fromRGB(140, 210, 255),
+}
+
+local function statusChip(kind: string): StatusChip
+	local existing = statusChips[kind]
+	if existing then
+		return existing
+	end
+	local frame = Create("Frame", {
+		Name = "Status_" .. kind,
+		Size = UDim2.fromOffset(84, 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundTransparency = 0.15,
+		LayoutOrder = table.find(STATUS_ORDER, kind) or 9,
+		Visible = false,
+		Parent = statusRow,
+	})
+	Style.corner(frame, UDim.new(1, 0))
+	Style.stroke(frame, STATUS_COLOR[kind], 0.2, 1.5)
+	Style.padding(frame, 0, 8)
+	local label = Style.text({
+		Size = UDim2.fromScale(0, 1),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextSize = 13,
+		FontFace = Theme.Fonts.Heavy,
+		TextColor3 = STATUS_COLOR[kind],
+		Parent = frame,
+	})
+	local created = { frame = frame, label = label }
+	statusChips[kind] = created
+	return created
+end
+
+local function updateStatus()
+	local status = Store.state.status
+	local t = Store.now()
+	local active: { [string]: string } = {}
+	if status.shieldUntil > t then
+		active.shield = Locale.t("status.shield", { time = string.format("%.1f", status.shieldUntil - t) })
+	end
+	if status.phaseUntil > t then
+		active.phase = Locale.t("status.phase", { time = string.format("%.1f", status.phaseUntil - t) })
+	end
+	if status.stunUntil > t then
+		active.stun = Locale.t("status.stun")
+	end
+	if status.rootUntil > t then
+		active.root = Locale.t("status.root")
+	end
+	if status.slow > 0 and status.slowUntil > t then
+		active.slow = Locale.t("status.slow", { amount = math.floor(status.slow * 100 + 0.5) })
+	end
+	for _, kind in STATUS_ORDER do
+		local text = active[kind]
+		local chip = statusChips[kind]
+		if text then
+			chip = statusChip(kind)
+			chip.label.Text = text
+			chip.frame.Visible = true
+		elseif chip then
+			chip.frame.Visible = false
+		end
+	end
+end
+
+-- Any ability the player can unlock right now (Power record + Essence)?
+function Hud.unlockAvailable(): boolean
+	local state = Store.state
+	for _, def in AbilityConfig.list do
+		local requirement = def.unlock
+		if requirement and not state.unlocked[def.id] and state.powerPeak >= requirement.power and state.essence >= requirement.essence then
+			return true
+		end
+	end
+	return false
 end
 
 local function refreshPower()
@@ -585,6 +759,7 @@ local function refreshStatic()
 	local found = Store.dexCounts()
 	dexChip.Text = string.format("%d/%d", found, Relics.count)
 	upgradesBadge.Visible = Hud.anyAffordable()
+	loadoutBadge.Visible = Hud.unlockAvailable()
 
 	local id, cost = nextGoal()
 	if goalFrame then
@@ -732,9 +907,21 @@ local function updateCarry()
 end
 
 local function updateAbilities()
+	local status = Store.state.status
+	local t = Store.now()
 	for _, view in abilityViews do
 		local remaining = Abilities.remaining(view.key)
 		local duration = Abilities.duration(view.key)
+		-- Shield / Spectral Phase: glowing ring while the effect is on.
+		local activeUntil = if view.key == "shield" then status.shieldUntil elseif view.key == "phase" then status.phaseUntil else 0
+		if activeUntil > t then
+			view.stroke.Thickness = 4.5
+			view.stroke.Transparency = 0
+		elseif view.stroke.Thickness > 2.6 then
+			view.stroke.Thickness = 2.5
+		end
+		-- Grapple: dimmed when no anchor is in reach.
+		view.dim.Visible = view.key == "grapple" and remaining <= 0.05 and GrappleTargeting.current() == nil
 		local sealedUntil = 0
 		if view.key == "seal" then
 			local model = Store.plotModel()
@@ -923,6 +1110,7 @@ function Hud.init(parent: Instance, fullscreenLayer: Frame, options: Options)
 		end
 		essenceLabel.Text = formatEssence(math.floor(displayedEssence + 0.5))
 		updateAbilities()
+		updateStatus()
 		updateCarry()
 	end)
 end

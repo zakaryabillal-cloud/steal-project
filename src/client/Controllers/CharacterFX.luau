@@ -177,6 +177,68 @@ local function refreshCarriers()
 	end
 end
 
+-- Same carry marker (and red chase outline for the victim) on a decoy copy,
+-- so a decoy reads exactly like the real carrier. Returns what to destroy.
+function CharacterFX.decoyMarker(model: Model, head: BasePart, rarityId: string, stolenFrom: number): { Instance }
+	local rarity = Rarities.get(rarityId)
+	local created: { Instance } = {}
+	local gui: BillboardGui = Create("BillboardGui", {
+		Name = "DecoyMarker",
+		Size = UDim2.fromOffset(160, 48),
+		StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0),
+		LightInfluence = 0,
+		MaxDistance = 400,
+		ResetOnSpawn = false,
+		AlwaysOnTop = rarity.order >= 5 or stolenFrom == localPlayer.UserId,
+		Adornee = head,
+		Parent = fxFolder,
+	})
+	table.insert(created, gui)
+	local chip: Frame = Create("Frame", {
+		Size = UDim2.fromOffset(120, 22),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = Style.Colors.Panel:Lerp(rarity.color, 0.18),
+		BackgroundTransparency = 0.15,
+		Parent = gui,
+	})
+	Style.corner(chip, UDim.new(1, 0))
+	Style.text({
+		Size = UDim2.fromScale(1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		FontFace = Style.Fonts.Heavy,
+		TextSize = 13,
+		Text = string.upper(Locale.rarity(rarity.id)),
+		TextColor3 = rarity.color,
+		Parent = chip,
+	})
+	if stolenFrom ~= 0 then
+		local stolen = Style.text({
+			Size = UDim2.new(1, 0, 0, 20),
+			Position = UDim2.fromOffset(0, 24),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			FontFace = Style.Fonts.Heavy,
+			TextSize = 15,
+			TextColor3 = Style.Colors.Danger,
+			Text = "⚠ " .. Locale.t("tag.stolen"),
+			Parent = gui,
+		})
+		Style.textStroke(stolen, 0.2, 2)
+	end
+	if stolenFrom == localPlayer.UserId then
+		table.insert(created, Create("Highlight", {
+			FillColor = Style.Colors.Danger,
+			FillTransparency = 0.75,
+			OutlineColor = Style.Colors.Danger,
+			OutlineTransparency = 0,
+			DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+			Adornee = model,
+			Parent = worldFolder,
+		}))
+	end
+	return created
+end
+
 ----------------------------------------------------------------------------
 -- One-shot FX
 ----------------------------------------------------------------------------

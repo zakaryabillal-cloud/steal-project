@@ -280,6 +280,10 @@ local function isInstance(value)
 end
 Engine.isInstance = isInstance
 
+-- Raycast datatypes (defined with the raycast code below).
+local paramsTag = setmetatable({}, { __mode = "k" })
+local resultTag = setmetatable({}, { __mode = "k" })
+
 local function typeOf(value)
 	if isInstance(value) then
 		return "Instance"
@@ -289,6 +293,10 @@ local function typeOf(value)
 		return "RBXScriptConnection"
 	elseif type(value) == "table" and randomTag[value] then
 		return "Random"
+	elseif type(value) == "table" and paramsTag[value] then
+		return "RaycastParams"
+	elseif type(value) == "table" and resultTag[value] then
+		return "RaycastResult"
 	end
 	return typeof(value)
 end
@@ -305,6 +313,7 @@ local DEFAULTS = {
 	["Part.Shape"] = roblox.Enum.PartType.Block,
 	["BasePart.Material"] = roblox.Enum.Material.Plastic,
 	["BasePart.CanCollide"] = true,
+	["BasePart.CollisionGroup"] = "Default",
 	["BasePart.CanQuery"] = true,
 	["BasePart.CanTouch"] = true,
 	["BasePart.CastShadow"] = true,
@@ -657,6 +666,20 @@ local function isDescendantOf(inst, ancestor)
 	return false
 end
 
+-- Bumped whenever the set of instances under Workspace changes (raycast cache).
+Engine.workspaceVersion = 0
+local function underWorkspace(inst)
+	local node = inst
+	while node do
+		local d = internal(node)
+		if d.className == "Workspace" then
+			return true
+		end
+		node = d.parent
+	end
+	return false
+end
+
 reparent = function(inst, newParent)
 	local data = internal(inst)
 	if data.destroyed and newParent ~= nil then
@@ -671,6 +694,9 @@ reparent = function(inst, newParent)
 	local old = data.parent
 	if old == newParent then
 		return
+	end
+	if (old and underWorkspace(old)) or (newParent and underWorkspace(newParent)) then
+		Engine.workspaceVersion += 1
 	end
 	if old then
 		local list = internal(old).children
@@ -1090,18 +1116,96 @@ local terrainOps = 0
 -- Fill operations are recorded so tools (renderer) and tests can inspect
 -- rocks, islets and carved caves: { op, cf, size, material }.
 Engine.terrainLog = {}
+
+-- Voxel store (4-stud grid) so workspace:Raycast can hit terrain. Only solid
+-- voxels are kept: occupancy (0..1, filled from the bottom of the voxel, the
+-- way height-field WriteVoxels data is authored) and a water set.
+local VOXEL = 4
+local voxelOcc = {}
+local voxelWater = {}
+local function voxelKey(ix, iy, iz)
+	return ((ix + 1024) * 2048 + (iy + 1024)) * 2048 + (iz + 1024)
+end
+local function setVoxel(ix, iy, iz, materialName, occ)
+	local key = voxelKey(ix, iy, iz)
+	if materialName == "Air" or occ <= 0 then
+		voxelOcc[key] = nil
+		voxelWater[key] = nil
+	elseif materialName == "Water" then
+		voxelOcc[key] = nil
+		voxelWater[key] = true
+	else
+		voxelOcc[key] = math.min(occ, 1)
+		voxelWater[key] = nil
+	end
+end
+-- Is world point `p` inside solid terrain?
+local function terrainSolid(p, includeWater)
+	local ix, iy, iz = math.floor(p.X / VOXEL), math.floor(p.Y / VOXEL), math.floor(p.Z / VOXEL)
+	local key = voxelKey(ix, iy, iz)
+	local occ = voxelOcc[key]
+	if occ then
+		if occ >= 1 then
+			return true
+		end
+		return (p.Y - iy * VOXEL) / VOXEL < occ
+	end
+	return includeWater == true and voxelWater[key] == true
+end
+Engine.terrainSolid = terrainSolid
+
+-- Rasterises a fill shape: `inside(localPoint)` in `cf` space, `extent` = half size of its bounding box.
+local function fillShape(cf, extent, materialName, inside)
+	local corners = {}
+	for _, sx in { -1, 1 } do
+		for _, sy in { -1, 1 } do
+			for _, sz in { -1, 1 } do
+				table.insert(corners, cf * roblox.Vector3.new(sx * extent.X, sy * extent.Y, sz * extent.Z))
+			end
+		end
+	end
+	local minV, maxV = corners[1], corners[1]
+	for _, c in corners do
+		minV = roblox.Vector3.new(math.min(minV.X, c.X), math.min(minV.Y, c.Y), math.min(minV.Z, c.Z))
+		maxV = roblox.Vector3.new(math.max(maxV.X, c.X), math.max(maxV.Y, c.Y), math.max(maxV.Z, c.Z))
+	end
+	for ix = math.floor(minV.X / VOXEL), math.floor(maxV.X / VOXEL) do
+		for iy = math.floor(minV.Y / VOXEL), math.floor(maxV.Y / VOXEL) do
+			for iz = math.floor(minV.Z / VOXEL), math.floor(maxV.Z / VOXEL) do
+				local center = roblox.Vector3.new((ix + 0.5) * VOXEL, (iy + 0.5) * VOXEL, (iz + 0.5) * VOXEL)
+				if inside(cf:PointToObjectSpace(center)) then
+					setVoxel(ix, iy, iz, materialName, 1)
+				end
+			end
+		end
+	end
+end
 for _, name in { "WriteVoxels", "FillBall", "FillCylinder", "FillBlock", "FillWedge", "Clear", "SetMaterialColor" } do
 	METHODS["Terrain." .. name] = function(_, ...)
 		terrainOps += 1
 		local args = table.pack(...)
 		if name == "FillBall" then
 			table.insert(Engine.terrainLog, { op = "Ball", cf = roblox.CFrame.new(args[1]), size = roblox.Vector3.new(args[2] * 2, args[2] * 2, args[2] * 2), material = args[3].Name })
+			local r = args[2]
+			fillShape(roblox.CFrame.new(args[1]), roblox.Vector3.new(r, r, r), args[3].Name, function(lp)
+				return lp.Magnitude <= r
+			end)
 		elseif name == "FillCylinder" then
 			table.insert(Engine.terrainLog, { op = "Cylinder", cf = args[1], size = roblox.Vector3.new(args[3] * 2, args[2], args[3] * 2), material = args[4].Name })
+			local h, r = args[2], args[3]
+			fillShape(args[1], roblox.Vector3.new(r, h / 2, r), args[4].Name, function(lp)
+				return math.abs(lp.Y) <= h / 2 and lp.X * lp.X + lp.Z * lp.Z <= r * r
+			end)
 		elseif name == "FillBlock" or name == "FillWedge" then
 			table.insert(Engine.terrainLog, { op = if name == "FillBlock" then "Block" else "Wedge", cf = args[1], size = args[2], material = args[3].Name })
+			local half = args[2] / 2
+			fillShape(args[1], half, args[3].Name, function(lp)
+				return math.abs(lp.X) <= half.X and math.abs(lp.Y) <= half.Y and math.abs(lp.Z) <= half.Z
+			end)
 		elseif name == "Clear" then
 			table.clear(Engine.terrainLog)
+			table.clear(voxelOcc)
+			table.clear(voxelWater)
 		end
 		if name == "WriteVoxels" then
 			local region, resolution, materials, occupancy = ...
@@ -1110,12 +1214,16 @@ for _, name in { "WriteVoxels", "FillBall", "FillCylinder", "FillBlock", "FillWe
 			local size = region.Size / 4
 			assert(#materials == size.X and #materials[1] == size.Y and #materials[1][1] == size.Z, "WriteVoxels materials size mismatch")
 			assert(#occupancy == size.X and #occupancy[1] == size.Y and #occupancy[1][1] == size.Z, "WriteVoxels occupancy size mismatch")
+			local minCorner = region.CFrame.Position - region.Size / 2
+			local bx, by, bz = math.floor(minCorner.X / VOXEL + 0.5), math.floor(minCorner.Y / VOXEL + 0.5), math.floor(minCorner.Z / VOXEL + 0.5)
 			for x = 1, size.X do
 				for y = 1, size.Y do
 					for z = 1, size.Z do
 						local occ = occupancy[x][y][z]
 						assert(type(occ) == "number" and occ >= 0 and occ <= 1, "bad occupancy")
-						assert(typeOf(materials[x][y][z]) == "EnumItem", "bad material")
+						local material = materials[x][y][z]
+						assert(typeOf(material) == "EnumItem", "bad material")
+						setVoxel(bx + x - 1, by + y - 1, bz + z - 1, material.Name, occ)
 					end
 				end
 			end
@@ -1140,14 +1248,334 @@ METHODS["HttpService.GenerateGUID"] = function(_, wrap)
 	return if wrap == false then guid else "{" .. guid .. "}"
 end
 
+-- Collision groups: registered names (Roblox allows 32 including Default)
+-- and the collidable matrix (pairs default to collidable).
+local groupCount = 1
+local notCollidable = {}
+local function pairKey(a, b)
+	if a > b then
+		a, b = b, a
+	end
+	return a .. "|" .. b
+end
 METHODS["PhysicsService.RegisterCollisionGroup"] = function(inst, name)
-	internal(inst).props["__group_" .. name] = true
+	local props = internal(inst).props
+	if not props["__group_" .. name] and name ~= "Default" then
+		groupCount += 1
+		if groupCount > 32 then
+			error("Could not create collision group, one with that name already exists or the limit (32) was reached.", 2)
+		end
+	end
+	props["__group_" .. name] = true
 end
 METHODS["PhysicsService.IsCollisionGroupRegistered"] = function(inst, name)
 	return internal(inst).props["__group_" .. name] == true or name == "Default"
 end
-METHODS["PhysicsService.CollisionGroupSetCollidable"] = function(inst, a, b)
+METHODS["PhysicsService.CollisionGroupSetCollidable"] = function(inst, a, b, collidable)
 	assert(METHODS["PhysicsService.IsCollisionGroupRegistered"](inst, a) and METHODS["PhysicsService.IsCollisionGroupRegistered"](inst, b), "collision group not registered")
+	assert(type(collidable) == "boolean", "CollisionGroupSetCollidable expects a boolean")
+	notCollidable[pairKey(a, b)] = if collidable then nil else true
+end
+METHODS["PhysicsService.CollisionGroupsAreCollidable"] = function(_, a, b)
+	return notCollidable[pairKey(a, b)] == nil
+end
+function Engine.groupsCollide(a, b)
+	return notCollidable[pairKey(a or "Default", b or "Default")] == nil
+end
+
+----------------------------------------------------------------------------
+-- Raycasting (parts: block / ball / cylinder; wedges and meshes as boxes;
+-- terrain: the voxel store above). Good enough for gameplay validation.
+----------------------------------------------------------------------------
+
+local RaycastParamsMeta = {}
+local PARAM_FIELDS = { FilterType = true, FilterDescendantsInstances = true, IgnoreWater = true, CollisionGroup = true, RespectCanCollide = true, BruteForceAllSlow = true }
+RaycastParamsMeta.__index = function(self, key)
+	if key == "AddToFilter" then
+		return function(params, value)
+			local list = rawget(params, "_v").FilterDescendantsInstances
+			if isInstance(value) then
+				table.insert(list, value)
+			else
+				for _, item in value do
+					table.insert(list, item)
+				end
+			end
+		end
+	end
+	if not PARAM_FIELDS[key] then
+		error(tostring(key) .. " is not a valid member of RaycastParams", 2)
+	end
+	local value = rawget(self, "_v")[key]
+	if key == "FilterDescendantsInstances" then
+		return table.clone(value)
+	end
+	return value
+end
+RaycastParamsMeta.__newindex = function(self, key, value)
+	if not PARAM_FIELDS[key] then
+		error(tostring(key) .. " is not a valid member of RaycastParams", 2)
+	end
+	if key == "FilterDescendantsInstances" then
+		assert(type(value) == "table", "FilterDescendantsInstances expects an array")
+		for _, item in value do
+			assert(isInstance(item), "FilterDescendantsInstances expects Instances")
+		end
+		value = table.clone(value)
+	elseif key == "CollisionGroup" then
+		assert(type(value) == "string", "CollisionGroup expects a string")
+	elseif key == "FilterType" then
+		assert(string.find(tostring(value), "RaycastFilterType", 1, true), "FilterType expects Enum.RaycastFilterType")
+	else
+		assert(type(value) == "boolean", key .. " expects a boolean")
+	end
+	rawget(self, "_v")[key] = value
+end
+local RaycastParamsLib = {}
+function RaycastParamsLib.new()
+	local self = setmetatable({
+		_v = {
+			FilterType = roblox.Enum.RaycastFilterType.Exclude,
+			FilterDescendantsInstances = {},
+			IgnoreWater = false,
+			CollisionGroup = "Default",
+			RespectCanCollide = false,
+			BruteForceAllSlow = false,
+		},
+	}, RaycastParamsMeta)
+	paramsTag[self] = true
+	return self
+end
+Engine.RaycastParams = RaycastParamsLib
+
+Engine.raycastCount = 0
+
+local partCache, partCacheVersion = {}, -1
+local function queryParts(workspaceInst)
+	if partCacheVersion ~= Engine.workspaceVersion then
+		partCache = {}
+		for _, d in descendants(workspaceInst, {}) do
+			local className = internal(d).className
+			if className ~= "Terrain" and Api.isA(className, "BasePart") then
+				table.insert(partCache, d)
+			end
+		end
+		partCacheVersion = Engine.workspaceVersion
+	end
+	return partCache
+end
+
+-- Ray (local space) vs axis-aligned box of half extents h: entry distance or nil.
+local function slab(o, d, h, maxT)
+	local tmin, tmax = 0, maxT
+	for _, axis in { "X", "Y", "Z" } do
+		local oa, da, ha = o[axis], d[axis], h[axis]
+		if math.abs(da) < 1e-9 then
+			if oa < -ha or oa > ha then
+				return nil
+			end
+		else
+			local t1, t2 = (-ha - oa) / da, (ha - oa) / da
+			if t1 > t2 then
+				t1, t2 = t2, t1
+			end
+			tmin = math.max(tmin, t1)
+			tmax = math.min(tmax, t2)
+			if tmin > tmax then
+				return nil
+			end
+		end
+	end
+	return tmin
+end
+
+local function sphereHit(o, d, r, maxT)
+	local b = o:Dot(d)
+	local c = o:Dot(o) - r * r
+	local disc = b * b - c
+	if disc < 0 then
+		return nil
+	end
+	local t = -b - math.sqrt(disc)
+	if t < 0 then
+		t = 0
+	end
+	if t > maxT then
+		return nil
+	end
+	return t
+end
+
+-- Cylinder along local X: |x| <= hx, y^2 + z^2 <= r^2.
+local function cylinderHit(o, d, hx, r, maxT)
+	local best = nil
+	local a = d.Y * d.Y + d.Z * d.Z
+	if a > 1e-12 then
+		local b = o.Y * d.Y + o.Z * d.Z
+		local c = o.Y * o.Y + o.Z * o.Z - r * r
+		local disc = b * b - a * c
+		if disc >= 0 then
+			local sq = math.sqrt(disc)
+			for _, t in { (-b - sq) / a, (-b + sq) / a } do
+				if t >= 0 and t <= maxT and math.abs(o.X + d.X * t) <= hx then
+					best = if best then math.min(best, t) else t
+				end
+			end
+		end
+	end
+	if math.abs(d.X) > 1e-9 then
+		for _, cap in { -hx, hx } do
+			local t = (cap - o.X) / d.X
+			if t >= 0 and t <= maxT then
+				local y, z = o.Y + d.Y * t, o.Z + d.Z * t
+				if y * y + z * z <= r * r then
+					best = if best then math.min(best, t) else t
+				end
+			end
+		end
+	end
+	if best == nil and o.Y * o.Y + o.Z * o.Z <= r * r and math.abs(o.X) <= hx then
+		best = 0
+	end
+	return best
+end
+
+local function filteredOut(part, filterSet, include)
+	local node = part
+	local hit = false
+	while node do
+		if filterSet[node] then
+			hit = true
+			break
+		end
+		node = internal(node).parent
+	end
+	if include then
+		return not hit
+	end
+	return hit
+end
+
+METHODS["WorldRoot.Raycast"] = function(worldInst, origin, direction, params)
+	assert(typeOf(origin) == "Vector3" and typeOf(direction) == "Vector3", "Raycast expects (Vector3, Vector3, RaycastParams?)")
+	assert(params == nil or paramsTag[params], "Raycast params must be RaycastParams")
+	Engine.raycastCount += 1
+	local length = direction.Magnitude
+	if length < 1e-6 or length ~= length then
+		return nil
+	end
+	local unit = direction / length
+	local p = if params then rawget(params, "_v") else { FilterType = roblox.Enum.RaycastFilterType.Exclude, FilterDescendantsInstances = {}, IgnoreWater = false, CollisionGroup = "Default", RespectCanCollide = false }
+	local include = p.FilterType == roblox.Enum.RaycastFilterType.Include
+	local filterSet = {}
+	for _, item in p.FilterDescendantsInstances do
+		filterSet[item] = true
+	end
+	local bestT, bestPart, bestNormal = length + 1, nil, nil
+	for _, part in queryParts(worldInst) do
+		local props = internal(part).props
+		if props.CanQuery == false then
+			continue
+		end
+		if p.RespectCanCollide and props.CanCollide == false then
+			continue
+		end
+		if not Engine.groupsCollide(p.CollisionGroup, props.CollisionGroup or "Default") then
+			continue
+		end
+		local cf = props.CFrame or roblox.CFrame.new()
+		local size = props.Size or roblox.Vector3.new(4, 1, 2)
+		-- Bounding sphere rejection.
+		local toCenter = cf.Position - origin
+		local along = math.clamp(toCenter:Dot(unit), 0, length)
+		if (toCenter - unit * along).Magnitude > size.Magnitude / 2 + 0.01 then
+			continue
+		end
+		if (include or next(filterSet) ~= nil) and filteredOut(part, filterSet, include) then
+			continue
+		end
+		local o = cf:PointToObjectSpace(origin)
+		local d = cf:VectorToObjectSpace(unit)
+		local className = internal(part).className
+		local shape = if className == "Part" then (props.Shape or roblox.Enum.PartType.Block) else nil
+		local t
+		if shape == roblox.Enum.PartType.Ball then
+			t = sphereHit(o, d, math.min(size.X, size.Y, size.Z) / 2, length)
+		elseif shape == roblox.Enum.PartType.Cylinder then
+			t = cylinderHit(o, d, size.X / 2, math.min(size.Y, size.Z) / 2, length)
+		else
+			t = slab(o, d, size / 2, length)
+		end
+		if t and t < bestT then
+			bestT, bestPart = t, part
+			local hitLocal = o + d * t
+			if shape == roblox.Enum.PartType.Ball then
+				bestNormal = (cf:PointToWorldSpace(hitLocal) - cf.Position).Unit
+			else
+				local h = size / 2
+				local rx, ry, rz = math.abs(hitLocal.X) / math.max(h.X, 1e-6), math.abs(hitLocal.Y) / math.max(h.Y, 1e-6), math.abs(hitLocal.Z) / math.max(h.Z, 1e-6)
+				local localNormal
+				if rx >= ry and rx >= rz then
+					localNormal = roblox.Vector3.new(if hitLocal.X >= 0 then 1 else -1, 0, 0)
+				elseif ry >= rz then
+					localNormal = roblox.Vector3.new(0, if hitLocal.Y >= 0 then 1 else -1, 0)
+				else
+					localNormal = roblox.Vector3.new(0, 0, if hitLocal.Z >= 0 then 1 else -1)
+				end
+				bestNormal = cf:VectorToWorldSpace(localNormal)
+			end
+		end
+	end
+	-- Terrain (unless filtered out).
+	local terrain = internal(worldInst).props.Terrain
+	local terrainAllowed = terrain ~= nil and not filteredOut(terrain, filterSet, include)
+	if terrainAllowed then
+		local step = 0.25
+		local limit = math.min(length, bestT)
+		local includeWater = not p.IgnoreWater
+		local wasSolid = terrainSolid(origin, includeWater)
+		local t = step
+		while t <= limit + 1e-9 do
+			local point = origin + unit * t
+			local solid = terrainSolid(point, includeWater)
+			if solid and not wasSolid then
+				local lo, hi = t - step, t
+				for _ = 1, 8 do
+					local mid = (lo + hi) / 2
+					if terrainSolid(origin + unit * mid, includeWater) then
+						hi = mid
+					else
+						lo = mid
+					end
+				end
+				if hi < bestT then
+					bestT, bestPart = hi, terrain
+					local hitPoint = origin + unit * hi
+					if not terrainSolid(hitPoint + roblox.Vector3.new(0, 0.6, 0), includeWater) then
+						bestNormal = roblox.Vector3.yAxis
+					else
+						local flat = roblox.Vector3.new(-unit.X, 0, -unit.Z)
+						bestNormal = if flat.Magnitude > 1e-6 then flat.Unit else roblox.Vector3.yAxis
+					end
+				end
+				break
+			end
+			wasSolid = solid
+			t += step
+		end
+	end
+	if not bestPart then
+		return nil
+	end
+	local result = {
+		Instance = bestPart,
+		Position = origin + unit * bestT,
+		Normal = bestNormal or roblox.Vector3.yAxis,
+		Material = if bestPart == terrain then roblox.Enum.Material.Ground else (internal(bestPart).props.Material or roblox.Enum.Material.Plastic),
+		Distance = bestT,
+	}
+	resultTag[result] = true
+	return table.freeze(result)
 end
 
 METHODS["RunService.IsStudio"] = function()
@@ -1507,6 +1935,7 @@ function Engine.environment(realm: string)
 		typeof = typeOf,
 		Random = RandomLib,
 		TweenInfo = TweenInfoLib,
+		RaycastParams = RaycastParamsLib,
 		warn = function(...)
 			local parts = {}
 			for i = 1, select("#", ...) do

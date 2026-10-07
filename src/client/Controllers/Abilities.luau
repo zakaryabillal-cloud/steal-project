@@ -19,6 +19,8 @@ local AbilityConfig = require(Shared.Config.Abilities)
 local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
 
+local Locale = require(Shared.Locale)
+
 local ClientNet = require(script.Parent.Parent.ClientNet)
 local Store = require(script.Parent.Store)
 local Audio = require(script.Parent.Audio)
@@ -43,6 +45,13 @@ local readyAt: { [string]: number } = { seal = 0 }
 
 -- (abilityKey) fired when an ability is used locally.
 Abilities.used = Signal.new()
+-- (abilityId, reasonKey) when a use is refused (locally or by the server).
+Abilities.refused = Signal.new()
+
+-- Harmonies active for the local player (display / prediction only).
+function Abilities.harmonies(): { [string]: boolean }
+	return AbilityConfig.activeHarmonies(Store.state.harmonies, Store.state.harmonyOff)
+end
 
 local function rootAndHumanoid(): (BasePart?, Humanoid?)
 	local character = localPlayer.Character
@@ -63,12 +72,25 @@ function Abilities.remaining(key: string): number
 	return math.max(localRemaining, Store.cooldownRemaining(key))
 end
 
+-- Effective cooldowns, recomputed only when the synced state changes
+-- (the HUD asks every frame).
+local durationCache: { [string]: number } = {}
+Store.changed:Connect(function()
+	table.clear(durationCache)
+end)
+
 function Abilities.duration(key: string): number
 	if key == "seal" then
 		return GameConfig.Sanctuary.SealCooldown
 	end
+	local cached = durationCache[key]
+	if cached then
+		return cached
+	end
 	local def = AbilityConfig.get(key)
-	return if def then def.cooldown else 1
+	local value = if def then AbilityConfig.cooldown(def, Abilities.harmonies()) else 1
+	durationCache[key] = value
+	return value
 end
 
 -- Ability id equipped in slot `index` ("" when empty).
@@ -98,11 +120,38 @@ function Abilities.use(abilityId: string): boolean
 	if def.needsMovement and Store.state.status.rootUntil > Store.now() then
 		return false
 	end
-	readyAt[abilityId] = os.clock() + def.cooldown
-	local payload = module.activate({ player = localPlayer, root = root, humanoid = humanoid, def = def })
+	local harmonies = Abilities.harmonies()
+	local ctx: Context.ClientContext = {
+		player = localPlayer,
+		root = root,
+		humanoid = humanoid,
+		def = def,
+		tuning = AbilityConfig.tuning(def, harmonies),
+		harmonies = harmonies,
+	}
+	local canUse = module.canUse
+	if canUse then
+		local ok, reason = canUse(ctx)
+		if not ok then
+			Audio.play("UiError")
+			Abilities.refused:Fire(abilityId, reason or "blocked")
+			return false
+		end
+	end
+	readyAt[abilityId] = os.clock() + AbilityConfig.cooldown(def, harmonies)
+	local payload = module.activate(ctx)
 	ClientNet.fire(Net.Events.UseAbility, abilityId, payload)
 	Abilities.used:Fire(abilityId)
 	return true
+end
+
+-- Short player-facing explanation of a refusal ("" = say nothing).
+function Abilities.reasonText(abilityId: string, reason: string): string
+	local key = "deny." .. reason
+	if Locale.has(key) then
+		return Locale.t(key, { ability = Locale.t("ability." .. abilityId) })
+	end
+	return ""
 end
 
 function Abilities.useSlot(index: number): boolean
@@ -137,8 +186,8 @@ function Abilities.seal()
 end
 
 local KEYS: { [Enum.KeyCode]: () -> () } = {
-	[Enum.KeyCode.G] = Abilities.seal,
-	[Enum.KeyCode.ButtonY] = Abilities.seal,
+	[AbilityConfig.SealKeys.keyboard] = Abilities.seal,
+	[AbilityConfig.SealKeys.gamepad] = Abilities.seal,
 }
 for index, slot in AbilityConfig.Slots do
 	local function action()
@@ -196,6 +245,23 @@ function Abilities.init()
 		if action then
 			action()
 		end
+	end)
+
+	-- The server refused a request: undo the local prediction.
+	ClientNet.on("AbilityDenied", function(payload)
+		local abilityId = payload.ability
+		if type(abilityId) ~= "string" then
+			return
+		end
+		if payload.reason ~= "cooldown" then
+			readyAt[abilityId] = 0
+		end
+		local module = modules[abilityId]
+		local denied = module and module.denied
+		if denied then
+			denied(payload.reason)
+		end
+		Abilities.refused:Fire(abilityId, payload.reason)
 	end)
 
 	ClientNet.onKnockback(function(impulse: Vector3, _stun: number)

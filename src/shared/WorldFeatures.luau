@@ -134,6 +134,10 @@ WorldFeatures.Observatory = {
 	-- Viewing balcony (reached by the outer stair) and the roof.
 	balconyY = Layout.GroundY + 26 + 30,
 	topY = Layout.GroundY + 26 + 64,
+	-- V2 phase 4: walkway ring around the dome base (top surface Y), reached
+	-- by grappling from the balcony (radius RoofDeckRadius around the tower).
+	roofDeckY = Layout.GroundY + 26 + 30 + 0.9 + 24 + 0.2,
+	roofDeckRadius = 10,
 }
 
 -- A broken gateway spanning the ledge cliff, over the trail: the inner leg
@@ -163,7 +167,7 @@ WorldFeatures.BossPlateau = {
 	portalRadius = 15,
 }
 
--- Prepared grapple anchors (the Grapple ability comes in a later phase).
+-- Grapple anchors (the Grapple ability, phase 4, can only target these).
 export type GrapplePoint = { name: string, position: Vector3, kind: string }
 local LT = Layout.GroundY + 26
 WorldFeatures.GrapplePoints = {
@@ -171,7 +175,10 @@ WorldFeatures.GrapplePoints = {
 	{ name = "LedgeLip135", position = polar(135, 226, LT + 4), kind = "Ledge" },
 	{ name = "LedgeLip180", position = polar(180, 226, LT + 4), kind = "Ledge" },
 	{ name = "ObservatoryBalcony", position = polar(112.5, 236, LT + 32), kind = "Tower" },
-	{ name = "ObservatoryRoof", position = polar(112.5, 252, LT + 70), kind = "Tower" },
+	-- Just outside the roof deck, on the Rift side: reachable from the balcony
+	-- below (phase 4 fix: the original spot above the dome had no line of sight
+	-- from anywhere within grapple range).
+	{ name = "ObservatoryRoof", position = polar(112.5, 252 - 10.6, WorldFeatures.Observatory.roofDeckY + 4), kind = "Tower" },
 	-- Broken tip of the long half of the arch (angle gapTo, radius 18).
 	{ name = "ArchTip", position = polar(202.5, 240 - 18 * math.cos(math.rad(62)), LT + 18 * math.sin(math.rad(62)) + 3), kind = "Arch" },
 	{ name = "SkyIsland2", position = polar(157.5, 132, 41 + 7), kind = "Island" },

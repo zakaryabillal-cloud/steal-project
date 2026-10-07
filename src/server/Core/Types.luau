@@ -43,6 +43,8 @@ export type AbilityData = {
 	unlocked: { [string]: boolean },
 	-- One ability id per loadout slot (Config/Abilities.Slots order), "" = empty.
 	loadout: { string },
+	-- schema 3: harmonies the player switched off (relic id -> true).
+	harmonyOff: { [string]: boolean },
 }
 
 export type PowerData = {
@@ -83,12 +85,26 @@ export type AbilityContext = {
 	now: number,
 	-- Sanitised by the module's readPayload (nil when the ability takes none).
 	payload: any,
+	-- Effective tuning (GameConfig + active harmonies) and cooldown, both
+	-- computed on the server from the relics actually displayed.
+	tuning: { [string]: any },
+	cooldown: number,
+	-- Active harmonies of the caster (relic id -> true).
+	harmonies: { [string]: boolean },
 }
 
 export type AbilityModule = {
 	-- Returns the sanitised payload, or nil to reject the request.
 	readPayload: ((raw: any) -> any)?,
+	-- Optional check run before the cooldown is spent: (false, reason)
+	-- rejects the request at no cost (blocked blink, invalid anchor...).
+	validate: ((ctx: AbilityContext) -> (boolean, string?))?,
 	activate: (ctx: AbilityContext) -> (),
+	-- Optional: periodic work (AbilityService runs one shared job).
+	tick: ((now: number) -> ())?,
+	-- Optional: drop everything the session owns (death, respawn, leave,
+	-- unequip, sweep). Must be safe to call at any time, any number of times.
+	cleanup: ((session: Session, reason: string) -> ())?,
 }
 
 export type StealHold = {
@@ -122,7 +138,17 @@ export type Session = {
 	multiplier: number,
 	-- Current Power (derived, recomputed with the Essence rate).
 	power: number,
+	-- Relic ids with a harmony currently displayed in the Sanctuary
+	-- (recomputed with the Essence rate, sent in the hot Sync).
+	harmonyRelics: { string },
 	status: StatusState,
+	-- Runtime state of abilities (pending blink, grapple flight, trap, decoy...).
+	-- Never saved; cleared on death, respawn and leave.
+	abilityState: { [string]: any },
+	-- Studio test unlock (/rh abilities): never saved.
+	devAbilities: boolean,
+	-- Temporary raise of the movement guard threshold (dash).
+	moveAllowance: { speed: number, untilTime: number }?,
 	-- Hot state changed (pushed at most every Sync.HotInterval).
 	dirty: boolean,
 	-- Cold state changed (Dex, upgrades, loadout, settings...).

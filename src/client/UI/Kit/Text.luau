@@ -1,6 +1,6 @@
 --!strict
 -- Turns a localisation key + raw server arguments into display RichText.
--- Argument conventions: relic/rarity/mutation/upgrade/tier are ids, time is
+-- Argument conventions: relic/rarity/mutation/upgrade/tier/ability are ids, time is
 -- seconds, amount is a number, player-name fields are escaped and bolded.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,6 +32,8 @@ function Text.args(args: { [string]: any }?): { [string]: any }
 		elseif key == "mutation" and type(value) == "string" then
 			local mutation = Mutations.get(value)
 			out[key] = "<b>" .. Style.colored(Locale.mutation(value), if mutation then mutation.color else Style.Colors.Text) .. "</b>"
+		elseif key == "ability" and type(value) == "string" then
+			out[key] = "<b>" .. Locale.t("ability." .. value) .. "</b>"
 		elseif key == "upgrade" and type(value) == "string" then
 			out[key] = "<b>" .. Locale.t("upgrade." .. value .. ".name") .. "</b>"
 		elseif key == "tier" and type(value) == "number" then

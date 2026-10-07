@@ -25,9 +25,11 @@ Snapshot.unmarkedColdChanges = 0
 -- Keys of each half (documentation + tests).
 Snapshot.HotKeys = table.freeze({
 	"essence", "lifetimeEssence", "plot", "carrying", "cooldowns", "rate", "multiplier", "noviceUntil", "power", "status",
+	"harmonies",
 })
 Snapshot.ColdKeys = table.freeze({
 	"upgrades", "dex", "stats", "tutorial", "tips", "settings", "canSave", "dataStatus", "loadout", "unlocked", "powerPeak",
+	"harmonyOff",
 })
 
 -- Status snapshot provider, injected by StatusService's owner (avoids a
@@ -52,7 +54,24 @@ function Snapshot.hot(session: Types.Session): { [string]: any }
 		noviceUntil = workspace:GetServerTimeNow() + math.max(0, GameConfig.Steal.NoviceSeconds - playTime),
 		power = session.power,
 		status = if statusProvider then statusProvider(session) else {},
+		-- Harmony relics displayed right now (they leave with a theft).
+		harmonies = table.clone(session.harmonyRelics),
 	}
+end
+
+-- Unlocked abilities as the client sees them (Studio test unlock included).
+local allAbilities: { string } = {}
+for _, def in require(ReplicatedStorage.Shared.Config.Abilities).list do
+	table.insert(allAbilities, def.id)
+end
+function Snapshot.unlockedView(session: Types.Session): { [string]: boolean }
+	local view = table.clone(session.data.abilities.unlocked)
+	if session.devAbilities then
+		for _, id in allAbilities do
+			view[id] = true
+		end
+	end
+	return view
 end
 
 function Snapshot.cold(session: Types.Session): { [string]: any }
@@ -71,8 +90,9 @@ function Snapshot.cold(session: Types.Session): { [string]: any }
 		canSave = session.canSave,
 		dataStatus = session.dataStatus,
 		loadout = table.clone(data.abilities.loadout),
-		unlocked = table.clone(data.abilities.unlocked),
+		unlocked = Snapshot.unlockedView(session),
 		powerPeak = data.power.peak,
+		harmonyOff = table.clone(data.abilities.harmonyOff),
 	}
 end
 

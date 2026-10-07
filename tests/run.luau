@@ -854,6 +854,35 @@ require("./scenarios/V2Audio")({
 	end,
 })
 
+-- V2 phase 4: abilities (catalogue, unlocks, loadout, every ability, harmonies,
+-- security, cleanup, two-player chases).
+require("./scenarios/V2Abilities")({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	waitFor = waitFor,
+	sreq = sreq,
+	shared = shared,
+	remote = remote,
+	Engine = Engine,
+	Loader = Loader,
+	game = game,
+	sessionOf = sessionOf,
+	teleport = teleport,
+	insideOwnPlot = insideOwnPlot,
+	plotCenter = plotCenter,
+	hasNotification = hasNotification,
+	clearLog = clearLog,
+	prompt = prompt,
+	claimRelic = claimRelic,
+	alice = function()
+		return alice
+	end,
+	bob = function()
+		return bob
+	end,
+})
+
 scenario("Shutdown: BindToClose saves everyone", function()
 	local sa = sessionOf(alice)
 	sa.data.essence += 12345

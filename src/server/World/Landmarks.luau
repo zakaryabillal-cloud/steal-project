@@ -111,6 +111,10 @@ local function buildObservatory(folder: Instance)
 	Parts.cylinder({ size = Vector3.new(10, upperH, 10), cf = CFrame.new(base.X, balconyY + 0.9 + upperH / 2, base.Z), color = C.StoneLight, material = M.Marble, parent = model, name = "Upper" })
 	local domeY = balconyY + 0.9 + upperH
 	Parts.cylinder({ size = Vector3.new(12, 1.4, 12), cf = CFrame.new(base.X, domeY, base.Z), color = C.Trim, material = M.Slate, parent = model, name = "DomeBase" })
+	-- Roof deck around the dome (grapple target from the balcony).
+	local deckR = spec.roofDeckRadius
+	Parts.cylinder({ size = Vector3.new(deckR * 2, 1, deckR * 2), cf = CFrame.new(base.X, spec.roofDeckY - 0.5, base.Z), color = C.Stone, material = M.Slate, parent = model, name = "RoofDeck" })
+	Parts.cylinder({ size = Vector3.new(deckR * 2 + 0.6, 0.4, deckR * 2 + 0.6), cf = CFrame.new(base.X, spec.roofDeckY - 0.9, base.Z), color = C.Rift, material = M.Neon, collide = false, shadow = false, parent = model, name = "RoofDeckRing" })
 	local dome = Parts.ball({ size = Vector3.one * 12.5, cf = CFrame.new(base.X, domeY + 0.6, base.Z), color = Color3.fromRGB(120, 108, 170), material = M.Glass, transparency = 0.15, parent = model, name = "Dome" })
 	dome.Reflectance = 0.2
 	local scope = CFrame.new(base.X, domeY + 4, base.Z) * CFrame.Angles(0, math.rad(-112.5 + 180), 0) * CFrame.Angles(math.rad(55), 0, 0)
