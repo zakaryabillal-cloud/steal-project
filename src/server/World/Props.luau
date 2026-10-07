@@ -102,7 +102,7 @@ local function buildFords(folder: Folder)
 			local base = CFrame.new(cf.Position.X, top - 6, cf.Position.Z)
 			Parts.cylinder({ size = Vector3.new(4, 12, 4), cf = base, color = C.StoneDark, material = M.Slate, parent = model, name = "Stone" })
 			Parts.cylinder({ size = Vector3.new(4.2, 0.4, 4.2), cf = CFrame.new(cf.Position.X, top + 0.05, cf.Position.Z), color = C.Stone, material = M.Slate, parent = model })
-			Parts.cylinder({ size = Vector3.new(1.6, 0.42, 1.6), cf = CFrame.new(cf.Position.X, top + 0.06, cf.Position.Z), color = Color3.fromRGB(120, 230, 255), material = M.Neon, collide = false, shadow = false, parent = model })
+			Parts.cylinder({ size = Vector3.new(1.6, 0.42, 1.6), cf = CFrame.new(cf.Position.X, top + 0.2, cf.Position.Z), color = Color3.fromRGB(120, 230, 255), material = M.Neon, collide = false, shadow = false, parent = model })
 		end
 	end
 end
@@ -369,6 +369,44 @@ local function buildRuins(folder: Folder)
 	end
 end
 
+-- Distant glowing planets and floating crystal shards: the island hangs in a
+-- dimensional nexus, so every horizon should have something in it.
+local function buildSky(folder: Instance)
+	type Planet = { position: Vector3, diameter: number, color: Color3, ring: Color3? }
+	local planets: { Planet } = {
+		{ position = Vector3.new(-620, 260, -540), diameter = 230, color = Color3.fromRGB(170, 110, 220), ring = Color3.fromRGB(255, 190, 230) },
+		{ position = Vector3.new(700, 170, 380), diameter = 120, color = Color3.fromRGB(90, 190, 200), ring = nil },
+		{ position = Vector3.new(260, 330, 760), diameter = 70, color = Color3.fromRGB(255, 180, 120), ring = nil },
+	}
+	for i, spec in planets do
+		local body = Parts.ball({ size = Vector3.one * spec.diameter, cf = CFrame.new(spec.position), color = spec.color, material = M.Neon, transparency = 0.25, collide = false, shadow = false, parent = folder, name = "Planet" .. i })
+		body.CanQuery = false
+		Parts.ball({ size = Vector3.one * spec.diameter * 1.12, cf = CFrame.new(spec.position), color = spec.color, material = M.ForceField, transparency = 0.2, collide = false, shadow = false, parent = folder, name = "PlanetHalo" })
+		if spec.ring then
+			local holder = Parts.block({ size = Vector3.one, cf = CFrame.new(spec.position) * CFrame.Angles(math.rad(18), 0, math.rad(-12)), transparency = 1, collide = false, shadow = false, parent = folder, name = "PlanetRing" })
+			Parts.beamRing(holder, CFrame.identity, spec.diameter * 0.85, spec.diameter * 0.12, spec.ring, 0.35)
+		end
+	end
+	local rng = Random.new(808)
+	for i = 1, 12 do
+		local a = (i / 12) * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
+		local r = rng:NextNumber(270, 340)
+		local h = rng:NextNumber(10, 22)
+		local shard = Parts.block({
+			size = Vector3.new(h * 0.28, h, h * 0.28),
+			cf = CFrame.new(math.cos(a) * r, rng:NextNumber(30, 120), math.sin(a) * r) * CFrame.Angles(rng:NextNumber(-0.4, 0.4), rng:NextNumber(0, 6), rng:NextNumber(-0.4, 0.4)),
+			color = CRYSTAL_COLORS[(i % #CRYSTAL_COLORS) + 1],
+			material = M.Neon,
+			transparency = 0.1,
+			collide = false,
+			shadow = false,
+			parent = folder,
+			name = "SkyShard",
+		})
+		shard.CanQuery = false
+	end
+end
+
 function Props.build(parent: Instance, isletTops: { Vector3 })
 	local world = Parts.folder("Props", parent)
 	buildBridges(Parts.folder("Bridges", world))
@@ -378,6 +416,7 @@ function Props.build(parent: Instance, isletTops: { Vector3 })
 	buildVegetation(Parts.folder("Vegetation", world))
 	task.wait()
 	buildRuins(Parts.folder("Ruins", world))
+	buildSky(Parts.folder("Sky", world))
 	local edge = Parts.folder("Edge", world)
 	for k = 0, 5 do
 		starfall(edge, math.rad(k * 60 + 15))

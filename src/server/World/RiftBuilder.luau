@@ -36,14 +36,14 @@ local function buildDais(model: Model)
 	local folder = Parts.folder("Dais", model)
 	Parts.cylinder({ size = Vector3.new(31, y - floor, 31), cf = CFrame.new(0, floor + (y - floor - 1) / 2, 0), color = C.StoneDark, material = M.Slate, parent = folder })
 	Parts.cylinder({ size = Vector3.new(27, 1.2, 27), cf = CFrame.new(0, y - 0.6, 0), color = C.Stone, material = M.Slate, parent = folder })
-	Parts.cylinder({ size = Vector3.new(27.8, 1, 27.8), cf = CFrame.new(0, y - 0.55, 0), color = C.Rift, material = M.Neon, parent = folder, name = "DaisRing" })
-	Parts.cylinder({ size = Vector3.new(15, 1.22, 15), cf = CFrame.new(0, y - 0.59, 0), color = C.StoneLight, material = M.Marble, parent = folder })
-	Parts.cylinder({ size = Vector3.new(15.8, 1.2, 15.8), cf = CFrame.new(0, y - 0.6, 0), color = C.RiftCore, material = M.Neon, parent = folder, name = "InnerRing" })
+	Parts.cylinder({ size = Vector3.new(27.8, 1, 27.8), cf = CFrame.new(0, y - 0.75, 0), color = C.Rift, material = M.Neon, parent = folder, name = "DaisRing" })
+	Parts.cylinder({ size = Vector3.new(15, 1.2, 15), cf = CFrame.new(0, y - 0.3, 0), color = C.StoneLight, material = M.Marble, parent = folder })
+	Parts.cylinder({ size = Vector3.new(15.8, 1.2, 15.8), cf = CFrame.new(0, y - 0.48, 0), color = C.RiftCore, material = M.Neon, parent = folder, name = "InnerRing" })
 	-- Star glyph inlaid in the dais.
 	for i = 0, 3 do
 		Parts.block({
 			size = Vector3.new(0.5, 0.1, 12),
-			cf = CFrame.new(0, y + 0.03, 0) * CFrame.Angles(0, math.rad(i * 45), 0),
+			cf = CFrame.new(0, y + 0.36, 0) * CFrame.Angles(0, math.rad(i * 45), 0),
 			color = C.Rift,
 			material = M.Neon,
 			collide = false,
@@ -293,6 +293,58 @@ local function buildMonoliths(model: Model)
 	end
 end
 
+-- Crystal outcrops and glowing energy cracks so the basin floor is never empty.
+local function buildBasinDetails(model: Model)
+	local folder = Parts.folder("BasinDetails", model)
+	local floor = Layout.BasinY
+	local rng = Random.new(5150)
+	for i = 0, 3 do
+		local a = math.rad(45 + i * 90)
+		local center = Vector3.new(math.cos(a) * 34, floor, math.sin(a) * 34)
+		for k = 1, 4 do
+			local h = if k == 1 then 7 else rng:NextNumber(2.5, 4.5)
+			local offset = if k == 1 then Vector3.zero else Vector3.new(rng:NextNumber(-2, 2), 0, rng:NextNumber(-2, 2))
+			Parts.block({
+				size = Vector3.new(h * 0.24, h, h * 0.24),
+				cf = CFrame.new(center + offset) * CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, 3), rng:NextNumber(-0.3, 0.3)) * CFrame.new(0, h / 2 - 0.5, 0),
+				color = if k % 2 == 1 then C.Rift else Color3.fromRGB(120, 210, 255),
+				material = if k % 2 == 1 then M.Neon else M.Glass,
+				transparency = if k % 2 == 1 then 0 else 0.2,
+				shadow = false,
+				parent = folder,
+				name = "BasinCrystal",
+			})
+		end
+	end
+	-- Energy cracks radiating from the dais (skipping the bounce-pad axis).
+	for i = 0, 7 do
+		local base = i * 45
+		if base % 180 == 0 then
+			continue
+		end
+		local a = math.rad(base)
+		local r0 = 15.5
+		for segment = 1, 3 do
+			local wobble = math.rad(((segment % 2) * 2 - 1) * 6)
+			local dir = Vector3.new(math.cos(a + wobble), 0, math.sin(a + wobble))
+			local length = 5
+			local mid = Vector3.new(math.cos(a) * (r0 + length / 2), floor + 0.25, math.sin(a) * (r0 + length / 2))
+			Parts.block({
+				size = Vector3.new(0.35, 0.12, length),
+				cf = CFrame.lookAt(mid, mid + dir),
+				color = C.Rift,
+				material = M.Neon,
+				transparency = 0.1 + segment * 0.15,
+				collide = false,
+				shadow = false,
+				parent = folder,
+				name = "Crack",
+			})
+			r0 += length - 0.3
+		end
+	end
+end
+
 function RiftBuilder.build(parent: Instance): Model
 	local model = Parts.model("Rift", parent)
 	buildDais(model)
@@ -301,6 +353,7 @@ function RiftBuilder.build(parent: Instance): Model
 	buildDebris(model)
 	buildSpots(model)
 	buildMonoliths(model)
+	buildBasinDetails(model)
 	return model
 end
 

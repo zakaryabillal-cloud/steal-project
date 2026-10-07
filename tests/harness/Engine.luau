@@ -236,6 +236,33 @@ function TweenInfoLib.new(time, style, direction, repeatCount, reverses, delayTi
 	return { Time = time or 1, EasingStyle = style, EasingDirection = direction, RepeatCount = repeatCount or 0, Reverses = reverses or false, DelayTime = delayTime or 0 }
 end
 
+-- Lune's CFrame.lookAt flips the Z axis and its two-colour ColorSequence
+-- constructor drops the second colour; these wrappers restore Roblox semantics.
+local function lookAt(at, target, up)
+	local look = target - at
+	if look.Magnitude < 1e-6 then
+		return roblox.CFrame.new(at)
+	end
+	look = look.Unit
+	up = up or roblox.Vector3.yAxis
+	local right = look:Cross(up)
+	if right.Magnitude < 1e-6 then
+		right = look:Cross(roblox.Vector3.zAxis)
+	end
+	right = right.Unit
+	local newUp = right:Cross(look).Unit
+	return roblox.CFrame.fromMatrix(at, right, newUp, -look)
+end
+Engine.CFrame = setmetatable({ lookAt = lookAt }, { __index = roblox.CFrame })
+Engine.ColorSequence = setmetatable({
+	new = function(a, b)
+		if b ~= nil and typeof(a) == "Color3" then
+			return roblox.ColorSequence.new({ roblox.ColorSequenceKeypoint.new(0, a), roblox.ColorSequenceKeypoint.new(1, b) })
+		end
+		return roblox.ColorSequence.new(a)
+	end,
+}, { __index = roblox.ColorSequence })
+
 ----------------------------------------------------------------------------
 -- Instances
 ----------------------------------------------------------------------------
@@ -1440,9 +1467,11 @@ function Engine.environment(realm: string)
 		delay = task.delay,
 		spawn = task.defer,
 	}
+	env.CFrame = Engine.CFrame
+	env.ColorSequence = Engine.ColorSequence
 	for _, name in {
-		"Vector3", "Vector2", "CFrame", "Color3", "UDim", "UDim2", "Enum", "NumberSequence", "NumberSequenceKeypoint",
-		"ColorSequence", "ColorSequenceKeypoint", "NumberRange", "Region3", "Rect", "Font", "BrickColor", "Ray",
+		"Vector3", "Vector2", "Color3", "UDim", "UDim2", "Enum", "NumberSequence", "NumberSequenceKeypoint",
+		"ColorSequenceKeypoint", "NumberRange", "Region3", "Rect", "Font", "BrickColor", "Ray",
 		"PhysicalProperties", "Faces", "Axes", "Vector3int16", "Vector2int16", "Region3int16",
 	} do
 		env[name] = roblox[name]

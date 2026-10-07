@@ -106,10 +106,12 @@ local function buildBase(b: Builder)
 	local h = Layout.PlatformHeight
 	cylinder(b, Vector3.new(R * 2 + 4, h - 0.4, R * 2 + 4), CFrame.new(0, -(h + 0.4) / 2, 0), C.StoneDark, M.Slate, { name = "Foundation" })
 	cylinder(b, Vector3.new(R * 2 + 5.2, 1.4, R * 2 + 5.2), CFrame.new(0, -1.3, 0), C.Trim, M.SmoothPlastic, { name = "Ledge" })
-	cylinder(b, Vector3.new(R * 2 + 1, 0.5, R * 2 + 1), CFrame.new(0, -0.3, 0), b.accent, M.Neon, { name = "AccentRing", shadow = false })
+	-- Stacked discs reveal thin glowing inlays; every layer is >= 0.15 studs
+	-- apart vertically so nothing z-fights at a distance.
+	cylinder(b, Vector3.new(R * 2 + 1, 0.5, R * 2 + 1), CFrame.new(0, -0.43, 0), b.accent, M.Neon, { name = "AccentRing", shadow = false })
 	cylinder(b, Vector3.new(R * 2, 0.6, R * 2), CFrame.new(0, -0.3, 0), C.StoneLight, M.Cobblestone, { name = "Floor" })
-	cylinder(b, Vector3.new(31, 0.62, 31), CFrame.new(0, -0.299, 0), b.accent, M.Neon, { name = "InnerRing", shadow = false })
-	cylinder(b, Vector3.new(30, 0.64, 30), CFrame.new(0, -0.298, 0), Color3.fromRGB(222, 216, 240), M.Marble, { name = "InnerFloor" })
+	cylinder(b, Vector3.new(31, 0.4, 31), CFrame.new(0, -0.05, 0), b.accent, M.Neon, { name = "InnerRing", shadow = false })
+	cylinder(b, Vector3.new(30, 0.5, 30), CFrame.new(0, 0.05, 0), Color3.fromRGB(222, 216, 240), M.Marble, { name = "InnerFloor" })
 
 	-- Ramp down to the ring road.
 	local len = Layout.RampLength
@@ -122,6 +124,21 @@ local function buildBase(b: Builder)
 		block(b, Vector3.new(1.2, 2.2, math.sqrt(len * len + h * h)), CFrame.new(x, -h / 2 + 1.1, -(R + len / 2)) * CFrame.Angles(-slope, 0, 0), C.Trim, M.SmoothPlastic, { name = "RampRail" })
 		block(b, Vector3.new(1.8, h + 2.6, 1.8), CFrame.new(x, -h / 2 + 1.3, -(R + len) + 0.9), C.Stone, M.Slate)
 		lantern(b, CFrame.new(x, 2.6, -(R + len) + 0.9), false)
+	end
+
+	-- Glowing guide strips leading up the ramp.
+	for _, side in { -1, 1 } do
+		local x = side * (Layout.GateWidth / 2 - 0.9)
+		block(b, Vector3.new(0.35, 0.2, math.sqrt(len * len + h * h) - 1), CFrame.new(x, -h / 2 + 0.12, -(R + len / 2)) * CFrame.Angles(-slope, 0, 0), b.accent, M.Neon, { collide = false, shadow = false, name = "RampGuide" })
+	end
+
+	-- Planters softening the starting Outpost.
+	for _, phi in { 160, -160, 35, -35 } do
+		local cf = polar(phi, R - 6.5, 0)
+		block(b, Vector3.new(3, 1.2, 3), cf * CFrame.new(0, 0.6, 0), C.Stone, M.Slate, { name = "Planter" })
+		block(b, Vector3.new(3.2, 0.3, 3.2), cf * CFrame.new(0, 1.25, 0), C.Trim, M.SmoothPlastic)
+		ball(b, 2.8, cf * CFrame.new(0, 2, 0), Color3.fromRGB(96, 196, 160), M.SmoothPlastic, { name = "Shrub" })
+		ball(b, 0.45, cf * CFrame.new(0.7, 2.9, 0.4), b.accent, M.Neon, { collide = false, shadow = false, name = "Bloom" })
 	end
 
 	-- Gate posts with lanterns.
@@ -145,6 +162,9 @@ local function buildBase(b: Builder)
 		block(b, Vector3.new(length, 3, 1.2), polar(phi, R - 0.8, 1.5), C.StoneLight, M.Slate, { name = "Wall" })
 		block(b, Vector3.new(length + 0.2, 0.4, 1.6), polar(phi, R - 0.8, 3.15), C.Trim, M.SmoothPlastic, { name = "WallCap" })
 		block(b, Vector3.new(1.8, 4, 1.8), polar(phi + step / 2, R - 0.8, 2), C.Stone, M.Slate, { name = "WallPost" })
+		if k % 2 == 0 then
+			block(b, Vector3.new(0.7, 0.7, 0.7), polar(phi + step / 2, R - 0.8, 4.5) * CFrame.Angles(math.rad(45), 0, math.rad(45)), b.accent, M.Neon, { collide = false, shadow = false, name = "PostGlow" })
+		end
 	end
 end
 
@@ -193,8 +213,10 @@ local function buildCore(model: Model, origin: CFrame, accent: Color3)
 	p(Vector3.new(5.4, 0.4, 5.4), CFrame.new(0, 7.75, 0), accent, M.Neon, "CapRing")
 	local crystal = Parts.block({ size = Vector3.one * 1.8, cf = origin * CFrame.new(0, 11, 0) * CORNER_UP, color = ESSENCE, material = M.Neon, collide = false, shadow = false, parent = core, name = "Crystal" })
 	Parts.light(crystal, ESSENCE, 16, 1.5)
-	local pad = p(Vector3.new(17, 0.12, 17), CFrame.new(0, 0.07, 0), accent, M.Neon, "Pad", false)
-	pad.Transparency = 0.6
+	-- Collection zone outline: a flat glowing circle around the Core.
+	local padHolder = Parts.block({ size = Vector3.one, cf = origin * CFrame.new(0, 0.45, 0), transparency = 1, collide = false, shadow = false, parent = core, name = "PadRing" })
+	padHolder.CanQuery = false
+	Parts.beamRing(padHolder, CFrame.identity, 8, 0.35, accent, 0.15)
 
 	local motes = Instance.new("ParticleEmitter")
 	motes.Name = "Motes"
