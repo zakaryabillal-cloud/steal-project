@@ -128,6 +128,19 @@ function Parts.weldTo(root: BasePart, part: BasePart)
 	weld.Parent = part
 end
 
+-- Initial velocity so a character launched from `from` with vertical speed
+-- `vy` lands on `to` (on the way down). Used by bounce pads.
+function Parts.launchVelocity(from: Vector3, to: Vector3, vy: number): Vector3
+	local g = workspace.Gravity
+	local dy = to.Y - from.Y
+	local disc = vy * vy - 2 * g * dy
+	assert(disc > 0, "bounce pad cannot reach its target with this vertical speed")
+	local t = (vy + math.sqrt(disc)) / g
+	local flat = Vector3.new(to.X - from.X, 0, to.Z - from.Z)
+	local horizontal = flat / t
+	return Vector3.new(horizontal.X, vy, horizontal.Z)
+end
+
 local RING_K = 4 / 3
 
 -- Glowing ring from two curved beams, centred on `parent` with the given

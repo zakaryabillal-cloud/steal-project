@@ -7,6 +7,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Layout = require(Shared.Layout)
+local WorldFeatures = require(Shared.WorldFeatures)
 local Parts = require(script.Parent.Parts)
 local TerrainBuilder = require(script.Parent.TerrainBuilder)
 
@@ -50,6 +51,91 @@ local function nearSanctuary(x: number, z: number, margin: number): boolean
 	return false
 end
 
+-- V2: keep decoration off every gameplay feature of the outer crown.
+local CAVE_LINES: { { a: Vector3, b: Vector3 } } = {}
+for _, cave in WorldFeatures.Caves do
+	for i = 1, #cave.points - 1 do
+		local a = WorldFeatures.cavePoint(cave.points[i])
+		local b = WorldFeatures.cavePoint(cave.points[i + 1])
+		table.insert(CAVE_LINES, { a = Vector3.new(a.X, 0, a.Z), b = Vector3.new(b.X, 0, b.Z) })
+	end
+end
+
+local SKY_LINES: { { a: Vector3, b: Vector3 } } = {}
+do
+	local sky = WorldFeatures.SkyRoute
+	local chain = { sky.pad }
+	for _, island in sky.islands do
+		table.insert(chain, island.position)
+	end
+	table.insert(chain, sky.landing)
+	for i = 1, #chain - 1 do
+		table.insert(SKY_LINES, { a = Vector3.new(chain[i].X, 0, chain[i].Z), b = Vector3.new(chain[i + 1].X, 0, chain[i + 1].Z) })
+	end
+end
+
+local function segmentDistance(p: Vector3, a: Vector3, b: Vector3): number
+	local ab = b - a
+	local t = math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1)
+	return (p - (a + ab * t)).Magnitude
+end
+
+local function angleDelta(a: number, b: number): number
+	return math.abs(((a - b + 180) % 360) - 180)
+end
+
+function Props.isReserved(x: number, z: number): boolean
+	local p = Vector3.new(x, 0, z)
+	local r = p.Magnitude
+	local deg = math.deg(math.atan2(z, x)) % 360
+	for _, line in CAVE_LINES do
+		if segmentDistance(p, line.a, line.b) < 11 then
+			return true
+		end
+	end
+	for _, pass in WorldFeatures.RuinPasses do
+		if angleDelta(deg, pass) < 13 and r > 138 and r < 206 then
+			return true
+		end
+	end
+	local sky = WorldFeatures.SkyRoute
+	if (p - Vector3.new(sky.pad.X, 0, sky.pad.Z)).Magnitude < 12 then
+		return true
+	end
+	-- Keep tree canopies out of the Sky Route corridor.
+	for _, line in SKY_LINES do
+		if segmentDistance(p, line.a, line.b) < 15 then
+			return true
+		end
+	end
+	for _, pad in WorldFeatures.LedgePads do
+		if (p - Vector3.new(pad.position.X, 0, pad.position.Z)).Magnitude < 10 then
+			return true
+		end
+	end
+	local ledge = WorldFeatures.Ledge
+	if deg > ledge.from - ledge.ramp and deg < ledge.to + ledge.ramp and r > ledge.inner - 14 and r < ledge.inner + 4 then
+		return true -- cliff band and its foot
+	end
+	local obs = WorldFeatures.Observatory.position
+	if (p - Vector3.new(obs.X, 0, obs.Z)).Magnitude < 22 then
+		return true
+	end
+	local arch = WorldFeatures.BrokenArch
+	if angleDelta(deg, arch.deg) < 4 and r > arch.inner - 10 and r < arch.outer + 8 then
+		return true
+	end
+	local boss = WorldFeatures.BossPlateau
+	if angleDelta(deg, boss.deg) < 9 and r > boss.neckFrom - 10 then
+		return true
+	end
+	local crown = WorldFeatures.Crown
+	if math.abs(r - WorldFeatures.trailRadiusAt(deg)) < crown.trailHalfWidth + 2.5 then
+		return true
+	end
+	return false
+end
+
 local function radialCFrame(angle: number, r: number, y: number): CFrame
 	local position = Vector3.new(math.cos(angle) * r, y, math.sin(angle) * r)
 	return CFrame.lookAt(position, Vector3.new(0, y, 0))
@@ -65,18 +151,20 @@ local function buildBridges(folder: Folder)
 		local length = Layout.RiverOuter - Layout.RiverInner + 14
 		Parts.block({ size = Vector3.new(11, 1.4, length), cf = center, color = C.Stone, material = M.Cobblestone, parent = model, name = "Deck" })
 		Parts.block({ size = Vector3.new(11.6, 0.6, length + 0.4), cf = center * CFrame.new(0, -0.9, 0), color = C.Trim, material = M.SmoothPlastic, parent = model })
+		-- Rails stop at the banks so they never snag players on the ring road.
+		local railLength = length - 10
 		for _, side in { -1, 1 } do
-			Parts.block({ size = Vector3.new(0.9, 2.2, length - 2), cf = center * CFrame.new(side * 5.3, 1.8, 0), color = C.StoneLight, material = M.Slate, parent = model, name = "Rail" })
+			Parts.block({ size = Vector3.new(0.9, 2.2, railLength), cf = center * CFrame.new(side * 5.3, 1.8, 0), color = C.StoneLight, material = M.Slate, parent = model, name = "Rail" })
 			for k = -2, 2 do
-				Parts.block({ size = Vector3.new(1.4, 3, 1.4), cf = center * CFrame.new(side * 5.3, 2.2, k * (length - 4) / 4), color = C.Stone, material = M.Slate, parent = model })
-				Parts.block({ size = Vector3.new(0.7, 0.7, 0.7), cf = center * CFrame.new(side * 5.3, 4.05, k * (length - 4) / 4) * CFrame.Angles(math.rad(45), 0, math.rad(45)), color = C.Rift, material = M.Neon, collide = false, shadow = false, parent = model })
+				Parts.block({ size = Vector3.new(1.4, 3, 1.4), cf = center * CFrame.new(side * 5.3, 2.2, k * (railLength - 2) / 4), color = C.Stone, material = M.Slate, parent = model })
+				Parts.block({ size = Vector3.new(0.7, 0.7, 0.7), cf = center * CFrame.new(side * 5.3, 4.05, k * (railLength - 2) / 4) * CFrame.Angles(math.rad(45), 0, math.rad(45)), color = C.Rift, material = M.Neon, collide = false, shadow = false, parent = model })
 			end
 		end
 		for _, z in { -6, 6 } do
 			Parts.cylinder({ size = Vector3.new(3.4, 14, 3.4), cf = center * CFrame.new(0, -7.6, z), color = C.StoneDark, material = M.Slate, parent = model, name = "Pier" })
 		end
 		-- Lanterns at both ends.
-		for _, z in { -(length / 2 - 1.5), length / 2 - 1.5 } do
+		for _, z in { -(railLength / 2 + 0.5), railLength / 2 + 0.5 } do
 			for _, side in { -1, 1 } do
 				local base = center * CFrame.new(side * 5.3, 3.7, z)
 				Parts.cylinder({ size = Vector3.new(0.5, 3, 0.5), cf = base * CFrame.new(0, 1.5, 0), color = C.Trim, material = M.Metal, parent = model })
@@ -107,14 +195,16 @@ local function buildFords(folder: Folder)
 	end
 end
 
-local function lampPost(folder: Instance, position: Vector3, facing: Vector3)
+local function lampPost(folder: Instance, position: Vector3, facing: Vector3, lit: boolean?)
 	local model = Parts.model("Lamp", folder)
 	local cf = CFrame.lookAt(position, position + facing)
 	Parts.cylinder({ size = Vector3.new(1.4, 0.8, 1.4), cf = cf * CFrame.new(0, 0.4, 0), color = C.StoneDark, material = M.Slate, parent = model })
 	Parts.cylinder({ size = Vector3.new(0.6, 8, 0.6), cf = cf * CFrame.new(0, 4.4, 0), color = C.Trim, material = M.Metal, parent = model })
 	Parts.block({ size = Vector3.new(0.35, 0.35, 2.2), cf = cf * CFrame.new(0, 8.2, -0.9), color = C.Trim, material = M.Metal, parent = model })
 	local glow = Parts.ball({ size = Vector3.one * 1.5, cf = cf * CFrame.new(0, 7.3, -1.8), color = Color3.fromRGB(200, 170, 255), material = M.Neon, collide = false, shadow = false, parent = model })
-	Parts.light(glow, Color3.fromRGB(190, 160, 255), 18, 1)
+	if lit ~= false then
+		Parts.light(glow, Color3.fromRGB(190, 160, 255), 18, 1)
+	end
 end
 
 local function buildRoadLamps(folder: Folder)
@@ -124,6 +214,21 @@ local function buildRoadLamps(folder: Folder)
 			local r = Layout.RingRoadRadius + 5.2
 			local position = Vector3.new(math.cos(a) * r, Layout.GroundY, math.sin(a) * r)
 			lampPost(folder, position, -Vector3.new(math.cos(a), 0, math.sin(a)))
+		end
+	end
+	-- V2: the crown trail is lit too (every other lamp casts light).
+	local crown = WorldFeatures.Crown
+	local count = 0
+	for deg = 10, 350, 25 do
+		local r = WorldFeatures.trailRadiusAt(deg) + crown.trailHalfWidth + 1.4
+		local x, z = math.cos(math.rad(deg)) * r, math.sin(math.rad(deg)) * r
+		local ground = TerrainBuilder.heightAt(x, z)
+		local nearArch = math.abs(((deg - WorldFeatures.BrokenArch.deg + 180) % 360) - 180) < 8
+		local nearBoss = math.abs(((deg - WorldFeatures.BossPlateau.deg + 180) % 360) - 180) < 10
+		local nearObservatory = math.abs(((deg - 112.5 + 180) % 360) - 180) < 15
+		if ground and not nearArch and not nearBoss and not nearObservatory then
+			count += 1
+			lampPost(folder, Vector3.new(x, ground - 0.2, z), -Vector3.new(math.cos(math.rad(deg)), 0, math.sin(math.rad(deg))), count % 2 == 0)
 		end
 	end
 end
@@ -206,6 +311,9 @@ local function brokenColumn(folder: Instance, position: Vector3, rng: Random)
 end
 
 local function archway(folder: Instance, angle: number, r: number, broken: boolean)
+	if Props.isReserved(math.cos(angle) * r, math.sin(angle) * r) then
+		return -- e.g. a cave mouth takes this spot in V2
+	end
 	local ground = TerrainBuilder.heightAt(math.cos(angle) * r, math.sin(angle) * r) or Layout.GroundY
 	local cf = radialCFrame(angle, r, ground - 0.5) * CFrame.Angles(0, math.rad(90), 0)
 	local model = Parts.model("Archway", folder)
@@ -286,7 +394,7 @@ local function buildVegetation(folder: Folder)
 			local r = rng:NextNumber(minR, maxR)
 			local x, z = math.cos(a) * r, math.sin(a) * r
 			local sample = TerrainBuilder.sample(x, z)
-			if sample and sample.path == nil and sample.zone ~= "river" and not nearSanctuary(x, z, 50) and free(x, z, spacing) then
+			if sample and sample.path == nil and sample.zone ~= "river" and sample.zone ~= "plateau" and not nearSanctuary(x, z, 50) and not Props.isReserved(x, z) and free(x, z, spacing) then
 				local p = Vector3.new(x, sample.height, z)
 				table.insert(placed, p)
 				return p
@@ -295,11 +403,17 @@ local function buildVegetation(folder: Folder)
 		return nil
 	end
 
-	-- Trees: outer ring and a few on the meadow.
-	for _ = 1, 44 do
+	-- Trees: outer ring, the crown groves (V2) and a few on the meadow.
+	for _ = 1, 40 do
 		local p = tryPlace(122, 214, 11)
 		if p then
 			tree(folder, p - Vector3.new(0, 0.6, 0), rng, rng:NextNumber(0.85, 1.25))
+		end
+	end
+	for _ = 1, 22 do
+		local p = tryPlace(216, Layout.IslandRadius - 12, 12)
+		if p then
+			tree(folder, p - Vector3.new(0, 0.6, 0), rng, rng:NextNumber(1, 1.4))
 		end
 	end
 	for _ = 1, 9 do
@@ -310,16 +424,16 @@ local function buildVegetation(folder: Folder)
 	end
 
 	-- Crystal clusters.
-	for i = 1, 22 do
-		local p = tryPlace(62, 220, 9)
+	for i = 1, 28 do
+		local p = tryPlace(62, Layout.IslandRadius - 10, 9)
 		if p then
 			crystalCluster(folder, p, rng, i % 3 == 0)
 		end
 	end
 
 	-- Rock clusters (terrain).
-	for _ = 1, 34 do
-		local p = tryPlace(60, 222, 8)
+	for _ = 1, 48 do
+		local p = tryPlace(60, Layout.IslandRadius - 8, 8)
 		if p then
 			TerrainBuilder.rock(terrain, p + Vector3.new(0, 1, 0), rng:NextNumber(3, 6.5), rng)
 		end
@@ -336,13 +450,14 @@ local function buildVegetation(folder: Folder)
 	end
 
 	-- Bushes.
-	for _ = 1, 40 do
-		local p = tryPlace(60, 218, 5)
+	for _ = 1, 52 do
+		local p = tryPlace(60, Layout.IslandRadius - 10, 5)
 		if p then
 			local style = TREE_STYLES[rng:NextInteger(1, #TREE_STYLES)]
 			local size = rng:NextNumber(2.5, 4)
-			Parts.ball({ size = Vector3.one * size, cf = CFrame.new(p + Vector3.new(0, size * 0.25, 0)), color = style.canopy:Lerp(Color3.fromRGB(70, 150, 120), 0.5), parent = folder, name = "Bush" })
-			Parts.ball({ size = Vector3.one * size * 0.7, cf = CFrame.new(p + Vector3.new(size * 0.45, size * 0.12, 0.3)), color = style.canopy:Lerp(Color3.fromRGB(70, 150, 120), 0.4), parent = folder, name = "Bush" })
+			-- Bushes are soft decoration: players brush through them (no snagging mid-chase).
+			Parts.ball({ size = Vector3.one * size, cf = CFrame.new(p + Vector3.new(0, size * 0.25, 0)), color = style.canopy:Lerp(Color3.fromRGB(70, 150, 120), 0.5), collide = false, parent = folder, name = "Bush" })
+			Parts.ball({ size = Vector3.one * size * 0.7, cf = CFrame.new(p + Vector3.new(size * 0.45, size * 0.12, 0.3)), color = style.canopy:Lerp(Color3.fromRGB(70, 150, 120), 0.4), collide = false, parent = folder, name = "Bush" })
 		end
 	end
 end
@@ -355,9 +470,20 @@ local function buildRuins(folder: Folder)
 	for _, deg in Layout.FordAngles do
 		archway(folder, math.rad(deg), 72, true)
 	end
-	-- Colonnade remains along the ridges between Sanctuaries.
+	-- Colonnade remains along the ridges between Sanctuaries (the V2 ruined
+	-- passes have their own, larger ruins: see Outskirts).
 	for i = 1, Layout.PlotCount do
 		local a = Layout.plotAngle(i) + math.rad(22.5)
+		local deg = math.deg(a) % 360
+		local isPass = false
+		for _, pass in WorldFeatures.RuinPasses do
+			if angleDelta(deg, pass) < 1 then
+				isPass = true
+			end
+		end
+		if isPass then
+			continue
+		end
 		for k = 0, 2 do
 			local r = 150 + k * 18
 			local x, z = math.cos(a) * r, math.sin(a) * r
@@ -390,7 +516,7 @@ local function buildSky(folder: Instance)
 	local rng = Random.new(808)
 	for i = 1, 12 do
 		local a = (i / 12) * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
-		local r = rng:NextNumber(270, 340)
+		local r = rng:NextNumber(335, 420)
 		local h = rng:NextNumber(10, 22)
 		local shard = Parts.block({
 			size = Vector3.new(h * 0.28, h, h * 0.28),

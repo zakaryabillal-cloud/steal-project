@@ -7,15 +7,28 @@ Jeu Roblox multijoueur (6 à 8 joueurs par serveur) écrit en **Luau strict**, g
 Tout le monde — terrain, Faille, sanctuaires, reliques, interface, effets — est généré par le code :
 le projet ne dépend d'**aucun asset externe** et se lance tel quel.
 
-| Spawn | La Faille | Sanctuaire (palier 5) |
+| Vue aérienne (V2) | Depuis la Faille | Corniche + Observatoire |
 |---|---|---|
-| ![spawn](docs/previews/spawn.png) | ![rift](docs/previews/rift.png) | ![sanctuary](docs/previews/sanctuary.png) |
+| ![air](docs/previews/v2_air.png) | ![rift](docs/previews/v2_rift.png) | ![ledge](docs/previews/v2_ledge.png) |
+| **Passage en ruines** | **Grotte sous la rivière** | **Plateau du boss** |
+| ![ruins](docs/previews/v2_ruins.png) | ![cave](docs/previews/v2_cave.png) | ![boss](docs/previews/v2_boss.png) |
 
 <sub>Aperçus produits par le moteur de rendu logiciel du dépôt (`tools/render`) à partir du monde réellement
 généré par le code du jeu. Le rendu dans Roblox Studio (éclairage Future, bloom, particules, beams) est plus riche.
-Vue de dessus de l'île : [`docs/previews/map.png`](docs/previews/map.png).</sub>
+Carte V2 : [`docs/previews/map.png`](docs/previews/map.png) · comparaison V1 → V2 :
+[`docs/previews/compare_v1_v2.png`](docs/previews/compare_v1_v2.png). Ce que ce rendu ne montre pas
+(beams, particules, lumières…) : voir [`docs/V2_PLAN.md`](docs/V2_PLAN.md) §7.</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phase 1 « Fondations » terminée).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations » et 2 « Monde V2 » terminées).
+
+### La carte V2 en bref
+
+Le cœur ne change pas (la Faille au centre, prairie, rivière, route circulaire, 8 Sanctuaires à la même distance),
+mais l'île est **~37 % plus grande** : une **couronne** vallonnée avec un sentier en boucle entoure les Sanctuaires,
+une **corniche haute** domine trois d'entre eux, **deux grottes** passent sous la rivière, quatre **cols en ruines**
+relient des Sanctuaires voisins, une **route céleste** d'îles flottantes mène à la corniche, et trois landmarks se
+répondent à 90° : **Observatoire**, **Arche brisée**, **Plateau du boss** (portail dormant). 14 **points de grappin**
+sont déjà placés pour la future capacité Grappin. Détails : `src/shared/WorldFeatures.luau`.
 
 ---
 
@@ -406,8 +419,16 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **283 vérifications, 0 échec, 0 erreur d'exécution**
-(148 V1 + 135 V2 phase 1, dans `tests/scenarios/V2Foundations.luau`).
+serveur et un vrai client tournent dedans. Résultat actuel : **351 vérifications, 0 échec, 0 erreur d'exécution**
+(148 V1 + 135 V2 phase 1 dans `tests/scenarios/V2Foundations.luau` + 68 V2 phase 2 dans
+`tests/scenarios/V2World.luau`).
+
+Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
+déclarée dans `WorldFeatures.Routes` **dans les deux sens** avec un « marcheur » géométrique (hauteur de marche
+≤ 2,2 studs, trous seulement sur les gués, rien de solide dans le corps du personnage, nage sur la rivière),
+vérifient les grottes (creusées, plafond sous la rivière, pentes, éclairage), les trajectoires des pads de rebond,
+l'escalier de l'Observatoire, les ancres de grappin, les budgets (parts, lumières, particules) et que rien ne
+touche les Sanctuaires, leurs rampes ni la Faille.
 
 Scénarios couverts : solo complet (tutoriel → dépôt → Essence → achats → fusion → dissolution), achat sans
 argent, interactions à distance, spam de remotes, 2ᵉ joueur + protection Novice, vol → alerte → poursuite →
@@ -425,8 +446,9 @@ chaud/froid (taille, fusion côté client, audit), Scheduler (jobs isolés), rec
 ### Aperçus du monde (direction artistique)
 ```bash
 lune run tools/render/export_world.luau 0                         # 0 = paliers mixtes
-python3 tools/render/render_map.py tools/.cache/world.json map.png # vue de dessus
+python3 tools/render/render_map.py tools/.cache/world.json map.png # vue de dessus (grottes en surbrillance)
 python3 tools/render/render_view.py tools/.cache/world.json view.png "0,41,-150" "0,24,0" 800 450
+FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard réduit (vues aériennes)
 ```
 (`render_view.py` : rastériseur logiciel avec brouillard, néon émissif et bloom ; nécessite numpy + Pillow.)
 

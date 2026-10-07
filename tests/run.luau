@@ -818,6 +818,20 @@ require("./scenarios/V2Foundations")({
 	end,
 })
 
+-- V2 phase 2: World V2 (budgets, routes, caves, pads, landmarks, V1 core).
+require("./scenarios/V2World")({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	sreq = sreq,
+	shared = shared,
+	Engine = Engine,
+	alice = function()
+		return alice
+	end,
+	traceRoute = process.env.TRACE_ROUTE,
+})
+
 scenario("Shutdown: BindToClose saves everyone", function()
 	local sa = sessionOf(alice)
 	sa.data.essence += 12345

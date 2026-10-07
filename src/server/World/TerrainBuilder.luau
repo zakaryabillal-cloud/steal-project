@@ -2,23 +2,58 @@
 -- Generates the floating island with smooth voxel terrain:
 --   * a terraced basin cradling the Rift,
 --   * a meadow ring, a river moat (water) with bridge/ford spokes,
---   * an outer ring road, ridges separating neighbouring Sanctuaries,
+--   * an outer ring road, ridges separating neighbouring Sanctuaries
+--     (four of them lowered into ruined passes),
+--   * V2: the outer crown (upland + loop trail), the High Ledge, the boss
+--     promontory, two caves under the river (open ravines in the heightmap +
+--     tunnels carved with Air),
 --   * a jagged rock cone underneath and a few distant floating islets.
 -- The surface is written with WriteVoxels from a deterministic heightmap.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Layout = require(Shared.Layout)
+local WorldFeatures = require(Shared.WorldFeatures)
 local MathUtil = require(Shared.Util.MathUtil)
 
 local TerrainBuilder = {}
 
 local SEED = 7331
 local RES = 4
-local HALF = 256
+local HALF = 320
 local CHUNK = 64
 local Y_MIN = -8
-local Y_MAX = 56
+local Y_MAX = 76
+
+local CROWN = WorldFeatures.Crown
+local LEDGE = WorldFeatures.Ledge
+local BOSS = WorldFeatures.BossPlateau
+local BOSS_DIR = Vector3.new(math.cos(math.rad(BOSS.deg)), 0, math.sin(math.rad(BOSS.deg)))
+local BOSS_SIDE = Vector3.new(-BOSS_DIR.Z, 0, BOSS_DIR.X)
+local UNDERSIDE_SCALE = Layout.IslandRadius / 236
+
+-- Ruined passes: ridge index (0..7) -> true.
+local RUIN_RIDGE: { [number]: boolean } = {}
+for _, deg in WorldFeatures.RuinPasses do
+	RUIN_RIDGE[math.floor(((deg - 22.5 + 90) % 360) / 45 + 0.5) % 8] = true
+end
+
+-- Cave polylines in world space (floor heights in Y).
+type CaveSeg = { a: Vector3, b: Vector3, covered: boolean, halfWidth: number, height: number, last: boolean }
+local CAVE_SEGS: { CaveSeg } = {}
+for _, cave in WorldFeatures.Caves do
+	for i = 1, #cave.points - 1 do
+		local p, q = cave.points[i], cave.points[i + 1]
+		table.insert(CAVE_SEGS, {
+			a = WorldFeatures.cavePoint(p),
+			b = WorldFeatures.cavePoint(q),
+			covered = p.covered and q.covered,
+			halfWidth = cave.halfWidth,
+			height = cave.height,
+			last = i == #cave.points - 1,
+		})
+	end
+end
 
 local M = Enum.Material
 local smooth = MathUtil.smoothstep
@@ -40,18 +75,74 @@ local function edgeRadius(theta: number): number
 	return Layout.IslandRadius - 4 + MathUtil.fbm(math.cos(theta) * 2.2 + 50, math.sin(theta) * 2.2 + 50, SEED, 3) * 14
 end
 
-local function ridgeHeight(r: number, theta: number, edge: number): number
+local function ridgeHeight(r: number, theta: number): number
 	if r < 132 then
 		return 0
 	end
 	local step = math.rad(45)
 	local base = math.rad(-90 + 22.5)
 	local rel = (theta - base) % step
+	local index = math.floor((theta - base) / step + 0.5) % 8
 	local arc = math.min(rel, step - rel) * r
 	local across = 1 - smooth(0, 17, arc)
-	local along = smooth(132, 158, r) * (1 - smooth(edge - 34, edge - 10, r))
+	-- V2: ridges fade into the outer crown instead of running to the edge.
+	local along = smooth(132, 158, r) * (1 - smooth(196, 220, r))
 	local wobble = 1 + MathUtil.noise2(r / 22, theta * 3, SEED + 9) * 0.25
-	return (across ^ 1.4) * along * 17 * wobble
+	-- Ruined passes: the ridge is lowered into a walkable saddle.
+	local scale = if RUIN_RIDGE[index] then 0.2 else 1
+	return (across ^ 1.4) * along * 17 * wobble * scale
+end
+
+local function degreesOf(theta: number): number
+	return math.deg(theta) % 360
+end
+
+-- High Ledge height (or nil outside it). `base` is the crown height there.
+local function ledgeHeight(r: number, deg: number, base: number, x: number, z: number): (number?, number)
+	if deg < LEDGE.from - LEDGE.ramp or deg > LEDGE.to + LEDGE.ramp or r < LEDGE.inner - 8 then
+		return nil, 0
+	end
+	local fa = smooth(LEDGE.from - LEDGE.ramp, LEDGE.from, deg) * (1 - smooth(LEDGE.to, LEDGE.to + LEDGE.ramp, deg))
+	local fr = smooth(LEDGE.inner - 7, LEDGE.inner, r) * (1 - smooth(LEDGE.outer, LEDGE.outer + 7, r))
+	local w = fa * fr
+	if w <= 0 then
+		return nil, 0
+	end
+	local top = LEDGE.top + MathUtil.fbm(x / 30, z / 30, SEED + 21, 2) * 1.6
+	return MathUtil.lerp(base, top, w), w
+end
+
+-- Boss promontory: (inside?, height, isPlaza)
+local function promontory(x: number, z: number): (boolean, number, boolean)
+	local along = x * BOSS_DIR.X + z * BOSS_DIR.Z
+	local lateral = math.abs(x * BOSS_SIDE.X + z * BOSS_SIDE.Z)
+	local plazaCenter = BOSS_DIR * BOSS.center
+	local dx, dz = x - plazaCenter.X, z - plazaCenter.Z
+	local plazaDist = math.sqrt(dx * dx + dz * dz)
+	local wobble = MathUtil.noise2(x / 14, z / 14, SEED + 33) * 2.5
+	if plazaDist <= BOSS.radius + wobble then
+		return true, BOSS.top, true
+	end
+	if along >= BOSS.neckFrom - 6 and along <= BOSS.center and lateral <= BOSS.neckHalfWidth + wobble then
+		local t = smooth(BOSS.neckFrom, BOSS.neckTo, along)
+		local crownTop = Layout.GroundY + CROWN.height
+		return true, MathUtil.lerp(crownTop, BOSS.top, t), false
+	end
+	return false, 0, false
+end
+
+-- Distance from (x, z) to segment a-b in XZ, the interpolated floor and the
+-- unclamped projection parameter (0 at a, 1 at b).
+local function segmentInfo(seg: CaveSeg, x: number, z: number): (number, number, number)
+	local ax, az = seg.a.X, seg.a.Z
+	local bx, bz = seg.b.X, seg.b.Z
+	local vx, vz = bx - ax, bz - az
+	local len2 = vx * vx + vz * vz
+	local raw = ((x - ax) * vx + (z - az) * vz) / len2
+	local t = math.clamp(raw, 0, 1)
+	local px, pz = ax + vx * t, az + vz * t
+	local d = math.sqrt((x - px) ^ 2 + (z - pz) ^ 2)
+	return d, MathUtil.lerp(seg.a.Y, seg.b.Y, t), raw
 end
 
 export type Sample = {
@@ -65,7 +156,11 @@ function TerrainBuilder.sample(x: number, z: number): Sample?
 	local r = math.sqrt(x * x + z * z)
 	local theta = math.atan2(z, x)
 	local edge = edgeRadius(theta)
-	if r > edge then
+	local inPromontory, promontoryH, isPlaza = false, 0, false
+	if r > 230 then
+		inPromontory, promontoryH, isPlaza = promontory(x, z)
+	end
+	if r > edge and not inPromontory then
 		return nil
 	end
 	local n = MathUtil.fbm(x / 48, z / 48, SEED, 3)
@@ -90,9 +185,18 @@ function TerrainBuilder.sample(x: number, z: number): Sample?
 		h = Layout.RiverBedY + (Layout.GroundY - Layout.RiverBedY) * smooth(0.45, 1, d)
 		zone = "river"
 	else
-		h = Layout.GroundY + n * 2.4 * smooth(Layout.RiverOuter, Layout.RiverOuter + 20, r) + ridgeHeight(r, theta, edge)
-		h -= smooth(edge - 28, edge, r) * 9
-		zone = if r > edge - 14 then "edge" else "outer"
+		h = Layout.GroundY + n * 2.4 * smooth(Layout.RiverOuter, Layout.RiverOuter + 20, r) + ridgeHeight(r, theta)
+		zone = "outer"
+		-- Outer crown: an upland behind the Sanctuaries, cresting along the trail.
+		if r > CROWN.riseFrom then
+			local crownH = Layout.GroundY + smooth(CROWN.riseFrom, CROWN.riseTo, r) * (CROWN.height + MathUtil.fbm(x / 40, z / 40, SEED + 17, 3) * 3.5)
+			h = math.max(h, crownH)
+			zone = "crown"
+		end
+		h -= smooth(edge - 22, edge, r) * 9
+		if r > edge - 10 then
+			zone = "edge"
+		end
 	end
 
 	local path: string? = nil
@@ -142,18 +246,88 @@ function TerrainBuilder.sample(x: number, z: number): Sample?
 		end
 	end
 
+	if r > 200 then
+		local deg = degreesOf(theta)
+		-- Loop trail along the crown crest (also runs over the ledge).
+		local trailDist = math.abs(r - WorldFeatures.trailRadiusAt(deg))
+		if trailDist < CROWN.trailHalfWidth + 2 and not inPromontory then
+			if trailDist < CROWN.trailHalfWidth then
+				path = "trail"
+			end
+		end
+		-- High Ledge.
+		local ledgeH, ledgeW = ledgeHeight(r, deg, h, x, z)
+		if ledgeH then
+			h = ledgeH
+			if ledgeW > 0.98 and r > LEDGE.inner + 1 and r < LEDGE.outer - 1 then
+				zone = "ledge"
+			end
+		end
+		-- Boss promontory (neck + plaza), beyond the normal island edge.
+		if inPromontory then
+			h = if isPlaza then promontoryH else math.max(h, promontoryH)
+			zone = "plateau"
+			if isPlaza then
+				local portal = BOSS_DIR * BOSS.portalR
+				local pd = math.sqrt((x - portal.X) ^ 2 + (z - portal.Z) ^ 2)
+				path = if pd < 9 then "lava" else "plaza"
+			else
+				local lateral = math.abs(x * BOSS_SIDE.X + z * BOSS_SIDE.Z)
+				if lateral < 4 then
+					path = "bossway"
+				end
+			end
+		end
+	end
+
+	-- Cave ravines: open cave segments are cut into the heightmap.
+	if r > 60 and r < 170 then
+		for _, seg in CAVE_SEGS do
+			if seg.covered then
+				continue
+			end
+			local d, floor, raw = segmentInfo(seg, x, z)
+			-- Each open segment only shapes the ground beside it: never before its
+			-- start (keeps the ring road intact at the tunnel mouth) and never past
+			-- its end, except for the cave's final segment which fades out.
+			if d < seg.halfWidth + 3 and floor < h and raw > 0 and (raw <= 1 or seg.last) then
+				local w = 1 - smooth(seg.halfWidth, seg.halfWidth + 3, d)
+				h = MathUtil.lerp(h, floor, w)
+				if d < seg.halfWidth - 0.5 then
+					path = "ravine"
+				end
+			end
+		end
+	end
+
 	return { height = h, zone = zone, path = path }
 end
 
 local function surfaceMaterial(sample: Sample, slope: number, x: number, z: number): Enum.Material
-	if sample.path == "road" then
+	local p = sample.path
+	if p == "road" then
 		return M.Pavement
-	elseif sample.path == "spoke" then
+	elseif p == "spoke" or p == "bossway" then
 		return M.Cobblestone
-	elseif sample.path == "plaza" then
-		return M.Slate
+	elseif p == "plaza" then
+		return if sample.zone == "plateau" then M.Basalt else M.Slate
+	elseif p == "lava" then
+		return M.CrackedLava
+	elseif p == "trail" then
+		return if slope > 0.9 then M.Rock else M.Ground
+	elseif p == "ravine" then
+		return if slope > 0.6 then M.Rock else M.Ground
 	end
 	local zone = sample.zone
+	if zone == "plateau" then
+		return if slope > 0.6 then M.Basalt else M.Slate
+	elseif zone == "ledge" then
+		if slope > 0.6 then
+			return M.Rock
+		end
+		-- Mostly meadow on top, with a few pale stone outcrops.
+		return if MathUtil.noise2(x / 22, z / 22, SEED + 5) > 0.62 then M.Limestone else M.LeafyGrass
+	end
 	if zone == "basin" then
 		return M.Slate
 	elseif zone == "river" then
@@ -172,6 +346,21 @@ local function surfaceMaterial(sample: Sample, slope: number, x: number, z: numb
 		return M.LeafyGrass
 	end
 	return M.Grass
+end
+
+-- Surface material at (x, z) (nil outside the island). Used by tools/tests.
+function TerrainBuilder.materialAt(x: number, z: number): Enum.Material?
+	local sample = TerrainBuilder.sample(x, z)
+	if not sample then
+		return nil
+	end
+	local sx = TerrainBuilder.sample(x + 2, z)
+	local sz = TerrainBuilder.sample(x, z + 2)
+	local slope = 0
+	if sx and sz then
+		slope = math.max(math.abs(sx.height - sample.height), math.abs(sz.height - sample.height)) / 2
+	end
+	return surfaceMaterial(sample, slope, x, z)
 end
 
 local function writeSurface(terrain: Terrain)
@@ -276,26 +465,52 @@ local function writeUnderside(terrain: Terrain)
 		{ top = -132, bottom = -160, radius = 16 },
 	}
 	for index, layer in layers do
-		local height = layer.top - layer.bottom
-		local mid = (layer.top + layer.bottom) / 2
+		local height = (layer.top - layer.bottom) * UNDERSIDE_SCALE
+		local mid = (layer.top + layer.bottom) / 2 * UNDERSIDE_SCALE
+		local radius = layer.radius * UNDERSIDE_SCALE
 		local material = if index <= 2 then M.Rock else M.Basalt
-		terrain:FillCylinder(CFrame.new(0, mid, 0), height, layer.radius, material)
-		local count = math.max(6, math.floor(layer.radius / 9))
+		terrain:FillCylinder(CFrame.new(0, mid, 0), height, radius, material)
+		local count = math.max(6, math.floor(radius / 9))
 		for k = 1, count do
 			local a = (k / count) * math.pi * 2 + rng:NextNumber(-0.1, 0.1)
-			local rr = layer.radius * rng:NextNumber(0.86, 1.02)
-			local size = rng:NextNumber(8, 16) * (0.6 + layer.radius / 300)
+			local rr = radius * rng:NextNumber(0.86, 1.02)
+			local size = rng:NextNumber(8, 16) * (0.6 + radius / 300)
 			terrain:FillBall(Vector3.new(math.cos(a) * rr, mid + rng:NextNumber(-height, height) * 0.4, math.sin(a) * rr), size, material)
 		end
 	end
 	-- Hanging stalactites.
-	for _ = 1, 14 do
+	for _ = 1, 16 do
 		local a = rng:NextNumber(0, math.pi * 2)
-		local rr = rng:NextNumber(30, 170)
-		local y = -40 - (1 - rr / 220) * 70
+		local rr = rng:NextNumber(30, 200)
+		local y = -40 - (1 - rr / 260) * 80
 		for s = 0, 3 do
 			terrain:FillBall(Vector3.new(math.cos(a) * rr, y - s * 9, math.sin(a) * rr), 9 - s * 2, M.Basalt)
 		end
+	end
+	-- Rock mass hanging under the boss promontory.
+	for k = 0, 5 do
+		local along = BOSS.neckFrom + 10 + k * 13
+		local center = BOSS_DIR * along
+		local drop = 10 + k * 4
+		terrain:FillBall(Vector3.new(center.X, -drop, center.Z), 20 - k * 1.5, M.Basalt)
+		terrain:FillBall(Vector3.new(center.X, -drop - 22, center.Z), 11 - k, M.Basalt)
+	end
+	task.wait()
+end
+
+-- Carves the cave tunnels (covered cave segments) out of the terrain.
+local function carveCaves(terrain: Terrain)
+	for _, seg in CAVE_SEGS do
+		if not seg.covered then
+			continue
+		end
+		local up = Vector3.new(0, seg.height / 2, 0)
+		local a, b = seg.a + up, seg.b + up
+		local length = (b - a).Magnitude
+		local cf = CFrame.lookAt((a + b) / 2, b)
+		terrain:FillBlock(cf, Vector3.new(seg.halfWidth * 2, seg.height, length + 3), M.Air)
+		terrain:FillBall(a, seg.height / 2 + 0.5, M.Air)
+		terrain:FillBall(b, seg.height / 2 + 0.5, M.Air)
 	end
 	task.wait()
 end
@@ -305,7 +520,7 @@ local function writeIslets(terrain: Terrain): { Vector3 }
 	local tops = {}
 	for i = 1, 7 do
 		local a = (i / 7) * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
-		local dist = rng:NextNumber(290, 360)
+		local dist = rng:NextNumber(345, 420)
 		local y = rng:NextNumber(-10, 50)
 		local radius = rng:NextNumber(14, 26)
 		local center = Vector3.new(math.cos(a) * dist, y, math.sin(a) * dist)
@@ -336,6 +551,8 @@ function TerrainBuilder.styleTerrain(terrain: Terrain)
 	terrain:SetMaterialColor(M.Sand, Color3.fromRGB(190, 172, 206))
 	terrain:SetMaterialColor(M.Ground, Color3.fromRGB(110, 96, 120))
 	terrain:SetMaterialColor(M.Basalt, Color3.fromRGB(54, 48, 76))
+	terrain:SetMaterialColor(M.Limestone, Color3.fromRGB(196, 186, 214))
+	terrain:SetMaterialColor(M.CrackedLava, Color3.fromRGB(255, 120, 90))
 	terrain.WaterColor = Color3.fromRGB(70, 130, 210)
 	terrain.WaterTransparency = 0.45
 	terrain.WaterReflectance = 0.85
@@ -349,6 +566,7 @@ function TerrainBuilder.build(): { Vector3 }
 	TerrainBuilder.styleTerrain(terrain)
 	writeSurface(terrain)
 	writeUnderside(terrain)
+	carveCaves(terrain)
 	return writeIslets(terrain)
 end
 

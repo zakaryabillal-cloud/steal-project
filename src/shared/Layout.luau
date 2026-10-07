@@ -25,7 +25,9 @@ Layout.RiverBedY = 9
 Layout.WaterY = 16.5
 
 Layout.RingRoadRadius = 110
-Layout.IslandRadius = 236
+-- V2: 236 -> 276 (+37 % area). Sanctuaries keep PlotDistance, so trips are not longer:
+-- the new space is the outer crown behind them (see Shared/WorldFeatures).
+Layout.IslandRadius = 276
 
 Layout.DaisRadius = 13
 Layout.DaisTopY = 8

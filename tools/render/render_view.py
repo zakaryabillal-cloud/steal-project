@@ -22,7 +22,7 @@ H = int(sys.argv[6]) if len(sys.argv) > 6 else 540
 FOV = math.radians(70)
 
 FOG = np.array([120, 96, 175], dtype=float)
-FOG_DENSITY = 0.0042
+FOG_DENSITY = float(__import__("os").environ.get("FOG", "0.0042"))
 AMBIENT = np.array([0.40, 0.37, 0.58])
 MOON_DIR = np.array([-0.35, 0.85, 0.4])
 MOON_DIR /= np.linalg.norm(MOON_DIR)
@@ -33,6 +33,11 @@ ZONE = {
     "river": (190, 172, 206), "outer": (86, 168, 134), "edge": (104, 94, 134),
 }
 PATH = {"road": (132, 124, 160), "spoke": (150, 140, 176), "plaza": (78, 70, 110)}
+MATERIAL = {
+    "Grass": (86, 168, 134), "LeafyGrass": (70, 148, 122), "Rock": (104, 94, 134), "Slate": (78, 70, 110),
+    "Cobblestone": (150, 140, 176), "Pavement": (132, 124, 160), "Sand": (190, 172, 206), "Ground": (110, 96, 120),
+    "Basalt": (54, 48, 76), "Limestone": (196, 186, 214), "CrackedLava": (255, 120, 90), "Water": (70, 130, 210),
+}
 WATER = np.array([70, 130, 210], dtype=float)
 WATER_Y = 16.5
 
@@ -56,8 +61,13 @@ for zi in range(0, n, stride):
         if s:
             x = origin + xi * step + step / 2
             z = origin + zi * step + step / 2
-            h, zone, path = s
-            col = np.array(PATH.get(path) or ZONE.get(zone, (120, 120, 120)), dtype=float)
+            h, zone, path = s[0], s[1], s[2]
+            if len(s) > 3:
+                col = np.array(MATERIAL.get(s[3], (120, 120, 120)), dtype=float)
+            else:
+                col = np.array(PATH.get(path) or ZONE.get(zone, (120, 120, 120)), dtype=float)
+            if len(s) > 3 and s[3] == "CrackedLava":
+                col = col * 1.1
             grid[(xi, zi)] = (np.array([x, h, z]), col, zone == "river" and h < WATER_Y)
 for (xi, zi), (p00, c00, w00) in grid.items():
     p10 = grid.get((xi + stride, zi))
@@ -102,6 +112,47 @@ def icosphere():
 
 
 SPHERE_V, SPHERE_F = icosphere()
+
+# Terrain fills: balls/cylinders/blocks of terrain. Carved (Air) blocks are
+# drawn as tunnel walls only when the camera is close (cave views).
+for fill in data.get("fills", []):
+    p = np.array(fill["p"])
+    r, u, l = np.array(fill["r"]), np.array(fill["u"]), np.array(fill["l"])
+    sx, sy, sz = fill["s"]
+    back = -l
+    if fill["m"] == "Air":
+        if fill["op"] != "Block" or np.linalg.norm(p - cam) > max(sz, 40):
+            continue
+        color = np.array(MATERIAL["Rock"], dtype=float) * 0.8
+        corners = []
+        for i in range(8):
+            cx_ = (i >> 2 & 1) - 0.5
+            cy_ = (i >> 1 & 1) - 0.5
+            cz_ = (i & 1) - 0.5
+            corners.append(p + r * cx_ * sx + u * cy_ * sy + back * cz_ * sz)
+        for a, b, c, d in [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6)]:
+            add_tri(corners[a], corners[b], corners[c], color)
+            add_tri(corners[a], corners[c], corners[d], color)
+        continue
+    if sy > 60 or sx > 120:
+        continue  # underside mass: never in view
+    color = np.array(MATERIAL.get(fill["m"], (110, 100, 140)), dtype=float)
+    if fill["op"] == "Ball":
+        for a, b, c in SPHERE_F:
+            pts = [p + SPHERE_V[i] * sx / 2 for i in (a, b, c)]
+            add_tri(pts[0], pts[1], pts[2], color)
+    elif fill["op"] == "Cylinder":
+        seg = 14
+        for k in range(seg):
+            a0 = 2 * math.pi * k / seg
+            a1 = 2 * math.pi * (k + 1) / seg
+            for end in (-0.5, 0.5):
+                c = p + u * sy * end
+                add_tri(c, c + r * math.cos(a0) * sx / 2 + back * math.sin(a0) * sz / 2, c + r * math.cos(a1) * sx / 2 + back * math.sin(a1) * sz / 2, color)
+            b0 = p - u * sy / 2 + r * math.cos(a0) * sx / 2 + back * math.sin(a0) * sz / 2
+            b1 = p - u * sy / 2 + r * math.cos(a1) * sx / 2 + back * math.sin(a1) * sz / 2
+            add_tri(b0, b0 + u * sy, b1 + u * sy, color)
+            add_tri(b0, b1 + u * sy, b1, color)
 
 for part in data["parts"]:
     material = part["m"]

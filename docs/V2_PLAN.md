@@ -1,6 +1,6 @@
 # RIFT HEIST — Plan V2 (validé)
 
-> Statut : **Phase 1 — Fondations : terminée.** Phases 2 à 11 : non commencées (attente d'autorisation).
+> Statut : **Phase 1 — Fondations : terminée. Phase 2 — Monde V2 : terminée.** Phases 3 à 11 : non commencées (attente d'autorisation).
 
 Boucle principale conservée : *Faille → Reliques → Vol/PvP → Sanctuaire → Essence → Progression → contenu plus difficile → récompenses rares.*
 Boucle secondaire V2 : *Collecter → améliorer → Power ↑ → boss → drops exclusifs / Forge → build & collection → contenu supérieur*,
@@ -50,7 +50,7 @@ Sync découpé chaud / froid.
 | # | Phase | Contenu | Statut |
 |---|---|---|---|
 | 1 | Fondations | Schéma v2 + migration, garde anti-écrasement, Scheduler, StatusService, framework de capacités (Dash/Repousser portés), Power + record + HUD, Sync chaud/froid | ✅ |
-| 2 | Monde V2 | +35 % de surface (anneau extérieur, grottes, corniche, ruines, landmarks, points de grappin), routes alternatives Faille↔Sanctuaires (trajet direct ~172 → ~190 studs), panneaux de Sanctuaire en studs + distance max ~140 | — |
+| 2 | Monde V2 | +35 % de surface (anneau extérieur, grottes, corniche, ruines, landmarks, points de grappin), routes alternatives Faille↔Sanctuaires (trajet direct inchangé : 172 studs), panneaux de Sanctuaire en studs + distance max 150 | ✅ |
 | 3 | Audio dynamique | MusicDirector (Boss > Poursuite > Événement > Faille > Exploration), fondus, Sounds v2 documenté, aucun ID inventé | — |
 | 4 | Capacités | Blink, Grappin (points dédiés), Onde de givre, Piège runique, Bouclier, Leurre, Phase spectrale ; déblocages par Power record + Essence/matériaux ; UI de loadout (au Sanctuaire) ; harmonisations (Storm Crystal, Void Cube, Magma Heart, Frost Lotus, Chrono Glass, Cosmic Eye) | — |
 | 5 | Cosmétiques (moteur) | possession / équipement / rendu (traînées, auras, skins de Sanctuaire, effets de dépôt, titres, emotes) | — |
@@ -145,3 +145,65 @@ Règles :
 - Ressenti du Dash / Repousser (inchangés en théorie : mêmes valeurs, même ordre d'opérations).
 - Touche R (Utilitaire) et R2 manette : aucune capacité équipée par défaut, donc sans effet en phase 1.
 - Migration réelle : jouer en V1 publiée, publier la V2 avec *Shut Down All Servers*, rejoindre → progression intacte.
+
+
+---
+
+## 7. Phase 2 — Monde V2 : ce qui a été livré
+
+Toutes les positions sont décrites dans `src/shared/WorldFeatures.luau` (une seule source de vérité pour les
+builders, le client et les tests). Le cœur V1 (Faille, prairie, rivière, route circulaire, 8 Sanctuaires à
+172 studs) est **inchangé** : la surface gagnée est derrière les Sanctuaires, donc **aucun trajet direct
+Faille → Sanctuaire ne s'allonge**.
+
+| Zone / élément | Où | Fonction de gameplay |
+|---|---|---|
+| **Couronne extérieure** | r 212–276, tout autour | Plateau en relief derrière les Sanctuaires, sentier en boucle éclairé : itinéraire « par l'arrière » pour éviter la route circulaire, bosquets qui cassent la ligne de vue. |
+| **Corniche haute** | 72° → 208°, Y +26, derrière les Sanctuaires 5–7 | Verticalité : rampes douces aux deux extrémités, falaise intérieure dont on **saute** (fuite à sens unique), 2 pads de rebond pour y remonter, vue sur trois Sanctuaires (interception). |
+| **2 grottes sous la rivière** | Est (67,5°) et Ouest (247,5°) | Raccourci caché prairie de la Faille → ravine → passage en ruines entre deux Sanctuaires. Étroit (10 studs), éclairé par des cristaux : idéal pour semer ou pour une embuscade au Repousser. |
+| **Passages en ruines** | crêtes à 22,5°, 67,5°, 247,5°, 337,5° | La crête entre deux Sanctuaires est abaissée en col : **raccourci latéral entre voisins** (sans passer par la route), murs bas, portes, colonnes, estrade et tour ouverte pour couper la ligne de vue. |
+| **Route céleste** | 150° → 157,5°, de la prairie à la corniche | Pad de rebond → 4 îles flottantes → ponts runiques **sans rambarde** → corniche. Raccourci visible et risqué : un Repousser là-haut = chute. |
+| **Observatoire** (landmark) | 112,5°, sur la corniche | Tour de ~90 studs avec escalier extérieur en spirale jusqu'à un balcon : poste d'observation pour repérer les voleurs ; faisceau lumineux visible de partout. Le sentier le contourne par le bord de la falaise. |
+| **Arche brisée** (landmark) | 202,5° | Porte monumentale effondrée enjambant la falaise et le sentier de la corniche ; blocs tombés = couvert dans la ruelle arrière. |
+| **Plateau du boss** (landmark) | 292,5°, promontoire au-delà du bord | Chaussée qui monte vers une esplanade en basalte, cercle de rassemblement, obélisques, portail en anneau **dormant** (`PortalState = "Dormant"`), lave aux pieds du portail. Aucune logique de boss (phase 6). |
+| **Points de grappin** (préparés) | 14 ancres (`workspace.World.GrapplePoints`) | Bords de corniche, observatoire, arche, îles, tours en ruines, plateau du boss, îles de la Faille. Attributs `GrapplePoint`, `Kind`, `Range` ; visuel unique (gemme cyan dans un anneau). La capacité Grappin n'existe pas encore. |
+| **Panneaux des Sanctuaires** | client (`SanctuaryFX`) | Taille en studs (11 × 3,2) au lieu de 340 × 96 px fixes : ils rapetissent avec la distance ; nom seul au-delà de 60 studs ; masqués au-delà de 150 studs (au lieu de 320). |
+
+Budgets mesurés (monde construit, Sanctuaires palier 1, hors reliques/personnages) : **~3 420 parts**
+(V1 : ~2 950 ; budget 4 500), **79 PointLights** (budget 130), **16 émetteurs** de particules dans le monde.
+Les budgets sont dans `GameConfig.World` et vérifiés par les tests.
+
+### Écarts au plan (Phase 2) et pourquoi
+
+1. **Sanctuaires laissés à 172 studs** (le plan évoquait ~190) : la nouvelle surface est entièrement derrière eux et
+   dans les cols ; les trajets directs ne s'allongent pas du tout, ce qui protège la fréquence des rencontres.
+2. **La grotte relie la prairie de la Faille à un col en ruines**, pas directement à un Sanctuaire : un tunnel
+   menant tout droit à un Sanctuaire aurait avantagé deux joueurs sur huit. Les deux grottes sont symétriques.
+3. **L'Arche brisée enjambe la falaise de la corniche** (porte d'entrée de la corniche) au lieu d'être un simple
+   décor sur la prairie : c'est plus lisible et elle marque l'accès ouest de la corniche.
+4. **Buissons non collisionnables** : ils accrochaient les joueurs en pleine poursuite (détecté par le test des
+   routes). Les troncs et les rochers restent solides.
+5. **Rambardes des ponts raccourcies** : en V1 elles dépassaient sur la route circulaire et bloquaient le passage
+   (détecté par le test des routes).
+
+### Ce que le moteur de rendu des aperçus ne reproduit pas
+
+Les images de `docs/previews/` viennent d'un rastériseur logiciel (`tools/render`), pas de Roblox :
+- pas d'éclairage Future (ombres, PointLights, reflets), pas de bloom réel ni de SunRays/DepthOfField ;
+- **Beams, ParticleEmitters et ForceField non rendus** : anneaux du portail et des ancres de grappin, faisceau de
+  l'observatoire, cascades d'étoiles, particules de la Faille et du monde sont absents des images ;
+- terrain affiché en maillage de 4 studs aplati, couleurs de matériau unies (pas de textures, pas d'herbe
+  décorative, eau sans transparence ni vagues) ; les grottes sont dessinées comme des boîtes ;
+- Atmosphere/brouillard approximés par un brouillard exponentiel simple ; pas de ciel Roblox ni de nuages ;
+- BillboardGui (panneaux, jauges) et interface non rendus.
+Les vrais rendus (lumières, néons, ambiance) doivent être jugés dans Roblox Studio.
+
+### À vérifier dans Roblox Studio (Phase 2)
+
+- Sensation des **pads de rebond** de la corniche (vitesse verticale 112) et de la route céleste.
+- Lisibilité des **ponts runiques** (3 studs de large) sur mobile.
+- Rendu réel des **grottes** (taille des voxels de 4 studs : plafond et parois légèrement irréguliers) ; si une
+  paroi accroche, élargir `halfWidth` dans `WorldFeatures.Caves`.
+- Distance d'affichage et lisibilité des **panneaux** des Sanctuaires.
+- Temps de génération du monde au démarrage du serveur (mesuré ~4–6 s dans le simulateur, bien plus rapide dans le
+  moteur natif).

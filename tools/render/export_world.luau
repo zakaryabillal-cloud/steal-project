@@ -54,19 +54,45 @@ end
 Engine.advance(0.5)
 
 local TerrainBuilder = req("World.TerrainBuilder")
+local ZONE_MATERIAL = { basin = "Slate", rim = "Grass", meadow = "Grass", river = "Sand", outer = "Grass", edge = "Rock", crown = "Grass" }
+local PATH_MATERIAL = { road = "Pavement", spoke = "Cobblestone", plaza = "Slate" }
 local samples = {}
 local step = 2
-for z = -260, 260 - step, step do
+local EXTENT = 330
+for z = -EXTENT, EXTENT - step, step do
 	local row = {}
-	for x = -260, 260 - step, step do
-		local s = TerrainBuilder.sample(x + step / 2, z + step / 2)
+	for x = -EXTENT, EXTENT - step, step do
+		local cx, cz = x + step / 2, z + step / 2
+		local s = TerrainBuilder.sample(cx, cz)
 		if s then
-			table.insert(row, { math.floor(s.height * 10) / 10, s.zone, s.path or "" })
+			local material
+			if TerrainBuilder.materialAt then
+				material = TerrainBuilder.materialAt(cx, cz).Name
+			else
+				material = PATH_MATERIAL[s.path or ""] or ZONE_MATERIAL[s.zone] or "Grass"
+			end
+			table.insert(row, { math.floor(s.height * 10) / 10, s.zone, s.path or "", material })
 		else
 			table.insert(row, false)
 		end
 	end
 	table.insert(samples, row)
+end
+
+-- Terrain fill operations (rocks, islets, underside, carved caves).
+local fills = {}
+for _, op in Engine.terrainLog or {} do
+	local cf = op.cf
+	local look, right, up = cf.LookVector, cf.RightVector, cf.UpVector
+	table.insert(fills, {
+		op = op.op,
+		p = { cf.Position.X, cf.Position.Y, cf.Position.Z },
+		r = { right.X, right.Y, right.Z },
+		u = { up.X, up.Y, up.Z },
+		l = { look.X, look.Y, look.Z },
+		s = { op.size.X, op.size.Y, op.size.Z },
+		m = op.material,
+	})
 end
 
 local parts = {}
@@ -99,6 +125,7 @@ for _, part in Engine.workspace:GetDescendants() do
 	end
 end
 
-fs.writeFile(ROOT .. "/tools/.cache/world.json", serde.encode("json", { step = step, origin = -260, samples = samples, parts = parts }))
+local out = process.args[2] or (ROOT .. "/tools/.cache/world.json")
+fs.writeFile(out, serde.encode("json", { step = step, origin = -EXTENT, samples = samples, parts = parts, fills = fills }))
 print("exported", #parts, "parts")
 local _ = thread

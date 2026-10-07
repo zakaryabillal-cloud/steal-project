@@ -135,6 +135,14 @@ local GameConfig = {
 		LockTimeout = 600,
 	},
 
+	-- Static world budgets (checked by the tests; mobile-first).
+	World = {
+		-- BaseParts in the built world with tier-1 Sanctuaries (excl. relics/characters).
+		PartBudget = 4500,
+		LightBudget = 130,
+		EmitterBudget = 48,
+	},
+
 	Sync = {
 		-- Hot state (Essence, cooldowns, carrying, status, Power) is pushed at most this often.
 		HotInterval = 0.1,

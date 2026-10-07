@@ -148,13 +148,17 @@ for index, slot in AbilityConfig.Slots do
 	KEYS[slot.gamepad] = action
 end
 
+-- Bounce pads live in "BouncePads" folders anywhere under workspace.World
+-- (Rift islands, Sky Route, High Ledge); each pad carries a Launch velocity.
 local function setupBouncePads()
-	local rift = workspace:WaitForChild("World"):WaitForChild("Rift")
-	local folder = rift:WaitForChild("BouncePads")
+	local world = workspace:WaitForChild("World")
+	while workspace:GetAttribute("WorldReady") ~= true do
+		task.wait(0.2)
+	end
 	local pads: { BasePart } = {}
-	for _, child in folder:GetChildren() do
-		if child:IsA("BasePart") and child:GetAttribute("Launch") ~= nil then
-			table.insert(pads, child)
+	for _, descendant in world:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant:GetAttribute("Launch") ~= nil then
+			table.insert(pads, descendant)
 		end
 	end
 	local cooldown = 0

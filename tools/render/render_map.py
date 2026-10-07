@@ -25,6 +25,11 @@ ZONE = {
     "river": (190, 172, 206), "outer": (86, 168, 134), "edge": (104, 94, 134),
 }
 PATH = {"road": (132, 124, 160), "spoke": (150, 140, 176), "plaza": (78, 70, 110)}
+MATERIAL = {
+    "Grass": (86, 168, 134), "LeafyGrass": (70, 148, 122), "Rock": (104, 94, 134), "Slate": (78, 70, 110),
+    "Cobblestone": (150, 140, 176), "Pavement": (132, 124, 160), "Sand": (190, 172, 206), "Ground": (110, 96, 120),
+    "Basalt": (54, 48, 76), "Limestone": (196, 186, 214), "CrackedLava": (255, 120, 90), "Water": (70, 130, 210),
+}
 VOID = (14, 10, 30)
 WATER = (70, 130, 210)
 WATER_Y = 16.5
@@ -36,9 +41,12 @@ for zi, row in enumerate(samples):
         if not s:
             colors[zi, xi] = VOID
             continue
-        h, zone, path = s
+        h, zone, path = s[0], s[1], s[2]
         heights[zi, xi] = h
-        col = PATH.get(path) or ZONE.get(zone, (120, 120, 120))
+        if len(s) > 3:
+            col = MATERIAL.get(s[3], (120, 120, 120))
+        else:
+            col = PATH.get(path) or ZONE.get(zone, (120, 120, 120))
         if zone == "river" and h < WATER_Y:
             depth = min(1, (WATER_Y - h) / 7)
             col = tuple(int(a * (1 - 0.75 * depth) + b * 0.75 * depth) for a, b in zip(col, WATER))
@@ -68,6 +76,36 @@ def top_of(part):
     r, u, l = part["r"], part["u"], part["l"]
     return py + abs(r[1]) * sx / 2 + abs(u[1]) * sy / 2 + abs(l[1]) * sz / 2
 
+
+def ground_at(x, z):
+    xi = int((x - origin) // step)
+    zi = int((z - origin) // step)
+    if 0 <= xi < n and 0 <= zi < n and not np.isnan(heights[zi, xi]):
+        return heights[zi, xi]
+    return -1e9
+
+
+# Terrain fills: rocks / islets poking above the surface, and carved caves.
+for fill in data.get("fills", []):
+    px_, py_, pz_ = fill["p"]
+    sx_, sy_, sz_ = fill["s"]
+    if fill["m"] == "Air":
+        r, l = fill["r"], fill["l"]
+        corners = []
+        for a, c in ((-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)):
+            corners.append(to_px(px_ + r[0] * sx_ * a - l[0] * sz_ * c, pz_ + r[2] * sx_ * a - l[2] * sz_ * c))
+        draw.polygon(corners, fill=(20, 14, 40, 150), outline=(255, 230, 140, 200))
+        continue
+    if fill["op"] == "Ball" and py_ + sy_ / 2 > ground_at(px_, pz_) + 0.5:
+        cx, cz = to_px(px_, pz_)
+        rad = sx_ / 2 * SCALE * 0.8
+        col = MATERIAL.get(fill["m"], (110, 100, 140))
+        draw.ellipse([cx - rad, cz - rad, cx + rad, cz + rad], fill=col + (235,))
+    elif fill["op"] == "Cylinder" and ground_at(px_, pz_) < -1e8 and py_ > -20:
+        cx, cz = to_px(px_, pz_)
+        rad = sx_ / 2 * SCALE
+        col = MATERIAL.get(fill["m"], (110, 100, 140))
+        draw.ellipse([cx - rad, cz - rad, cx + rad, cz + rad], fill=col + (255,))
 
 parts = sorted(data["parts"], key=top_of)
 for part in parts:

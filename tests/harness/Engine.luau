@@ -1022,9 +1022,22 @@ METHODS["Workspace.BulkMoveTo"] = function(_, parts, cframes)
 end
 
 local terrainOps = 0
+-- Fill operations are recorded so tools (renderer) and tests can inspect
+-- rocks, islets and carved caves: { op, cf, size, material }.
+Engine.terrainLog = {}
 for _, name in { "WriteVoxels", "FillBall", "FillCylinder", "FillBlock", "FillWedge", "Clear", "SetMaterialColor" } do
 	METHODS["Terrain." .. name] = function(_, ...)
 		terrainOps += 1
+		local args = table.pack(...)
+		if name == "FillBall" then
+			table.insert(Engine.terrainLog, { op = "Ball", cf = roblox.CFrame.new(args[1]), size = roblox.Vector3.new(args[2] * 2, args[2] * 2, args[2] * 2), material = args[3].Name })
+		elseif name == "FillCylinder" then
+			table.insert(Engine.terrainLog, { op = "Cylinder", cf = args[1], size = roblox.Vector3.new(args[3] * 2, args[2], args[3] * 2), material = args[4].Name })
+		elseif name == "FillBlock" or name == "FillWedge" then
+			table.insert(Engine.terrainLog, { op = if name == "FillBlock" then "Block" else "Wedge", cf = args[1], size = args[2], material = args[3].Name })
+		elseif name == "Clear" then
+			table.clear(Engine.terrainLog)
+		end
 		if name == "WriteVoxels" then
 			local region, resolution, materials, occupancy = ...
 			assert(resolution == 4, "WriteVoxels resolution must be 4")

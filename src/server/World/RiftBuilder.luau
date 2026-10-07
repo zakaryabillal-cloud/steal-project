@@ -241,16 +241,6 @@ local function buildDebris(model: Model)
 	end
 end
 
-local function launchVelocity(from: Vector3, to: Vector3, vy: number): Vector3
-	local g = workspace.Gravity
-	local dy = to.Y - from.Y
-	local disc = vy * vy - 2 * g * dy
-	local t = (vy + math.sqrt(math.max(disc, 0))) / g
-	local flat = Vector3.new(to.X - from.X, 0, to.Z - from.Z)
-	local horizontal = flat / t
-	return Vector3.new(horizontal.X, vy, horizontal.Z)
-end
-
 local function buildSpots(model: Model)
 	local folder = Parts.folder("Spots", model)
 	for index, spot in Layout.Spots do
@@ -272,7 +262,7 @@ local function buildSpots(model: Model)
 		local dir = Vector3.new(island.X, 0, island.Z).Unit
 		local padPos = dir * 18 + Vector3.new(0, Layout.BasinY + 0.3, 0)
 		local pad = Parts.cylinder({ size = Vector3.new(5, 0.6, 5), cf = CFrame.new(padPos), color = Color3.fromRGB(120, 230, 255), material = M.Neon, parent = bounce, name = "BouncePad" .. i })
-		pad:SetAttribute("Launch", launchVelocity(padPos + Vector3.new(0, 3, 0), island + Vector3.new(-dir.X * 2, 4, -dir.Z * 2), 86))
+		pad:SetAttribute("Launch", Parts.launchVelocity(padPos + Vector3.new(0, 3, 0), island + Vector3.new(-dir.X * 2, 4, -dir.Z * 2), 86))
 		Parts.cylinder({ size = Vector3.new(6.2, 0.5, 6.2), cf = CFrame.new(padPos - Vector3.new(0, 0.12, 0)), color = C.StoneLight, material = M.Slate, parent = bounce, name = "BounceRim" })
 	end
 end

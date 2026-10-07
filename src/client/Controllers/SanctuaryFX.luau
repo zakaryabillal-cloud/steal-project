@@ -42,6 +42,9 @@ type PlotView = {
 	fillLevel: number,
 	signName: TextLabel,
 	signSub: TextLabel,
+	signCard: Frame,
+	signGui: BillboardGui,
+	signCompact: boolean,
 	signAvatar: ImageLabel,
 	badge: Frame,
 	badgeText: TextLabel,
@@ -93,59 +96,75 @@ end
 -- Billboards
 ----------------------------------------------------------------------------
 
+-- Owner sign above each gate. V2: sized in studs (BillboardGui scale) so it
+-- shrinks with distance instead of staying a fixed 340 px card across the
+-- whole map; shown up to SIGN_MAX_DISTANCE, name-only beyond SIGN_COMPACT_DISTANCE.
+local SIGN_WIDTH = 11
+local SIGN_HEIGHT = 3.2
+local SIGN_MAX_DISTANCE = 150
+local SIGN_COMPACT_DISTANCE = 60
+
+local function scaledText(props: { [string]: any }, maxSize: number): TextLabel
+	props.TextScaled = true
+	local label = Style.text(props)
+	Create("UITextSizeConstraint", { MaxTextSize = maxSize, MinTextSize = 6, Parent = label })
+	return label
+end
+
 local function buildSign(view: PlotView, anchor: BasePart)
 	local gui: BillboardGui = Create("BillboardGui", {
 		Name = "Sign",
-		Size = UDim2.fromOffset(340, 96),
+		Size = UDim2.fromScale(SIGN_WIDTH, SIGN_HEIGHT),
 		LightInfluence = 0,
-		MaxDistance = 320,
+		MaxDistance = SIGN_MAX_DISTANCE,
 		Adornee = anchor,
 		Parent = anchor,
 	})
 	local card = Style.panel({
-		Size = UDim2.fromScale(1, 0.78),
+		Name = "Card",
+		Size = UDim2.fromScale(1, 0.74),
 		BackgroundTransparency = 0.25,
 		Parent = gui,
 	})
 	local accentBar = Create("Frame", {
-		Size = UDim2.new(0, 4, 0.6, 0),
-		Position = UDim2.new(0, 10, 0.2, 0),
+		Size = UDim2.fromScale(0.012, 0.6),
+		Position = UDim2.fromScale(0.03, 0.2),
 		BackgroundColor3 = view.accent,
 		BorderSizePixel = 0,
 		Parent = card,
 	})
 	Style.corner(accentBar, UDim.new(1, 0))
 	local avatar: ImageLabel = Create("ImageLabel", {
-		Size = UDim2.fromOffset(52, 52),
-		Position = UDim2.new(0, 22, 0.5, 0),
+		Size = UDim2.fromScale(0.2, 0.74),
+		Position = UDim2.fromScale(0.06, 0.5),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundColor3 = Style.Colors.PanelRaised,
 		Image = "",
 		Parent = card,
 	})
+	Create("UIAspectRatioConstraint", { AspectRatio = 1, DominantAxis = Enum.DominantAxis.Height, Parent = avatar })
 	Style.corner(avatar, UDim.new(1, 0))
 	Style.stroke(avatar, view.accent, 0.1, 2)
 	view.signAvatar = avatar
-	view.signName = Style.text({
-		Size = UDim2.new(1, -96, 0, 28),
-		Position = UDim2.fromOffset(86, 10),
+	view.signName = scaledText({
+		Name = "OwnerName",
+		Size = UDim2.fromScale(0.68, 0.44),
+		Position = UDim2.fromScale(0.28, 0.1),
 		FontFace = Style.Fonts.Display,
-		TextSize = 22,
-		TextScaled = false,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = card,
-	})
-	view.signSub = Style.text({
-		Size = UDim2.new(1, -96, 0, 20),
-		Position = UDim2.fromOffset(86, 40),
+	}, 26)
+	view.signSub = scaledText({
+		Name = "Details",
+		Size = UDim2.fromScale(0.68, 0.3),
+		Position = UDim2.fromScale(0.28, 0.58),
 		FontFace = Style.Fonts.BodyBold,
-		TextSize = 15,
 		TextColor3 = Style.Colors.TextDim,
 		Parent = card,
-	})
+	}, 16)
 	local badge: Frame = Create("Frame", {
-		Size = UDim2.fromOffset(170, 24),
-		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromScale(0.5, 0.24),
+		Position = UDim2.fromScale(0.5, 1),
 		AnchorPoint = Vector2.new(0.5, 1),
 		BackgroundColor3 = Style.Colors.Panel,
 		BackgroundTransparency = 0.15,
@@ -156,21 +175,46 @@ local function buildSign(view: PlotView, anchor: BasePart)
 	local badgeStroke = Style.stroke(badge, Style.Colors.Gold, 0.3, 1.5)
 	badgeStroke.Name = "BadgeStroke"
 	local iconHolder = Create("Frame", {
-		Size = UDim2.fromOffset(16, 16),
-		Position = UDim2.new(0, 8, 0.5, 0),
+		Size = UDim2.fromScale(0.1, 0.66),
+		Position = UDim2.fromScale(0.04, 0.5),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundTransparency = 1,
 		Parent = badge,
 	})
+	Create("UIAspectRatioConstraint", { AspectRatio = 1, DominantAxis = Enum.DominantAxis.Height, Parent = iconHolder })
 	Icons.shield(iconHolder, Color3.new(1, 1, 1))
-	view.badgeText = Style.text({
-		Size = UDim2.new(1, -32, 1, 0),
-		Position = UDim2.fromOffset(28, 0),
+	view.badgeText = scaledText({
+		Size = UDim2.fromScale(0.8, 0.8),
+		Position = UDim2.fromScale(0.16, 0.1),
 		FontFace = Style.Fonts.BodyBold,
-		TextSize = 13,
 		Parent = badge,
-	})
+	}, 14)
 	view.badge = badge
+	view.signCard = card
+	view.signGui = gui
+end
+
+-- Far away the sign collapses to just the owner's name.
+local function setSignCompact(view: PlotView, compact: boolean)
+	if view.signCompact == compact then
+		return
+	end
+	view.signCompact = compact
+	view.signAvatar.Visible = not compact
+	view.signSub.Visible = not compact
+	if compact then
+		view.signCard.Size = UDim2.fromScale(0.7, 0.5)
+		view.signCard.Position = UDim2.fromScale(0.15, 0.2)
+		view.signName.Size = UDim2.fromScale(0.9, 0.8)
+		view.signName.Position = UDim2.fromScale(0.05, 0.1)
+		view.signName.TextXAlignment = Enum.TextXAlignment.Center
+	else
+		view.signCard.Size = UDim2.fromScale(1, 0.74)
+		view.signCard.Position = UDim2.fromScale(0, 0)
+		view.signName.Size = UDim2.fromScale(0.68, 0.44)
+		view.signName.Position = UDim2.fromScale(0.28, 0.1)
+		view.signName.TextXAlignment = Enum.TextXAlignment.Left
+	end
 end
 
 local function buildCoreGui(view: PlotView, crystal: BasePart)
@@ -471,6 +515,9 @@ local function setupPlot(model: Model)
 		fillLevel = 0,
 		signName = nil :: any,
 		signSub = nil :: any,
+		signCard = nil :: any,
+		signGui = nil :: any,
+		signCompact = false,
 		signAvatar = nil :: any,
 		badge = nil :: any,
 		badgeText = nil :: any,
@@ -559,6 +606,7 @@ function SanctuaryFX.init()
 
 	local badgeTimer = 0
 	local orbitTimer = 0
+	local signTimer = 0
 	RunService.RenderStepped:Connect(function(dt)
 		clock += dt
 		badgeTimer += dt
@@ -614,6 +662,14 @@ function SanctuaryFX.init()
 				if view.badge.Visible then
 					refreshBadge(view)
 				end
+			end
+		end
+		signTimer += dt
+		if signTimer > 0.25 then
+			signTimer = 0
+			for _, view in views do
+				local distance = (view.signGui.Parent :: BasePart).Position - cameraPos
+				setSignCompact(view, distance.Magnitude > SIGN_COMPACT_DISTANCE)
 			end
 		end
 	end)
