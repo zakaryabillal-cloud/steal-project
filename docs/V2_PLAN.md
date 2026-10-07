@@ -1,6 +1,6 @@
 # RIFT HEIST — Plan V2 (validé)
 
-> Statut : **Phase 1 — Fondations : terminée. Phase 2 — Monde V2 : terminée.** Phases 3 à 11 : non commencées (attente d'autorisation).
+> Statut : **Phases 1 (Fondations), 2 (Monde V2) et 3 (Audio dynamique) terminées.** Phases 4 à 11 : non commencées (attente d'autorisation).
 
 Boucle principale conservée : *Faille → Reliques → Vol/PvP → Sanctuaire → Essence → Progression → contenu plus difficile → récompenses rares.*
 Boucle secondaire V2 : *Collecter → améliorer → Power ↑ → boss → drops exclusifs / Forge → build & collection → contenu supérieur*,
@@ -51,7 +51,7 @@ Sync découpé chaud / froid.
 |---|---|---|---|
 | 1 | Fondations | Schéma v2 + migration, garde anti-écrasement, Scheduler, StatusService, framework de capacités (Dash/Repousser portés), Power + record + HUD, Sync chaud/froid | ✅ |
 | 2 | Monde V2 | +35 % de surface (anneau extérieur, grottes, corniche, ruines, landmarks, points de grappin), routes alternatives Faille↔Sanctuaires (trajet direct inchangé : 172 studs), panneaux de Sanctuaire en studs + distance max 150 | ✅ |
-| 3 | Audio dynamique | MusicDirector (Boss > Poursuite > Événement > Faille > Exploration), fondus, Sounds v2 documenté, aucun ID inventé | — |
+| 3 | Audio dynamique | MusicDirector (Boss > Poursuite > Événement > Faille > Exploration), fondus, Sounds v2 documenté, aucun ID inventé | ✅ |
 | 4 | Capacités | Blink, Grappin (points dédiés), Onde de givre, Piège runique, Bouclier, Leurre, Phase spectrale ; déblocages par Power record + Essence/matériaux ; UI de loadout (au Sanctuaire) ; harmonisations (Storm Crystal, Void Cube, Magma Heart, Frost Lotus, Chrono Glass, Cosmic Eye) | — |
 | 5 | Cosmétiques (moteur) | possession / équipement / rendu (traînées, auras, skins de Sanctuaire, effets de dépôt, titres, emotes) | — |
 | 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, Forge, protection Expédition, piédestaux trophées | — |
@@ -207,3 +207,53 @@ Les vrais rendus (lumières, néons, ambiance) doivent être jugés dans Roblox 
 - Distance d'affichage et lisibilité des **panneaux** des Sanctuaires.
 - Temps de génération du monde au démarrage du serveur (mesuré ~4–6 s dans le simulateur, bien plus rapide dans le
   moteur natif).
+
+
+---
+
+## 8. Phase 3 — Audio dynamique : ce qui a été livré
+
+Architecture (client, une seule connexion Heartbeat) :
+
+| Module | Rôle |
+|---|---|
+| `Shared/Config/Music.luau` | Registre de **tous** les emplacements musicaux (id vide = muet) avec type, boucle/one-shot, ambiance, tempo, durée, contexte ; définition des états (priorité, délai d'entrée, maintien, fondus, stinger) ; réglages. |
+| `Client/Music/MusicSensors.luau` | Lit l'état répliqué toutes les 0,25 s : attributs `MusicBoss`/`MusicBossPhase` du joueur (réservés au futur service de boss), reliques volées (voleur, victime, ou Légendaire+ volée portée à moins de 70 studs), `EventId` du workspace, distance à la Faille avec hystérésis (entrée 70, sortie 88). |
+| `Client/Music/MusicState.luau` | Machine d'état pure : priorités, anti-rebond à l'entrée, maintien après la fin, intervalle minimal avant de redescendre, retour à l'état précédent, repli quand un emplacement est vide. |
+| `Client/Music/MusicPlayer.luau` | Lecture : fondu enchaîné à puissance constante, **au plus 2 pistes audibles** (pendant un fondu), pistes mises en pause et reprises là où elles étaient (fenêtre 90 s, 3 pistes max en cache), stingers limités, nettoyage complet. |
+| `Client/Controllers/MusicDirector.luau` | Assemble le tout ; `start`/`stop` ; infos de debug. |
+
+États et réglages par défaut :
+
+| État | Priorité | Entrée après | Maintenu après la fin | Fondu entrée / sortie | Pistes (ordre de repli) |
+|---|---|---|---|---|---|
+| Boss | 5 | immédiat | 1,5 s | 1,2 / 2,5 s | `Boss.<id>.<phase>` → phases inférieures → `Boss.Default.<phase>` |
+| Poursuite | 4 | 0,3 s | 6 s | 0,8 / 3 s | `ChaseIntense` (Légendaire+) → `Chase` |
+| Événement | 3 | 0,5 s | 2 s | 2,5 / 3 s | `Event.<id>` → `Event.Default` |
+| Faille | 2 | 1,5 s | 3 s | 3 / 3 s | `Rift` |
+| Exploration | 1 | — | — | 3 / 3 s | `Explore` |
+
+Monter d'un niveau est immédiat (après l'anti-rebond) ; redescendre attend au moins 2,5 s depuis le dernier
+changement. Changement de piste au sein d'un état (poursuite → poursuite intense) : 1 s minimum, sauf phases de boss.
+
+Écarts / choix :
+1. **Repli quand un emplacement est vide** (`FallThroughWhenSilent`) : une poursuite sans musique fournie ne
+   coupe pas la musique d'exploration en cours.
+2. **La musique a quitté `Sounds.luau`** (clé `Music` supprimée) pour `Config/Music.luau` ; `Audio.startMusic`
+   devient `Audio.startAmbience` (fond sonore `AmbientWorld`, couche séparée de la musique).
+3. Les combats de boss et événements V2 n'existent pas encore : leurs **emplacements et la logique de musique
+   sont prêts** (attributs `MusicBoss`/`MusicBossPhase` à poser côté serveur en phase 6 ; `EventId` déjà utilisé).
+
+À vérifier dans Roblox Studio : niveaux relatifs des pistes une fois les vraies musiques ajoutées (`volume` par
+emplacement), transitions à l'oreille (durées de fondu), boucles sans coupure, et rayon de la zone de la Faille.
+
+Tests : `tests/scenarios/V2Audio.luau` (+75 vérifications, 426 au total) — priorités, anti-rebond, maintien,
+retour à l'état précédent, changements rapides, emplacements vides, fondus à puissance constante, 2 pistes
+audibles au maximum, reprise, cache borné, stingers, nettoyage, directeur en conditions réelles (zone de la
+Faille, poursuite victime / voleur / spectateur, événement, boss via attributs), et vérification qu'aucun ID
+n'est fourni dans la configuration livrée.
+
+Correctif du harnais de test (explique l'échec intermittent signalé en phase 2) : le faux moteur choisissait
+la valeur par défaut d'une énumération dans un ordre instable ; `Part.Shape` valait parfois `Ball` au lieu de
+`Block` et le test des routes calculait le dessus d'une sphère pour les tabliers de pont. Les valeurs par défaut
+sont désormais déterministes et `Part.Shape = Block` comme dans Roblox. Le jeu n'était pas en cause.

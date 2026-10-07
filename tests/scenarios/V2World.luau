@@ -76,6 +76,7 @@ return function(ctx)
 		end
 	end
 
+
 	local function near(x, z)
 		return buckets[bucketKey(math.floor(x / BUCKET), math.floor(z / BUCKET))] or {}
 	end
@@ -217,6 +218,19 @@ return function(ctx)
 			return false, "no ground at start"
 		end
 		local gap = 0
+		local recent = {}
+		local function describe(x, z)
+			local names = {}
+			for _, sol in near(x, z) do
+				local top = topAt(sol, x, z)
+				if top then
+					table.insert(names, string.format("%s(%s)@%.1f", sol.name, sol.shape, top))
+				end
+			end
+			local sample = TerrainBuilder.sample(x, z)
+			table.insert(names, string.format("terrain@%.1f", if sample then sample.height else -1))
+			return table.concat(names, " ")
+		end
 		for i = 2, #path do
 			local p = path[i]
 			local best = -math.huge
@@ -226,19 +240,23 @@ return function(ctx)
 				end
 			end
 			local supported = best > -math.huge and best > y - 6
+			table.insert(recent, string.format("(%.0f,%.0f) y=%.1f best=%.1f", p.X, p.Z, y, best))
+			if #recent > 6 then
+				table.remove(recent, 1)
+			end
 			if TRACE then
 				print(string.format("      step %d (%.1f, %.1f) y=%.2f best=%.2f", i, p.X, p.Z, y, best))
 			end
 			if not supported and mode == "hop" and gap < HOP_GAP then
 				gap += 1
 			elseif best == -math.huge then
-				return false, string.format("no reachable ground at (%.0f, %.0f) from y=%.1f", p.X, p.Z, y)
+				return false, string.format("no reachable ground at (%.0f, %.0f) from y=%.1f | trail: %s | here: %s", p.X, p.Z, y, table.concat(recent, " > "), describe(p.X, p.Z))
 			else
 				gap = 0
 				y = best
 				local blocker = bodyBlocked(p.X, y, p.Z)
 				if blocker then
-					return false, string.format("blocked by %s at (%.0f, %.1f, %.0f)", blocker, p.X, y, p.Z)
+					return false, string.format("blocked by %s at (%.0f, %.1f, %.0f) | trail: %s | here: %s", blocker, p.X, y, p.Z, table.concat(recent, " > "), describe(p.X, p.Z))
 				end
 			end
 		end

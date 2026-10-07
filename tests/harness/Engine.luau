@@ -301,6 +301,9 @@ local DEFAULTS = {
 	["Humanoid.JumpHeight"] = 7.2,
 	["Humanoid.HipHeight"] = 2,
 	["BasePart.Size"] = roblox.Vector3.new(4, 1, 2),
+	-- Roblox defaults (Enum "lowest value" would be wrong here: PartType.Ball = 0).
+	["Part.Shape"] = roblox.Enum.PartType.Block,
+	["BasePart.Material"] = roblox.Enum.Material.Plastic,
 	["BasePart.CanCollide"] = true,
 	["BasePart.CanQuery"] = true,
 	["BasePart.CanTouch"] = true,
@@ -346,7 +349,17 @@ local function enumDefault(name)
 		local ok, items = pcall(function()
 			return roblox.Enum[name]:GetEnumItems()
 		end)
-		enumCache[name] = if ok and items and items[1] then items[1] else false
+		-- Lune does not return enum items in a stable order: pick the lowest
+		-- Value so defaults are deterministic (explicit Roblox defaults for the
+		-- properties that matter are listed in DEFAULTS above).
+		if ok and items and items[1] then
+			table.sort(items, function(x, y)
+				return x.Value < y.Value
+			end)
+			enumCache[name] = items[1]
+		else
+			enumCache[name] = false
+		end
 	end
 	return enumCache[name] or nil
 end
@@ -560,6 +573,11 @@ InstanceMeta.__newindex = function(inst, key, value)
 		error(string.format("Unable to assign property %s. Property is read only", key), 2)
 	end
 	checkValue(data.className, key, member, value)
+	if key == "CFrame" or key == "Position" or key == "Orientation" or key == "Size" then
+		if Engine.moveWatch then
+			Engine.noteMove(inst, "set " .. key)
+		end
+	end
 	local setter = SETTERS[data.className .. "." .. key] or SETTERS["*." .. key]
 	if setter then
 		setter(inst, value)
@@ -960,6 +978,17 @@ METHODS["PVInstance.GetPivot"] = function(inst)
 	return pivotOf(inst)
 end
 
+-- Debug aid: report moves of watched world parts (tests/run.luau WATCH_MOVES=1).
+Engine.moveWatch = nil
+Engine.moveLog = {}
+local function noteMove(part, how)
+	local watch = Engine.moveWatch
+	if watch and watch[internal(part).name] and #Engine.moveLog < 6 then
+		table.insert(Engine.moveLog, how .. " " .. internal(part).name .. "\n" .. debug.traceback())
+	end
+end
+Engine.noteMove = noteMove
+
 METHODS["PVInstance.PivotTo"] = function(inst, target)
 	local data = internal(inst)
 	if Api.isA(data.className, "BasePart") then
@@ -970,6 +999,7 @@ METHODS["PVInstance.PivotTo"] = function(inst, target)
 	for _, d in descendants(inst, {}) do
 		if Api.isA(internal(d).className, "BasePart") then
 			local dd = internal(d)
+			noteMove(d, "PivotTo(" .. data.name .. ")")
 			dd.props.CFrame = delta * (dd.props.CFrame or roblox.CFrame.new())
 			fireProp(d, "CFrame")
 		end
@@ -996,15 +1026,50 @@ GETTERS["Humanoid.MoveDirection"] = function()
 	return roblox.Vector3.zero
 end
 
+-- Sounds: looped sounds play until stopped/paused; one-shots end after 0.5s
+-- of virtual time. TimePosition advances with virtual time (Pause/Resume).
+local function soundStart(inst, from)
+	local props = internal(inst).props
+	props.__playing = true
+	props.__token = (props.__token or 0) + 1
+	props.__startedAt = Engine.now - (from or 0)
+	local token = props.__token
+	if not inst.Looped then
+		task.delay(0.5, function()
+			if props.__token == token and props.__playing then
+				props.__playing = false
+				getSignal(inst, "Ended"):Fire(inst.SoundId)
+			end
+		end)
+	end
+end
+local function soundPosition(inst)
+	local props = internal(inst).props
+	if props.__playing and props.__startedAt then
+		return Engine.now - props.__startedAt
+	end
+	return props.__pausedAt or props.TimePosition or 0
+end
 METHODS["Sound.Play"] = function(inst)
-	internal(inst).props.__playing = true
-	task.delay(0.5, function()
-		internal(inst).props.__playing = false
-		getSignal(inst, "Ended"):Fire(inst.SoundId)
-	end)
+	soundStart(inst, internal(inst).props.TimePosition or 0)
+end
+METHODS["Sound.Resume"] = function(inst)
+	soundStart(inst, internal(inst).props.__pausedAt or 0)
+end
+METHODS["Sound.Pause"] = function(inst)
+	local props = internal(inst).props
+	props.__pausedAt = soundPosition(inst)
+	props.__playing = false
 end
 METHODS["Sound.Stop"] = function(inst)
-	internal(inst).props.__playing = false
+	local props = internal(inst).props
+	props.__playing = false
+	props.__pausedAt = 0
+	props.TimePosition = 0
+end
+-- Current playback position (virtual time), for tests.
+function Engine.soundPosition(inst)
+	return soundPosition(inst)
 end
 GETTERS["Sound.IsPlaying"] = function(inst)
 	return internal(inst).props.__playing == true

@@ -19,7 +19,7 @@ Carte V2 : [`docs/previews/map.png`](docs/previews/map.png) · comparaison V1 �
 [`docs/previews/compare_v1_v2.png`](docs/previews/compare_v1_v2.png). Ce que ce rendu ne montre pas
 (beams, particules, lumières…) : voir [`docs/V2_PLAN.md`](docs/V2_PLAN.md) §7.</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations » et 2 « Monde V2 » terminées).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 » et 3 « Audio dynamique » terminées).
 
 ### La carte V2 en bref
 
@@ -376,8 +376,27 @@ Chaque clé possède :
 
 Clés à remplacer en priorité : `RiftHum` (drone en boucle), `RiftCharge`, `RelicEmerge`, `RareEmerge`,
 `Deposit`, `StealAlert`, `HeistSecured`, `TierUp`, `Discovery`, `EventStart`.
-`Music` et `AmbientWorld` sont **silencieux** tant qu'aucun `id` n'est fourni (aucun équivalent intégré
-convenable) : ajouter une piste d'ambiance cosmique calme et un fond sonore nocturne en boucle.
+`AmbientWorld` (fond sonore nocturne en boucle, sous la musique) reste **silencieux** tant qu'aucun `id`
+n'est fourni.
+
+### Musique dynamique — `src/shared/Config/Music.luau`
+La musique change selon ce qui se passe, par priorité : **Boss > Poursuite > Événement > près de la Faille >
+Exploration**. Une seule musique principale à la fois (fondu enchaîné à puissance constante pendant les
+transitions), anti-va-et-vient (délai d'entrée, maintien après la fin, intervalle minimal avant de redescendre),
+retour naturel à la musique précédente (reprise là où elle s'était arrêtée).
+
+**Ajouter vos musiques :**
+1. Importer la piste dans Roblox (Creator Hub → Audio) ou utiliser un audio dont vous avez la licence.
+2. En haut de `Config/Music.luau`, dans le bloc **`ASSET_IDS`**, coller l'ID sur la ligne de l'emplacement :
+   `Explore = "rbxassetid://123456789",` (la description de chaque emplacement — type, boucle/one-shot,
+   ambiance, tempo, durée, contexte — est juste en dessous, dans `Music.Tracks`).
+3. Rien d'autre à modifier : le directeur musical l'utilise automatiquement.
+
+Un emplacement sans `id` reste **muet** (aucun `Sound` n'est créé) et l'état inférieur continue de jouer.
+Emplacements : `Explore`, `Rift`, `Chase`, `ChaseIntense`, `Event.<Id>` (+ `Event.Default`),
+`Boss.<BossId>.<phase>` (+ `Boss.Default.<phase>`), et les stingers `Stinger.ChaseStart`, `Stinger.BossIntro`,
+`Stinger.BossVictory`, `Stinger.BossDefeat`. Réglages (délais, rayons de la Faille, fondus) : `Music.States`
+et `Music.Settings`. Le volume suit le réglage « Musique » du joueur.
 
 ### Textures / polices
 - Particules : textures intégrées `rbxasset://textures/particles/...` (toujours disponibles).
@@ -419,9 +438,9 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **351 vérifications, 0 échec, 0 erreur d'exécution**
+serveur et un vrai client tournent dedans. Résultat actuel : **426 vérifications, 0 échec, 0 erreur d'exécution**
 (148 V1 + 135 V2 phase 1 dans `tests/scenarios/V2Foundations.luau` + 68 V2 phase 2 dans
-`tests/scenarios/V2World.luau`).
+`tests/scenarios/V2World.luau` + 75 V2 phase 3 dans `tests/scenarios/V2Audio.luau`).
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
 déclarée dans `WorldFeatures.Routes` **dans les deux sens** avec un « marcheur » géométrique (hauteur de marche

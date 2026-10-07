@@ -161,6 +161,9 @@ end
 local serverScript = game:GetService("ServerScriptService"):FindFirstChild("Server")
 Loader.run("server", serverScript)
 advance(2)
+if process.env.WATCH_MOVES == "1" then
+	Engine.moveWatch = { Deck = true, CaveLintel = true, SkyIsland1 = true }
+end
 
 local Sessions = sreq("Core.Sessions")
 local Layout = shared("Layout")
@@ -832,6 +835,25 @@ require("./scenarios/V2World")({
 	traceRoute = process.env.TRACE_ROUTE,
 })
 
+-- V2 phase 3: dynamic audio (music states, crossfades, director).
+require("./scenarios/V2Audio")({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	sreq = sreq,
+	shared = shared,
+	Engine = Engine,
+	Loader = Loader,
+	game = game,
+	teleport = teleport,
+	alice = function()
+		return alice
+	end,
+	bob = function()
+		return bob
+	end,
+})
+
 scenario("Shutdown: BindToClose saves everyone", function()
 	local sa = sessionOf(alice)
 	sa.data.essence += 12345
@@ -843,6 +865,9 @@ scenario("Shutdown: BindToClose saves everyone", function()
 	check(saved and saved.essence == sa.data.essence, "latest Essence persisted on shutdown")
 end)
 
+for _, entry in Engine.moveLog do
+	print("[moved after build] " .. entry)
+end
 print(string.format("\n\27[1m%d passed, %d failed\27[0m  (%d runtime errors, virtual time %.0fs)", results.passed, results.failed, #Engine.errors, Engine.now))
 for _, failure in results.failures do
 	print("  - " .. failure)

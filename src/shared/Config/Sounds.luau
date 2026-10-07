@@ -81,8 +81,8 @@ local Sounds: { [string]: SoundDef } = {
 
 	-- World ------------------------------------------------------------------
 	EventStart = def(BOOM, 0.4, 0.45, 0, "Deep horn / sky rumble announcing a Rift event."),
-	AmbientWorld = def("", 0.25, 1, 0, "Looping ambient night bed: wind, soft chimes, distant hum.", true),
-	Music = def("", 0.18, 1, 0, "Looping calm cosmic-fantasy background track.", true),
+	AmbientWorld = def("", 0.25, 1, 0, "Looping ambient night bed under the music: wind, soft chimes, distant hum (1-3 min seamless loop).", true),
+	-- MUSIC is not here: every music track and stinger is in Config/Music.
 }
 
 return Sounds

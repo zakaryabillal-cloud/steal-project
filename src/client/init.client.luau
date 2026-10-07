@@ -21,6 +21,7 @@ local Controllers = script.Controllers
 local Store = require(Controllers.Store)
 local Settings = require(Controllers.Settings)
 local Audio = require(Controllers.Audio)
+local MusicDirector = require(Controllers.MusicDirector)
 local CameraFX = require(Controllers.CameraFX)
 local LightingFX = require(Controllers.LightingFX)
 local RelicRenderer = require(Controllers.RelicRenderer)
@@ -296,7 +297,8 @@ if not localPlayer.Character then
 end
 task.wait(0.4)
 Loading.hide()
-Audio.startMusic()
+Audio.startAmbience()
+MusicDirector.start()
 task.delay(1, function()
 	Tutorial.playIntro(function(main: string, sub: string?)
 		announce(main, sub, Theme.Colors.Essence, 3.6)

@@ -1,6 +1,7 @@
 --!strict
 -- Sound playback through the central registry (Shared/Config/Sounds).
 -- 2D sounds are pooled per key; 3D sounds are spawned at world positions.
+-- Music lives in Config/Music and is driven by MusicDirector.
 
 local SoundService = game:GetService("SoundService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -128,19 +129,15 @@ function Audio.loopOn(key: string, sound: Sound)
 	end
 end
 
--- Background music (only if an asset id is configured).
-function Audio.startMusic()
-	local def, id = resolve("Music")
-	if not def or id == "" then
-		return
-	end
-	local sound = Instance.new("Sound")
-	sound.Name = "Music"
-	sound.SoundGroup = musicGroup
-	configure(sound, def, id, nil, nil)
-	sound.Looped = true
-	sound.Parent = SoundService
-	sound:Play()
+-- SoundGroup of the music (volume = the player's Music setting). Music
+-- itself is driven by Controllers/MusicDirector (Config/Music).
+function Audio.musicGroup(): SoundGroup
+	return musicGroup
+end
+
+-- Looping ambient bed under the music (only if an asset id is configured).
+-- Ambience is a separate layer: it never competes with the main music.
+function Audio.startAmbience()
 	local ambient, ambientId = resolve("AmbientWorld")
 	if ambient and ambientId ~= "" then
 		local bed = Instance.new("Sound")
