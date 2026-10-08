@@ -140,7 +140,10 @@ return function(ctx)
 			if string.find(source, "rbxassetid://%d") and not string.find(path, "Config/Music", 1, true) then
 				-- Only the documented examples in comments are allowed elsewhere.
 				for line in string.gmatch(source, "[^\n]+") do
-					if string.find(line, "rbxassetid://%d") and not string.find(line, "^%s*%-%-") then
+					-- Phase 7A: Config/Sounds may hold the creator's candidate ids
+					-- (candidate(...), verified at runtime by AudioCheck).
+					local candidateLine = string.find(path, "Config/Sounds", 1, true) ~= nil and string.find(line, "candidate(", 1, true) ~= nil
+					if string.find(line, "rbxassetid://%d") and not string.find(line, "^%s*%-%-") and not candidateLine then
 						assetFiles[path] = true
 					end
 				end
@@ -158,7 +161,7 @@ return function(ctx)
 		check(next(selectors) == nil, "no variation selector / ZWJ sequence in src/ (" .. keys(selectors) .. ")")
 		check(next(unreliable) == nil, "no text-presentation emoji (gear, shield, snowflake...) in src/ (" .. keys(unreliable) .. ")")
 		check(uses >= 30, "the interface really uses emoji (" .. uses .. " occurrences)")
-		check(next(assetFiles) == nil, "no asset id outside Config/Music (" .. keys(assetFiles) .. ")")
+		check(next(assetFiles) == nil, "no asset id outside Config/Music and the creator's Config/Sounds candidates (" .. keys(assetFiles) .. ")")
 		for key, glyph in Emoji.Glyphs do
 			local count = 0
 			for _, codepoint in utf8.codes(glyph) do

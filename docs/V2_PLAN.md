@@ -1,6 +1,6 @@
 # RIFT HEIST — Plan V2 (validé)
 
-> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique), 4 (Capacités), 5 (Cosmétiques), 5.5 (Direction artistique cartoon), 6 (Premier boss : Void Warden) et 6.5 (Combat 2.0 & armes de boss) terminées.** Phases 7 à 11 : non commencées (attente d'autorisation).
+> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique), 4 (Capacités), 5 (Cosmétiques), 5.5 (Direction artistique cartoon), 6 (Premier boss : Void Warden), 6.5 (Combat 2.0 & armes de boss) et 7A (Forgeheart + identité sonore des boss) terminées.** Phase 7B (Tempest Seraph) et phases 8 à 11 : non commencées (attente d'autorisation).
 > Toute nouvelle phase suit [`ART_DIRECTION.md`](ART_DIRECTION.md).
 
 Boucle principale conservée : *Faille → Reliques → Vol/PvP → Sanctuaire → Essence → Progression → contenu plus difficile → récompenses rares.*
@@ -58,7 +58,8 @@ Sync découpé chaud / froid.
 | 5.5 | Direction artistique « Cartoon & Goofy » | jetons UI cartoon, HUD / menus refaits, monde de jour (palette, matériaux jouet, fleurs, champignons, fanions), Faille avec un visage, visages des reliques, présentation des cosmétiques, `ART_DIRECTION.md` (règles + boss) | ✅ |
 | 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, matériaux pour la Forge, protection Expédition, piédestaux trophées | ✅ |
 | 6.5 | Combat 2.0 & armes de boss | lisibilité des attaques (jaune → rouge, sons, bulle « ! », quart sûr), coup de poing procédural R15/R6 + combo, bouton FRAPPE séparé des capacités, capacités PvP utilisables contre le boss, 6 armes de boss (inventaire, boutique Essence + matériaux, écran ARMES), schéma 6 | ✅ |
-| 7 | Boss 2 & 3 | Forgeheart, Tempest Seraph | — |
+| 7A | Boss 2 + son des boss | Forgeheart (golem de lave, arène volcanique, 5 attaques, butin exclusif), rotation des boss, thèmes musicaux et bruitages par boss, vérification des IDs audio, mixage par priorités | ✅ |
+| 7B | Boss 3 | Tempest Seraph | — |
 | 8 | Événements V2 | Rift Overload, Void Storm, Golden Surge, Eclipse enrichis + Marée Céleste, Chute d'Étoile ; WorldDirector (pas de chevauchement boss / événement modifiant la carte) | — |
 | 9 | Daily | 7 jours sans reset, horloge serveur, boosts en temps de jeu | — |
 | 10 | Boutique | MarketplaceService, IDs en config (0 = désactivé), ProcessReceipt idempotent | — |
@@ -906,3 +907,156 @@ restaurées, combo gauche/droite, interruption), disposition sans chevauchement 
    les déblocages ; `/rh weapons reset`.
 6. **Sauvegarde** : publier, acheter, rejoindre : inventaire et arme équipée conservés.
 7. **PvP** : sur l'île, aucune arme en main, E garde les invites, aucune différence de Power.
+
+---
+
+## 14. Phase 7A — Forgeheart + identité sonore des boss — ce qui a été livré
+
+Deuxième boss complet, rotation des boss, et une identité sonore propre à chaque boss. Tempest Seraph, Eclipse
+Oracle et la Phase 7B : non commencés.
+
+### Architecture « un boss = des données + 4 modules »
+- `Config/Bosses` : entrée du boss (stats, phases, attaques, butin, **thème d'arène**, rochers sûrs).
+- `Server/Bosses/<Id>` : planification des attaques (formes génériques ; deux nouvelles : `burn` = lave qui
+  blesse tant qu'elle est dessinée, `outside` = tout le monde hors des rochers sûrs).
+- `Client/Boss/<Id>Model` (corps, interface commune `BossRig.ModelModule`, registre `BossModels`) et
+  `Client/Boss/<Id>FX` (dessins + sons, construits avec le **kit de dessin** de `BossFX` : mêmes règles de
+  lisibilité pour tous les boss).
+- `Server/World/ArenaBuilder` : murs, ancres de grappin et points d'arrivée communs, un décor par thème
+  (`closet`, `volcano`).
+- Tout le reste (portail, rotation, cœurs, frappes, armes, capacités, récompenses, Codex, trophées, HUD, carte,
+  musique) est partagé.
+
+### Rotation (`BossService`, `Bosses.forOpening`)
+Ouverture n = boss `list[(n − 1) % #list + 1]` (Void Warden, Forgeheart, Void Warden…). Attributs
+`PortalBoss` (boss actuel ou prochain) et `PortalNextBoss` (celui d'après) ; le panneau du portail affiche le
+compte à rebours et « Puis : … », la carte « Ensuite : … », le thème musical, la difficulté, les conditions et
+les récompenses exactes. Studio : `/rh boss open <id>`, `/rh boss next <id|auto>`.
+
+### Forgeheart (`Server/Bosses/Forgeheart`, `Client/Boss/ForgeheartModel`, `Client/Boss/ForgeheartFX`)
+Rang II, ★★★, **2 200 PV +75 % par joueur**, Power record **120**, recommandé 400, 3 phases (ronchon 100-60 %,
+bouillant 60-30 %, en fusion < 30 %), pauses 1,4 / 1,15 / 0,95 s (Void Warden : 1,6 / 1,3 / 1,0).
+
+| Attaque | Télégraphe | Dégâts serveur | Esquive |
+|---|---|---|---|
+| Marteau volcanique | 1,3 s, cercle 11 studs devant lui (15 autour de lui si personne à 30 studs) | cercle à l'impact ; phase 3 : anneau d'onde (34 studs/s) | sortir / sauter l'onde |
+| Boulettes de lave | 1,3 s, 4 cercles (+1 par phase, +1 par joueur en plus, max +3) | cercle à l'atterrissage puis flaque `burn` 2,4 s | s'écarter, éviter la flaque |
+| Sol brûlant | 1,5 s, 3 disques de 8 studs (+1 par phase) sous / près des joueurs | `burn` 3 s | ne pas rester sur le rouge, sauter |
+| Pluie de météores | 1,2 s pour le premier, puis un toutes les 0,4 s ; 5 (+2 par phase, +joueurs) | cercles successifs | bouger |
+| Éruption finale (spéciale) | **3 s**, 3 rochers verts sur 6 (un sur deux) | `outside` : tous ceux hors des rochers ; phase 3 : 2e éruption 2,3 s après sur les 3 autres | rocher vert ; « essoufflé » 3,2 s après |
+
+Équité vérifiée par les tests : depuis **n'importe quel point** de l'arène, le rocher sûr le plus proche est à au
+plus 2,6 s de marche (16 studs/s) alors que le rouge apparaît 2,65 s après le début de l'alerte. La lave ne blesse
+qu'au sol (sauter par-dessus marche) et au plus un cœur par fenêtre d'invincibilité (1,5 s). Bouclier, Phase,
+Leurre, Dash, Blink, Grappin, Repousser / Onde de givre / Piège (dégâts au lieu du contrôle) et les 6 armes
+fonctionnent comme contre le Void Warden.
+
+**Arène volcanique** (≈ 110 pièces / 200, 2 lumières, 1 émetteur de braises) : roche chaude cartoon (jamais
+noire), fissures de lave décoratives, 6 rochers refroidis gris-bleu (zones sûres), anneau de 22 gros rochers,
+mer de lave en contrebas, îlots, flèches rocheuses, volcan avec cratère et coulées, arche d'arrivée ; murs
+invisibles anti-évasion, 4 rochers chauds flottants comme ancres de grappin. Aucune pièce ne touche ni ne blesse.
+
+**Corps** (~40 pièces natives) : gros rocher-corps avec bosses et fissures, cœur incandescent qui pulse, tête-rocher
+avec yeux globuleux, sourcils de pierre selon l'humeur, bouche de lave qui s'ouvre (deux dents carrées), cheveux
+de lave, épaules, bras et poings-rochers qui pivotent (lever / écraser), pieds trapus. Poses : marteau (poings levés
+puis écrasés), lancer, piétinement, rugissement vers le ciel, éruption (chauffe, tremble), essoufflé (étoiles),
+victoire narquoise ; défaite : pression, explosion cartoon puis **dégonflement** comme un ballon triste.
+
+### Récompenses (tirées par le serveur, individuelles, probabilités exactes sur la carte)
+| Récompense | Probabilité | Détail |
+|---|---|---|
+| Essence | 100 % | 7 min de ta production (minimum 500) |
+| Éclats de magma | 100 % | ×3-6 (matériau volcanique) |
+| Cœur de braise | 15 % | rare, pour la future Forge |
+| **Enclume Ardente** (Légendaire, relique exclusive) | 8 % | socle de trophée non volable ; doublon → niveau ; max → 8 Éclats |
+| **Coulée de magma** (traînée Épique exclusive) | 5 % | doublon → 5 Éclats |
+
+Codex : carte Forgeheart (silhouette tant qu'il est inconnu). Victoires de tous les boss = déblocages d'armes ;
+prix des 6 armes inchangés. Recettes prévues : 30 Éclats de magma → Enclume Ardente ; 1 Cœur de braise + 10 Éclats
+de magma → +1 niveau. Aucune migration : le schéma 6 accepte déjà tout boss / matériau / trophée connu.
+
+### Interface
+Barre de vie aux couleurs du boss (lave pour Forgeheart) avec sa tête, crans de phase et indicateur « 2/3 BOUILLANT ! »,
+bannière « 🚨 ATTAQUE SPÉCIALE ! 🚨 » + bord d'écran rouge pulsé jusqu'à l'impact, flèche vers le rocher vert le plus
+proche, textes propres au boss (essoufflé, « Grillé ! », sous-titre de victoire), carte de résultats à ses couleurs,
+carte du portail (modèle 3D, butin, thème, boss suivant), Codex à deux cartes, panneau du portail avec le boss suivant.
+
+### Musique et sons
+**Musiques** (`Config/Music`, titre affiché sur la carte) :
+| Boss | Emplacement | ID | Titre | Statut |
+|---|---|---|---|---|
+| Void Warden | `Boss.VoidWarden.1` (toutes phases) | `rbxassetid://1835955926` | Dynamic Swing | candidat du créateur, **vérifié au lancement** |
+| Forgeheart | `Boss.Forgeheart.1` (toutes phases) | `rbxassetid://1838075377` | Mindwinder (a) | candidat du créateur, **vérifié au lancement** |
+
+État Boss prioritaire (démarre à l'entrée effective du combat — l'Intro —, fondu 1,2 s, sortie 2,5 s après la
+victoire, la défaite ou la sortie), une seule musique (fondu enchaîné), volume « Musique » du joueur. Phases 2-3 :
+`Music.BossIntensity` (égaliseur grave/aigu + 6-12 % de niveau, jamais de vitesse) et un son de transition.
+
+**Bruitages** (`Config/Sounds`, une clé par action) :
+| Clé | Action | ID candidat | Repli intégré |
+|---|---|---|---|
+| `VWAppear` | apparition (BOING) | `5048722308` | saut grave |
+| `VWHop` | plat ventre (BOING puis SPLAT) | `2772396665` | saut |
+| `VWBounce` | petit rebond (essoufflé) | `1885641628` | saut aigu |
+| `VWImpact` | atterrissage du plat ventre (BOOM comique) | `2103404398` | explosion aiguë |
+| `FHBigImpact` | KABOOM de l'Éruption finale | `2103404398` (même asset, joué plus grave) | explosion grave |
+| `FHLavaAmbience` | crépitement volcanique en boucle | `91914091044238` | silence |
+| `FHLavaAmbience2` | bulles de lave en boucle | `1844669489` — **refusé automatiquement s'il dure plus de 30 s** (probable piste musicale) | silence |
+| `VWSweep`, `VWGooSplat`, `VWDustPouf`, `VWCleanupSweep`, `VWDefeat` | balai, flaques, moutons, Grand Ménage, défaite | **à rechercher** | sons intégrés |
+| `FHHammerWindup`/`FHHammerHit`, `FHBlobLaunch`/`FHBlobPop`, `FHWarnFloor`/`FHLavaCrackle`, `FHWarnMeteors`/`FHMeteorWhistle`/`FHMeteorBoom`, `FHEruptionAlarm`/`FHEruptionBuild`, `FHDizzy`, `FHDefeat`, `FHAppear`, `FHWarnBlobs` | marteau, boulettes, sol brûlant, météores, éruption, étourdissement, défaite | **à rechercher** | sons intégrés |
+
+**Vérification** : le conteneur de développement n'a pas accès à Roblox (hôtes refusés par la politique réseau),
+aucun ID n'a donc pu être vérifié ni écouté ici. `Controllers/AudioCheck` vérifie chaque ID dans le vrai client
+(`ContentProvider:PreloadAsync` + chargement + `TimeLength`) : `ok` → utilisé ; `failed` (supprimé, privé, non
+autorisé) ou `tooLong` → repli intégré (ou musique inférieure) + avertissement nommant l'ID dans la sortie ;
+rapport complet en Studio au lancement et avec `/rh audio`.
+
+**Mixage** (`Sounds.priority` / `minGap`, `Audio`) : 1 danger imminent (tic rouge) · 2 attaques spéciales
+(alarme, Grand Ménage, montée de pression, KABOOM, changement de phase) · 3 impacts et dégâts · 4 attaques
+ordinaires · 5 musique et ambiance. Les priorités 1-2 baissent la musique à 45 % ~1 s (retour progressif), au plus
+14 sons ponctuels (le moins prioritaire cède), écart minimal par son (pas de spam à 8 joueurs), attaques en 3D
+(atténuation 12-160 studs), musique 2D locale.
+
+### Écarts (et pourquoi)
+1. **Tests existants modifiés (justifiés)** : « exactement un boss » → deux boss (Void Warden puis Forgeheart) ;
+   « emplacements de musique de boss vides » → seuls les thèmes choisis par le créateur ; « aucun ID de son » →
+   seulement les candidats du créateur, chacun avec une limite de durée ; « aucun ID hors de Config/Music » →
+   aussi les lignes `candidate(...)` de Config/Sounds ; « boss sans musique → la Faille continue » joue désormais avec
+   un boss encore sans thème (Tempest Seraph) ; 27 → 28 cosmétiques (2 butins de boss) ; les scénarios de la
+   Phase 6 / 6.5 ouvrent explicitement le Void Warden (la rotation alterne).
+2. Le thème de chaque boss couvre ses 3 phases (pas de 2e piste fournie) : l'intensité vient du mixage.
+3. `2103404398` est proposé pour deux actions (BOOM du Void Warden, explosion de Forgeheart) : même asset, mais
+   hauteur différente et une seule attaque chacun ; toutes les autres attaques ont leur propre son.
+
+### Tests (phase 7A)
+`tests/scenarios/V2Forgeheart.luau` : **+200 vérifications**, **1 868** au total, 0 échec, 0 erreur
+d'exécution (les 1 658 précédentes sont conservées ; + 10 contrôles automatiques produits par des boucles existantes : 3 nouveaux emojis, les 2 thèmes musicaux configurés, la nouvelle relique). Couvre : catalogue (plus dur mais juste, rochers
+atteignables partout, butin exact, textes FR/EN, prix des armes inchangés), chaque attaque planifiée dans l'arène et
+jamais avant son télégraphe (3 phases), rotation / aperçu / override Studio, arène volcanique (budget, rochers,
+murs, ancres, aucune pièce blessante), garde de Power, lave (seulement au sol et dans la zone, fin nette, bouclier),
+éruption (rochers sûrs, « À L'ABRI ! »), les 6 armes, Repousser sans recul, phases + musique, victoire solo
+(toutes les récompenses, trophée, Codex, sauvegarde immédiate, jamais deux fois, sauvegarde assainie), client
+(corps natif, dégonflement, chaque attaque jaune puis rouge en qualité Basse avec son alerte et sa bulle, lave
+rouge tant qu'elle brûle, bannière spéciale + bord rouge, 3 faisceaux, flèche, barre du HUD, carte, Codex, panneau),
+audio (candidats utilisés seulement vérifiés, ID en échec signalé, piste trop longue refusée, musique propre à
+chaque boss, une seule piste, intensité sans accélération, ducking, anti-spam, priorités, sons distincts).
+
+### Limites connues
+- **Audio non validé dans Roblox Studio** (pas d'accès au client réel ni au réseau Roblox depuis ce conteneur) :
+  la vérification et le repli automatiques le feront au premier lancement ; écouter les pistes reste à faire.
+- Corps et décor en primitives (pas de mesh sculpté, pas d'animation Roblox).
+- Les dégâts restent jugés sur la vue serveur (~100 ms) : marges de télégraphe et invincibilité compensent.
+
+### À vérifier dans Roblox Studio (phase 7A)
+1. Lancer : la sortie affiche le rapport `[RiftHeist audio]` (ou `/rh audio`) ; noter les IDs `failed` / `tooLong`.
+2. `/rh boss open Forgeheart` puis `start` : arène volcanique, corps, musique Mindwinder (a) qui démarre à l'entrée
+   et s'arrête à la fin ; `/rh boss open VoidWarden` : Dynamic Swing.
+3. Chaque attaque : jaune → rouge, son d'alerte distinct, bulle ; lave rouge tant qu'elle brûle ; sauter l'onde du
+   marteau (`/rh boss hp 25` pour la phase 3) ; Éruption (`/rh boss hp 55`) : bannière, bord rouge, 3 rochers verts,
+   flèche, KABOOM, « essoufflé ».
+4. Phases 2-3 : le thème n'accélère pas, le mixage s'éclaircit ; la musique baisse un instant sous les alertes.
+5. Combat à 2 clients (*Test → Clients and Servers*) : aucun spam sonore, sons d'attaque localisés.
+6. Victoire (`/rh boss win` puis une frappe) : explosion + dégonflement, récompenses, trophée Enclume Ardente,
+   Codex, sauvegarde après republication.
+7. Rotation : `/rh boss next Forgeheart`, panneau et carte (« Ensuite / Puis »), puis rotation automatique.
+8. Mobile (émulateur) et Qualité Basse : lisibilité, performances (MicroProfiler pendant l'Éruption à 8 joueurs).

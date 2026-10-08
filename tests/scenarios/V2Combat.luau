@@ -150,7 +150,7 @@ return function(ctx)
 	end
 	local function openWith(players)
 		reset()
-		local f = BossService.open()
+		local f = BossService.open("VoidWarden")
 		for i, player in players do
 			atPortal(player, i)
 			local ok, reason = BossService.join(player)

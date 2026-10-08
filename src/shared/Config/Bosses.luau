@@ -5,10 +5,17 @@
 -- functions so both sides always agree.
 --
 -- To add a boss (phase 7+): one entry in `list` (stats, phases, attacks,
--- loot), a behaviour module Server/Bosses/<Id>.luau, its visuals in
--- Client/Controllers/BossFX (model builder), "boss.<id>.*" strings, and
--- (optionally) Boss.<Id>.<phase> music slots in Config/Music. Everything
--- else (portal, arena, hearts, strikes, rewards, Codex, trophies) is shared.
+-- loot, arena theme), a behaviour module Server/Bosses/<Id>.luau (attack
+-- planner), a model Client/Boss/<Id>Model.luau registered in
+-- Client/Boss/BossModels, its attack drawings + sounds in Client/Boss/<Id>FX
+-- (registered in BossFX), an arena theme in Server/World/ArenaBuilder,
+-- "boss.<id>.*" strings and Boss.<Id>.<phase> music slots in Config/Music.
+-- Everything else (portal + rotation, arena walls, hearts, strikes, weapons,
+-- abilities, rewards, Codex, trophies, HUD) is shared.
+--
+-- Rotation (phase 7A): the portal cycles through `list` in order (opening n
+-- = list[(n - 1) % #list + 1]); the board and the card show the next boss
+-- and the one after it. Studio: /rh boss open <id>, /rh boss next <id>.
 --
 -- Power: the Power RECORD gates / recommends the expedition; the CURRENT
 -- Power only adds a small capped bonus to strikes against bosses. Nothing
@@ -36,9 +43,10 @@ Bosses.Portal = table.freeze({
 	AnnounceBefore = 30,
 })
 
--- Arena: a floating "janitor's closet in the Void", far away from the island
--- (nothing outside can reach it: no PvP interference). Built when the portal
--- opens and destroyed after every expedition.
+-- Arena: a floating platform far away from the island (nothing outside can
+-- reach it: no PvP interference), dressed by the boss's theme (the Void
+-- Warden's janitor closet, Forgeheart's volcanic forge). Built when the
+-- portal opens and destroyed after every expedition.
 Bosses.Arena = table.freeze({
 	Center = Vector3.new(0, 420, 1600),
 	-- Walkable floor radius (studs); invisible walls stand just outside.
@@ -195,10 +203,21 @@ export type PhaseDef = {
 	mood: string,
 }
 
+-- Safe pad of the arena (phase 7A): polar position around the arena centre.
+export type PadDef = {
+	deg: number,
+	r: number,
+}
+
 export type BossDef = {
 	id: string,
 	-- Server/Bosses/<module>.luau
 	module: string,
+	-- Arena look (Server/World/ArenaBuilder): "closet" | "volcano".
+	theme: string,
+	-- Optional safe pads drawn in the arena (Forgeheart's eruption).
+	pads: { PadDef }?,
+	padRadius: number?,
 	-- Rank I, II, III... (Codex order) and difficulty stars (1..5).
 	rank: number,
 	difficulty: number,
@@ -230,6 +249,7 @@ local list: { BossDef } = {
 		-- huge eyes and a giant broom. He hates mess (and you are the mess).
 		id = "VoidWarden",
 		module = "VoidWarden",
+		theme = "closet",
 		rank = 1,
 		difficulty = 2,
 		color = Color3.fromRGB(176, 110, 255),
@@ -267,6 +287,65 @@ local list: { BossDef } = {
 		},
 		relic = "void_duster",
 		cosmetic = "trail_bubbles",
+	},
+	{
+		-- FORGEHEART (phase 7A): a huge cartoon lava golem made of round
+		-- boulders, glowing lava cracks and a burning heart. Big googly eyes,
+		-- a goofy mouth, massive arms. Strong, clumsy, hot-headed and funny.
+		id = "Forgeheart",
+		module = "Forgeheart",
+		theme = "volcano",
+		-- Six cooled-rock pads around the centre: during the Final Eruption
+		-- every other one stays safe (always one within reach).
+		pads = {
+			{ deg = 0, r = 26 }, { deg = 60, r = 26 }, { deg = 120, r = 26 },
+			{ deg = 180, r = 26 }, { deg = 240, r = 26 }, { deg = 300, r = 26 },
+		},
+		padRadius = 8,
+		rank = 2,
+		difficulty = 3,
+		color = Color3.fromRGB(255, 120, 50),
+		accent = Color3.fromRGB(255, 214, 72),
+		minPowerRecord = 120,
+		recommendedPower = 400,
+		baseHealth = 2200,
+		healthPerExtra = 0.75,
+		radius = 8,
+		height = 9,
+		phases = {
+			{ from = 1, attacks = { "volcanic_hammer", "lava_blobs", "burning_floor", "meteor_shower" }, gap = 1.4, mood = "grumpy" },
+			{ from = 0.6, attacks = { "volcanic_hammer", "meteor_shower", "lava_blobs", "burning_floor" }, gap = 1.15, special = "final_eruption", specialEvery = 4, mood = "angry" },
+			{ from = 0.3, attacks = { "volcanic_hammer", "lava_blobs", "meteor_shower", "burning_floor" }, gap = 0.95, special = "final_eruption", specialEvery = 3, mood = "furious" },
+		},
+		attacks = {
+			-- "Marteau volcanique": he slams the ground in front of him (or all
+			-- around him when nobody is close). Phase 3: a shockwave ring
+			-- rolls out of the impact (JUMP).
+			volcanic_hammer = { id = "volcanic_hammer", telegraph = 1.3, tuning = { radius = 11, reach = 14, maxDistance = 30, poundRadius = 15, waveSpeed = 34, band = 3, waveReach = 42 } },
+			-- "Boulettes de lave": lobbed lava balls land on marked circles and
+			-- leave a burning puddle for a moment.
+			lava_blobs = { id = "lava_blobs", telegraph = 1.3, tuning = { count = 4, extraPerPhase = 1, radius = 5, spread = 8, linger = 2.4 } },
+			-- "Sol brûlant": cracks glow yellow, then the floor there burns
+			-- red for a few seconds. Stay off the red.
+			burning_floor = { id = "burning_floor", telegraph = 1.5, tuning = { count = 3, extraPerPhase = 1, radius = 8, duration = 3 } },
+			-- "Pluie de météores": meteors fall one after another on marked
+			-- circles (every mark is visible from the start).
+			meteor_shower = { id = "meteor_shower", telegraph = 1.2, tuning = { count = 5, extraPerPhase = 2, radius = 4.5, interval = 0.4 } },
+			-- Special "Éruption finale" (phase 2+): he jumps to the centre and
+			-- the whole floor erupts except every other cooled-rock pad (green
+			-- beacons). Phase 3: a second eruption on the other pads. He ends up
+			-- out of breath (dizzy, bonus damage).
+			final_eruption = { id = "final_eruption", telegraph = 3.0, big = true, tuning = { second = 2.3, dizzy = 3.2 } },
+		},
+		loot = {
+			{ id = "essence", kind = "essence", chance = 1, minutes = 7, floor = 500 },
+			{ id = "magma_shard", kind = "material", ref = "magma_shard", chance = 1, min = 3, max = 6 },
+			{ id = "ember_core", kind = "material", ref = "ember_core", chance = 0.15, min = 1, max = 1, rare = true },
+			{ id = "ember_anvil", kind = "relic", ref = "ember_anvil", chance = 0.08, rare = true, fallback = { material = "magma_shard", amount = 8 } },
+			{ id = "trail_magma", kind = "cosmetic", ref = "trail_magma", chance = 0.05, rare = true, fallback = { material = "magma_shard", amount = 5 } },
+		},
+		relic = "ember_anvil",
+		cosmetic = "trail_magma",
 	},
 }
 
@@ -317,6 +396,13 @@ for _, def in list do
 		end
 	end
 	assert(Relics.get(def.relic) and Cosmetics.get(def.cosmetic), "boss " .. def.id .. " exclusive relic / cosmetic missing")
+	assert(def.theme == "closet" or def.theme == "volcano", "boss " .. def.id .. " unknown arena theme " .. tostring(def.theme))
+	if def.pads then
+		assert(def.padRadius and def.padRadius > 0, "boss " .. def.id .. " pads need a radius")
+		for _, pad in def.pads do
+			assert(pad.r + (def.padRadius :: number) < Bosses.Arena.Radius, "boss " .. def.id .. " pad outside the arena")
+		end
+	end
 	byId[def.id] = def
 end
 
@@ -330,9 +416,21 @@ function Bosses.get(id: any): BossDef?
 	return byId[id]
 end
 
--- The boss of the n-th opening of a server (rotation, phase 7 adds more).
+-- The boss of the n-th opening of a server (rotation in `list` order).
 function Bosses.forOpening(index: number): BossDef
 	return list[((math.max(1, math.floor(index)) - 1) % #list) + 1]
+end
+
+-- Floor positions of a boss's safe pads (empty when it has none).
+function Bosses.arenaPads(def: BossDef): { Vector3 }
+	local out = {}
+	local c = Bosses.Arena.Center
+	local pads: { PadDef } = def.pads or {}
+	for _, pad in pads do
+		local a = math.rad(pad.deg)
+		table.insert(out, Vector3.new(c.X + math.cos(a) * pad.r, c.Y, c.Z + math.sin(a) * pad.r))
+	end
+	return out
 end
 
 -- Formulas (pure) ----------------------------------------------------------------

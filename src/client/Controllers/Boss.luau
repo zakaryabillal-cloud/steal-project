@@ -19,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
+local Locale = require(Shared.Locale)
 local Bosses = require(Shared.Config.Bosses)
 local Weapons = require(Shared.Config.Weapons)
 local Signal = require(Shared.Util.Signal)
@@ -123,6 +124,25 @@ end
 -- Boss definition shown on the portal (current or next opening).
 function Boss.portalBoss(): Bosses.BossDef
 	return Bosses.get(Boss.portal().boss) or Bosses.list[1]
+end
+
+-- The boss after that one (rotation preview, phase 7A).
+function Boss.portalNextBoss(): Bosses.BossDef?
+	return Bosses.get(attrString(Boss.plateau(), "PortalNextBoss"))
+end
+
+-- Boss of the current arena (nil without one).
+function Boss.arenaBoss(): Bosses.BossDef?
+	return Bosses.get(attrString(Boss.arena(), "BossId"))
+end
+
+-- Per-boss text with a generic fallback: "boss.<id>.<key>" or "boss.<key>".
+function Boss.text(bossId: string?, key: string, args: { [string]: any }?): string
+	local own = "boss." .. tostring(bossId) .. "." .. key
+	if bossId and Locale.has(own) then
+		return Locale.t(own, args)
+	end
+	return Locale.t("boss." .. key, args)
 end
 
 -- Distance from the local character to the portal (math.huge without one).

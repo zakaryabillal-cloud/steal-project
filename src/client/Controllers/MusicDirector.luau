@@ -6,7 +6,13 @@
 --   MusicPlayer   (how it sounds)           crossfades, resume, stingers
 --
 -- One Heartbeat connection drives everything. Tracks come from
--- Shared/Config/Music: a slot without an asset id stays silent.
+-- Shared/Config/Music: a slot without an asset id stays silent, and so does
+-- a slot whose id failed the runtime check (Controllers/AudioCheck).
+--
+-- Phase 7A: boss themes are local to the player (2D), start with the fight
+-- (MusicBoss attribute set at the Intro), fade out on victory / defeat /
+-- exit, and get brighter in later phases (Music.BossIntensity: EQ + level,
+-- never faster) instead of switching tracks.
 
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
@@ -21,6 +27,8 @@ local MusicState = require(MusicFolder.MusicState)
 local MusicPlayer = require(MusicFolder.MusicPlayer)
 local MusicSensors = require(MusicFolder.MusicSensors)
 local Audio = require(script.Parent.Audio)
+local AudioCheck = require(script.Parent.AudioCheck)
+local Players = game:GetService("Players")
 
 local MusicDirector = {}
 
@@ -40,7 +48,21 @@ local function resolveId(key: string): string
 		return idOverrides[key] or ""
 	end
 	local def = Music.track(key)
-	return if def then def.id else ""
+	if not def or not AudioCheck.musicAllowed(def.id) then
+		return ""
+	end
+	return def.id
+end
+
+-- Boss phase of the local player's fight (0 = not in a boss fight).
+local function bossPhase(): number
+	local player = Players.LocalPlayer
+	local boss = if player then player:GetAttribute("MusicBoss") else nil
+	if type(boss) ~= "string" or boss == "" then
+		return 0
+	end
+	local phase = player:GetAttribute("MusicBossPhase")
+	return if type(phase) == "number" then math.clamp(math.floor(phase), 1, #Music.BossIntensity) else 1
 end
 
 local function now(): number
@@ -62,6 +84,7 @@ local function evaluate()
 		end
 		MusicDirector.changed:Fire(decision)
 	end
+	p:setIntensity(if m.current == "Boss" then bossPhase() else 0)
 end
 
 local function step(dt: number)
@@ -91,6 +114,18 @@ function MusicDirector.start()
 	senseTimer = 0
 	connection = RunService.Heartbeat:Connect(step)
 	evaluate()
+end
+
+-- A track that fails the runtime check stops counting right away.
+AudioCheck.changed:Connect(function()
+	if connection then
+		evaluate()
+	end
+end)
+
+-- Current boss intensity level of the music (0 = none, 1..3).
+function MusicDirector.intensity(): number
+	return if player then player.intensity else 0
 end
 
 -- Stops the music and releases every Sound and connection.

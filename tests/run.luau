@@ -995,6 +995,30 @@ require("./scenarios/V2Combat")({
 	end,
 })
 
+-- V2 phase 7A: Forgeheart (second boss), boss rotation, boss sound identity.
+require("./scenarios/V2Forgeheart")({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	waitFor = waitFor,
+	sreq = sreq,
+	shared = shared,
+	remote = remote,
+	Engine = Engine,
+	Loader = Loader,
+	game = game,
+	sessionOf = sessionOf,
+	teleport = teleport,
+	hasNotification = hasNotification,
+	clearLog = clearLog,
+	alice = function()
+		return alice
+	end,
+	bob = function()
+		return bob
+	end,
+})
+
 scenario("Shutdown: BindToClose saves everyone", function()
 	local sa = sessionOf(alice)
 	sa.data.essence += 12345

@@ -150,6 +150,8 @@ export type Fight = {
 
 local fight: Fight? = nil
 local openings = 0
+-- Studio / tests: forces the boss of the next opening (rotation otherwise).
+local nextOverride: string? = nil
 local nextOpenAt = 0
 local announced = false
 local plateau: Model? = nil
@@ -210,6 +212,18 @@ local function readyCount(f: Fight): number
 	return n
 end
 
+-- Boss of the `offset`-th opening from now (1 = next, 2 = the one after).
+local function upcoming(offset: number): Bosses.BossDef
+	if offset == 1 and nextOverride then
+		local forced = Bosses.get(nextOverride)
+		if forced then
+			return forced
+		end
+	end
+	return Bosses.forOpening(openings + offset)
+end
+BossService.upcoming = upcoming
+
 local function publishPortal()
 	local model = plateau
 	if not model then
@@ -221,7 +235,9 @@ local function publishPortal()
 		state = if f.state == "Open" then "Open" else "Fight"
 	end
 	model:SetAttribute("PortalState", state)
-	model:SetAttribute("PortalBoss", if f then f.boss.id else Bosses.forOpening(openings + 1).id)
+	-- Current boss (open / fighting) or the next one, then the one after it.
+	model:SetAttribute("PortalBoss", if f then f.boss.id else upcoming(1).id)
+	model:SetAttribute("PortalNextBoss", if f then upcoming(1).id else upcoming(2).id)
 	model:SetAttribute("PortalOpensAt", nextOpenAt)
 	model:SetAttribute("PortalClosesAt", if f and f.state == "Open" then f.closesAt else 0)
 	model:SetAttribute("PortalCount", if f then activeCount(f, true) else 0)
@@ -471,13 +487,16 @@ local function newAnchor(f: Fight)
 	f.anchor = anchor
 end
 
-function BossService.open(): Fight?
+-- Opens the portal now: `bossId` (Studio), else the forced next boss, else
+-- the rotation.
+function BossService.open(bossId: string?): Fight?
 	if fight then
 		return nil
 	end
 	local t = now()
+	local def = Bosses.get(bossId) or upcoming(1)
+	nextOverride = nil
 	openings += 1
-	local def = Bosses.forOpening(openings)
 	local arena = ArenaBuilder.build(workspace, def.id)
 	local f: Fight = {
 		id = HttpService:GenerateGUID(false),
@@ -865,6 +884,40 @@ local function resolveShapes(f: Fight, t: number)
 						StatusService.applySelfSlow(entry.p.session, "goo", shape.slow or 0.4, 0.4)
 					end
 				end
+			end
+		elseif shape.kind == "burn" then
+			-- Phase 7A lava: hurts grounded fighters standing in it (drawn red
+			-- the whole time; the hit invulnerability spaces the hits out).
+			if t >= (shape.untilTime or 0) then
+				remove = true
+			elseif t >= shape.at then
+				for _, entry in list do
+					local offset = entry.root.Position - shape.center
+					if flat(offset).Magnitude <= shape.radius and offset.Y < COMBAT.RootHeight + 6 and grounded(f, entry.root) then
+						hit(f, entry.p, shape.center, t)
+					end
+				end
+			end
+		elseif shape.kind == "outside" then
+			-- Phase 7A Final Eruption: only the safe pads are safe.
+			if t >= shape.at then
+				local pad = shape.safeRadius or 8
+				for _, entry in list do
+					local safe = false
+					local spots: { Vector3 } = shape.safeSpots or {}
+					for _, spot in spots do
+						if flat(entry.root.Position - spot).Magnitude <= pad + 0.5 then
+							safe = true
+							break
+						end
+					end
+					if safe then
+						dodged(f, entry.p, "safe", t)
+					else
+						hit(f, entry.p, shape.center, t)
+					end
+				end
+				remove = true
 			end
 		else
 			remove = true
@@ -1275,7 +1328,7 @@ local function step(t: number)
 	if not f then
 		if not announced and t >= nextOpenAt - PORTAL.AnnounceBefore then
 			announced = true
-			Remotes.notifyAll("n.bossSoon", { boss = Bosses.forOpening(openings + 1).id }, "info")
+			Remotes.notifyAll("n.bossSoon", { boss = upcoming(1).id }, "info")
 		end
 		if t >= nextOpenAt then
 			BossService.open()
@@ -1418,6 +1471,17 @@ function BossService.devReset()
 	if f then
 		destroyArena(f)
 	end
+end
+
+-- Studio / tests: forces the boss of the next opening (nil = rotation).
+-- Returns false for an unknown boss.
+function BossService.setNextBoss(bossId: string?): boolean
+	if bossId ~= nil and not Bosses.get(bossId) then
+		return false
+	end
+	nextOverride = bossId
+	publishPortal()
+	return true
 end
 
 -- Studio / tests: when the portal opens next.

@@ -23,7 +23,9 @@ local Modal = require(Kit.Modal)
 
 local Controllers = script.Parent.Parent.Parent.Controllers
 local Store = require(Controllers.Store)
-local VoidWardenModel = require(script.Parent.Parent.Parent.Boss.VoidWardenModel)
+local BossFolder = script.Parent.Parent.Parent.Boss
+local BossRig = require(BossFolder.BossRig)
+local BossModels = require(BossFolder.BossModels)
 
 local BossCodex = {}
 
@@ -37,7 +39,8 @@ type Card = {
 	title: TextLabel,
 	stats: TextLabel,
 	rare: TextLabel,
-	rig: VoidWardenModel.Rig?,
+	rig: BossRig.Rig?,
+	model: BossRig.ModelModule,
 	viewport: ViewportFrame,
 	known: boolean?,
 }
@@ -66,18 +69,18 @@ local function buildCard(parent: Instance, def: Bosses.BossDef, order: number): 
 	camera.CFrame = CFrame.lookAt(Vector3.new(12, 5, -32), Vector3.new(0, 1, 0))
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
-	-- Only the Void Warden has a body today; later bosses bring their own builder.
-	local rig = if def.id == "VoidWarden" then VoidWardenModel.build(1, viewport) else nil
-	if rig then
-		VoidWardenModel.pose(rig, CFrame.Angles(0, math.pi, 0), VoidWardenModel.defaultPose(), 0)
-	end
+	-- Every boss brings its own body (Client/Boss/BossModels).
+	local model = BossModels.get(def.id)
+	local scale = if def.id == "Forgeheart" then 0.8 else 1
+	local rig = model.build(scale, viewport)
+	model.pose(rig, CFrame.Angles(0, math.pi, 0), model.defaultPose(), 0)
 	local name = Style.display({ Name = "Name", Size = UDim2.new(1, -230, 0, 34), Position = UDim2.fromOffset(214, 10), TextSize = 28, Parent = frame })
 	local title = Style.text({ Name = "Title", Size = UDim2.new(1, -230, 0, 22), Position = UDim2.fromOffset(214, 44), TextSize = 16, TextWrapped = true, FontFace = Theme.Fonts.Body, TextColor3 = Theme.Colors.TextDim, Parent = frame })
 	local stats = Style.text({ Name = "Stats", Size = UDim2.new(1, -230, 0, 60), Position = UDim2.fromOffset(214, 72), TextSize = 17, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, FontFace = Theme.Fonts.Heavy, Parent = frame })
 	Style.ink(stats, 1.5)
 	local rare = Style.text({ Name = "Rare", Size = UDim2.new(1, -230, 0, 66), Position = UDim2.fromOffset(214, 136), TextSize = 15, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, FontFace = Theme.Fonts.Heavy, Parent = frame })
 	Style.ink(rare, 1.5)
-	return { def = def, frame = frame, name = name, title = title, stats = stats, rare = rare, rig = rig, viewport = viewport, known = nil }
+	return { def = def, frame = frame, name = name, title = title, stats = stats, rare = rare, rig = rig, model = model, viewport = viewport, known = nil }
 end
 
 local function lootName(entry: Bosses.LootEntry): string
@@ -105,12 +108,12 @@ function BossCodex.refresh()
 		if rig and card.known ~= known then
 			if known and card.known == false then
 				-- Discovered: the silhouette becomes the real (colourful) boss.
-				VoidWardenModel.destroy(rig)
-				local fresh = VoidWardenModel.build(1, card.viewport)
-				VoidWardenModel.pose(fresh, CFrame.Angles(0, math.pi, 0), VoidWardenModel.defaultPose(), 0)
+				card.model.destroy(rig)
+				local fresh = card.model.build(if card.def.id == "Forgeheart" then 0.8 else 1, card.viewport)
+				card.model.pose(fresh, CFrame.Angles(0, math.pi, 0), card.model.defaultPose(), 0)
 				card.rig = fresh
 			elseif not known then
-				VoidWardenModel.silhouette(rig, INK)
+				card.model.silhouette(rig, INK)
 			end
 			card.known = known
 		end
@@ -194,12 +197,12 @@ function BossCodex.init(parent: Instance, close: () -> ()): Modal.Modal
 		end
 		for _, card in cards do
 			if card.rig then
-				local pose = VoidWardenModel.defaultPose()
+				local pose = card.model.defaultPose()
 				pose.squash = 1 + math.sin(os.clock() * 2.5) * 0.04
 				pose.eyesClosed = card.known ~= true
-				VoidWardenModel.pose(card.rig, CFrame.Angles(0, math.pi + math.sin(os.clock() * 0.8) * 0.4, 0), pose, dt)
+				card.model.pose(card.rig, CFrame.Angles(0, math.pi + math.sin(os.clock() * 0.8) * 0.4, 0), pose, dt)
 				if card.known ~= true then
-					VoidWardenModel.silhouette(card.rig, INK)
+					card.model.silhouette(card.rig, INK)
 				end
 			end
 		end

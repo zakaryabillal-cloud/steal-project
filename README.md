@@ -19,7 +19,7 @@ Future, ombres douces, nuages volumétriques, particules, beams, interface) est 
 pas sur ces images. Anciens aperçus V2 (nuit) : `docs/previews/v2_*.png`. Direction artistique complète :
 [`docs/ART_DIRECTION.md`](docs/ART_DIRECTION.md).</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités », 5 « Cosmétiques », 5.5 « Direction artistique cartoon », 6 « Premier boss : Void Warden » et 6.5 « Combat 2.0 & armes de boss » terminées).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités », 5 « Cosmétiques », 5.5 « Direction artistique cartoon », 6 « Premier boss : Void Warden », 6.5 « Combat 2.0 & armes de boss » et 7A « Forgeheart + identité sonore des boss » terminées).
 
 ### Direction artistique (Phase 5.5)
 
@@ -193,6 +193,55 @@ Récompenses **individuelles**, tirées côté serveur, seulement pour les parti
 va sur un **socle de trophée non volable** (1 à 3 socles débloqués par le Power record) ; un doublon la fait
 monter de niveau. **Boss Codex** : découverte, tentatives, victoires, meilleur temps, trouvailles rares, matériaux
 gardés pour la future Forge. Détails : `docs/V2_PLAN.md` §12.
+
+### Forgeheart et rotation des boss (Phase 7A)
+
+Le portail **alterne** désormais les boss (Void Warden, puis Forgeheart, puis le Void Warden…) ; le panneau du
+portail et la carte montrent le boss de la prochaine ouverture **et celui d'après**, la carte affiche son thème
+musical, ses conditions (Power record **120** pour Forgeheart), sa difficulté et ses récompenses exactes.
+
+**Forgeheart** (rang II, ★★★) est un énorme golem de lave cartoon : gros rochers ronds, fissures de lave qui
+brillent, cœur incandescent, yeux globuleux, sourcils de pierre, bouche rigolote avec deux dents carrées, bras
+massifs (pièces natives, aucun modèle externe). Puissant, maladroit et soupe au lait. Il combat dans **sa propre
+arène volcanique** : roche chaude cartoon, fissures de lave, six **rochers refroidis** (zones sûres), anneau de
+gros rochers, mer de lave en contrebas et volcan à l'horizon ; le décor ne fait jamais de dégâts. Plus difficile
+que le Void Warden (2 200 PV +75 % par joueur, pauses plus courtes, lave qui reste) mais juste : chaque danger est
+dessiné **jaune puis rouge** au moins **1,2 s** avant de toucher (3 s pour la spéciale), avec son propre son
+d'alerte et la bulle « ! » :
+
+| Attaque | Ce qu'on voit / entend | Comment l'éviter |
+|---|---|---|
+| **Marteau volcanique** | il lève les poings (« WHOOM »), cercle devant lui (ou tout autour s'il n'y a personne près) puis « BONK » grave ; phase 3 : onde de choc | sortir du cercle ; sauter l'onde |
+| **Boulettes de lave** | boules lancées en cloche (« FWIP »), cercles marqués, « POP », flaque brûlante 2,4 s | s'écarter des marques, ne pas marcher dans la flaque rouge |
+| **Sol brûlant** | fissures jaunes qui crépitent puis sol rouge 3 s (bulles) | ne pas rester sur le rouge (ou sauter par-dessus) |
+| **Pluie de météores** | grondement, tous les points d'impact marqués d'avance, sifflements puis explosions l'une après l'autre | bouger de marque en marque |
+| **Éruption finale** (phases 2-3) | alarme grave, « ATTAQUE SPÉCIALE ! », bord d'écran rouge, montée de pression, tout le sol se remplit sauf **3 rochers verts** (faisceaux + flèche à l'écran) ; phase 3 : deuxième éruption sur les 3 autres ; il finit **essoufflé** (dégâts ×1,5) | monter sur un rocher vert (toujours un à portée) |
+
+Toutes les armes, les combos et les capacités adaptées aux boss fonctionnent contre lui. Récompenses (par joueur
+éligible, probabilités exactes affichées) : Essence (7 min de ta production, 100 %), **Éclats de magma** ×3–6
+(100 %), **Cœur de braise** (15 %, matériau rare pour la future Forge), relique exclusive **Enclume Ardente**
+(8 %, sur un socle de trophée non volable) et traînée exclusive **Coulée de magma** (5 %). À sa défaite, il
+explose puis se dégonfle comme un ballon triste.
+
+### Identité sonore des boss (Phase 7A)
+
+- **Musiques** (choisies par le créateur, intégrées dans `Config/Music`) : Void Warden → **Dynamic Swing**
+  (`rbxassetid://1835955926`, electro-swing) ; Forgeheart → **Mindwinder (a)** (`rbxassetid://1838075377`,
+  rock électronique). Elles démarrent à l'entrée effective du combat (fondu 1,2 s), passent devant Exploration,
+  Faille, Poursuite et Événement, s'arrêtent en fondu à la victoire, la défaite ou la sortie, une seule musique à
+  la fois, au volume « Musique » du joueur. En phases 2-3 le morceau n'est **pas accéléré** : le mixage devient
+  plus brillant (égaliseur + léger gain) et un « whoosh » marque le changement de phase.
+- **Bruitages** : un jeu de sons par boss (Void Warden rebondissant : BOING, SPLAT, POUF, PAF, sirène, trombone ;
+  Forgeheart explosif : WHOOM, BONK, FWIP, POP, crépitements, sifflements, KABOOM, roche qui craque) ; jamais le
+  même BOOM pour toutes les attaques.
+- **Mixage** : priorités (1 danger imminent > 2 attaque spéciale > 3 impact/dégâts > 4 attaques > 5 musique et
+  ambiance), la musique baisse un instant sous les alertes critiques, au plus 14 sons à la fois (le moins
+  important cède), anti-spam par son en multijoueur, sons d'attaque en 3D, musique locale. Les télégraphes visuels
+  suffisent sans le son.
+- **Vérification des IDs** : ce dépôt ne peut pas contacter Roblox ; chaque ID est donc **vérifié par le client au
+  lancement** (`Controllers/AudioCheck` : chargement, autorisation pour l'expérience, durée). Un ID refusé est
+  signalé dans la sortie et remplacé par le son intégré (ou, pour une musique, par la musique inférieure).
+  `/rh audio` (Studio) affiche le rapport. Détails et liste des IDs à confirmer : `docs/V2_PLAN.md` §14.
 
 ### Combat 2.0 et armes de boss (Phase 6.5)
 
@@ -494,7 +543,9 @@ Le projet **n'utilise aucun ID d'asset inventé**. Tout ce qui demanderait un as
 
 ### Sons — `src/shared/Config/Sounds.luau`
 Chaque clé possède :
-- `id` : **vide** par défaut → coller ici un `rbxassetid://…` que vous avez importé ou dont vous avez la licence ;
+- `id` : **vide** par défaut → coller ici un `rbxassetid://…` que vous avez importé ou dont vous avez la licence
+  (Phase 7A : les IDs candidats proposés par le créateur sont déjà renseignés pour les boss ; chaque ID n'est
+  utilisé qu'après la vérification du client — `Controllers/AudioCheck` — sinon le `fallback` joue) ;
 - `fallback` : un son livré avec chaque client Roblox (`rbxasset://sounds/...`), joué tant que `id` est vide,
   avec un pitch/volume réglés pour approcher l'intention ;
 - `note` : description du son final attendu.
@@ -517,8 +568,9 @@ retour naturel à la musique précédente (reprise là où elle s'était arrêt�
    ambiance, tempo, durée, contexte — est juste en dessous, dans `Music.Tracks`).
 3. Rien d'autre à modifier : le directeur musical l'utilise automatiquement.
 
-Déjà renseignés : `Explore`, `Rift`, `Chase`, `ChaseIntense` et `Stinger.ChaseStart`. Tous les autres
-(événements, boss, autres stingers) sont encore vides.
+Déjà renseignés : `Explore`, `Rift`, `Chase`, `ChaseIntense`, `Stinger.ChaseStart` et (Phase 7A) les thèmes de
+boss `Boss.VoidWarden.1` (Dynamic Swing) et `Boss.Forgeheart.1` (Mindwinder (a)), utilisés dans toutes leurs
+phases. Les autres (événements, autres boss, stingers de boss) sont encore vides.
 Un emplacement sans `id` reste **muet** (aucun `Sound` n'est créé) et l'état inférieur continue de jouer.
 Emplacements : `Explore`, `Rift`, `Chase`, `ChaseIntense`, `Event.<Id>` (+ `Event.Default`),
 `Boss.<BossId>.<phase>` (+ `Boss.Default.<phase>`), et les stingers `Stinger.ChaseStart`, `Stinger.BossIntro`,
@@ -554,9 +606,12 @@ Actives **uniquement dans Studio** (`RunService:IsStudio()`), via le chat :
 | `/rh abilities [off]` | toutes les capacités équipables pour la session (**jamais sauvegardé** ; les vrais déblocages ne changent pas) |
 | `/rh cooldowns` | remet à zéro tes recharges |
 | `/rh cosmetics [off\|reset]` | tous les cosmétiques équipables pour la session (**jamais sauvegardé**) · `off` : retire ce qui n'est pas possédé · `reset` : inventaire ramené aux 6 cosmétiques de départ (les déblocages reviennent selon ta progression) |
-| `/rh boss open` · `start` · `hp <%>` · `win` · `stop` | ouvre le portail tout de suite · lance le combat sans attendre · fixe les PV du boss · le laisse à 1 PV · termine l'expédition |
+| `/rh boss open [VoidWarden\|Forgeheart]` · `start` · `hp <%>` · `win` · `stop` | ouvre le portail tout de suite (avec le boss choisi) · lance le combat sans attendre · fixe les PV du boss · le laisse à 1 PV · termine l'expédition |
+| `/rh boss next <VoidWarden\|Forgeheart\|auto>` | choisit le boss de la prochaine ouverture (`auto` = rotation) |
+| `/rh boss magma <n>` | ajoute des Éclats de magma (+1 Cœur de braise par 10) |
+| `/rh audio` | affiche dans la sortie le contrôle des IDs audio (chargé / refusé / trop long) |
 | `/rh boss shards <n>` · `codex` | ajoute des Éclats du Néant · vide ton Codex (pour retester la découverte) |
-| `/rh boss wins <n>` | fixe tes victoires contre le Void Warden (déblocage des armes) |
+| `/rh boss wins <n> [bossId]` | fixe tes victoires contre un boss (Void Warden par défaut ; déblocage des armes) |
 | `/rh weapons all` · `reset` | possède toutes les armes de boss · revient aux seuls Gants en mousse |
 | `/rh reset` | réinitialise les données (kick) |
 
@@ -575,12 +630,15 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **1658 vérifications, 0 échec, 0 erreur d'exécution**
+serveur et un vrai client tournent dedans. Résultat actuel : **1868 vérifications, 0 échec, 0 erreur d'exécution**
 (1094 des phases précédentes — V1, V2 phases 1 à 5.5 —, 1 contrôle automatique pour le nom du cosmétique de boss,
 260 de la phase 6 dans `tests/scenarios/V2Bosses.luau`, 297 de la phase 6.5 dans `tests/scenarios/V2Combat.luau`
 et 6 contrôles automatiques pour les 6 nouveaux emojis ; 7 vérifications de la phase 6 suivent désormais le schéma 6,
-les capacités permises contre le boss et les dégâts par arme — voir `docs/V2_PLAN.md` §13). `ONLY=bosses lune run tests/run.luau` saute les scénarios V2 sans
-rapport avec les boss (boss + combat 2.0) pour itérer plus vite (≈ 1 min). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
+les capacités permises contre le boss et les dégâts par arme — voir `docs/V2_PLAN.md` §13 —, puis 200 de la phase 7A dans
+`tests/scenarios/V2Forgeheart.luau` et 10 contrôles automatiques des boucles existantes ; les vérifications qui
+supposaient un seul boss, aucun thème de boss ou aucun ID de son suivent désormais la phase 7A — voir §14).
+`ONLY=bosses lune run tests/run.luau` saute les scénarios V2 sans rapport avec les boss (boss + combat 2.0 +
+Forgeheart) pour itérer plus vite (≈ 1 min 30). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
 groupes de collision, terrain en voxels) pour valider Blink, Grappin, lignes de vue et pièges.
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
@@ -635,6 +693,12 @@ code PvP, frappes par arme (combo, portée, recharge, étourdi, gel, bonus d'éq
 (jaune → rouge en qualité Basse, sons, bulle, arc synchronisé, quart sûr), coup de poing sur des rigs R15 / R6 /
 personnalisé, aucun chevauchement de boutons sur 9 écrans (PC, téléphones, tablettes, bouton de saut Roblox),
 écran ARMES.
+Phase 7A (Forgeheart) : catalogue plus dur mais juste (rochers sûrs atteignables de partout), chaque attaque dans
+l'arène et jamais avant son télégraphe, rotation et aperçu du boss suivant, arène volcanique (budget, aucune pièce
+blessante), lave et éruption (seulement là où c'est dessiné, rochers sûrs, bouclier, saut), 6 armes et capacités,
+victoire, récompenses une seule fois et sauvegardées, client (corps, couleurs jaune → rouge en qualité Basse, sons
+d'alerte, bannière spéciale, flèche, HUD, carte, Codex) et audio (IDs candidats utilisés seulement vérifiés, échecs
+signalés, musique par boss sans accélération, ducking, anti-spam, priorités).
 
 ### Aperçus du monde et des reliques (direction artistique)
 ```bash

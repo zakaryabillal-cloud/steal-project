@@ -127,6 +127,9 @@ local list: { CosmeticDef } = {
 	-- V2 phase 6: exclusive Void Warden drop (soap bubbles, of course).
 	{ id = "trail_bubbles", category = "trail", rarity = "Epic", order = 5, unlock = unlock("boss", nil, nil, "VoidWarden"),
 		visual = { colors = { c(170, 240, 255), c(255, 170, 230) }, lifetime = 0.5, width = 1.2, light = 0.7 } },
+	-- V2 phase 7A: exclusive Forgeheart drop (dripping cartoon magma).
+	{ id = "trail_magma", category = "trail", rarity = "Epic", order = 6, unlock = unlock("boss", nil, nil, "Forgeheart"),
+		visual = { colors = { c(255, 214, 72), c(255, 90, 40) }, lifetime = 0.5, width = 1.3, light = 1 } },
 
 	-- Auras --------------------------------------------------------------------
 	{ id = "aura_embers", category = "aura", rarity = "Common", order = 1, unlock = unlock("stat", 10, "deposits"),

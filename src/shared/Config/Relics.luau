@@ -258,6 +258,19 @@ local list: { RelicDef } = {
 		glow = Color3.fromRGB(255, 220, 120),
 		dexIndex = 0,
 	},
+	{
+		-- Forgeheart's tiny pocket anvil, still glowing hot (phase 7A).
+		id = "ember_anvil",
+		rarity = "Legendary",
+		shape = "EmberAnvil",
+		rateFactor = 1.1,
+		spawnWeight = 0,
+		bossOnly = "Forgeheart",
+		primary = Color3.fromRGB(120, 92, 110),
+		secondary = Color3.fromRGB(255, 120, 50),
+		glow = Color3.fromRGB(255, 214, 72),
+		dexIndex = 0,
+	},
 }
 
 local byId: { [string]: RelicDef } = {}

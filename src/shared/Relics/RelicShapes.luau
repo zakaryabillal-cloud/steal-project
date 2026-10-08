@@ -861,4 +861,42 @@ Shapes.VoidDuster = function(ctx: Ctx)
 	})
 end
 
+-- Legendary (boss relic, V2 phase 7A): Forgeheart's pocket anvil, still hot.
+-- A chunky cartoon anvil with glowing lava cracks, a tiny hammer bouncing
+-- on top and embers popping off.
+Shapes.EmberAnvil = function(ctx: Ctx)
+	local def = ctx.def
+	ctx:part({ kind = "Block", size = Vector3.new(1.3, 0.5, 1.0), cf = CFrame.new(0, -1.0, 0), color = def.primary, role = "body", name = "Foot" })
+	ctx:part({ kind = "Block", size = Vector3.new(0.7, 0.7, 0.7), cf = CFrame.new(0, -0.45, 0), color = def.primary, role = "body", name = "Waist" })
+	ctx:part({ kind = "Block", size = Vector3.new(2.0, 0.7, 1.15), cf = CFrame.new(0.1, 0.25, 0), color = def.primary, role = "body", name = "Top" })
+	ctx:part({ kind = "Wedge", size = Vector3.new(1.15, 0.7, 0.9), cf = CFrame.new(-1.5, 0.25, 0) * CFrame.Angles(0, rad(90), 0), color = def.primary, role = "body", name = "Horn" })
+	-- Glowing lava cracks and the hot top face.
+	ctx:part({ kind = "Block", size = Vector3.new(1.8, 0.08, 0.9), cf = CFrame.new(0.1, 0.62, 0), color = def.secondary, material = M.Neon, role = "glow", name = "HotTop" })
+	ctx:part({ kind = "Block", size = Vector3.new(0.12, 0.5, 0.06), cf = CFrame.new(0.5, 0.2, -0.6) * CFrame.Angles(0, 0, rad(25)), color = def.glow, material = M.Neon, role = "glow", name = "Crack" })
+	ctx:part({ kind = "Block", size = Vector3.new(0.1, 0.4, 0.06), cf = CFrame.new(-0.3, -0.95, -0.52) * CFrame.Angles(0, 0, rad(-30)), color = def.glow, material = M.Neon, role = "glow", name = "Crack" })
+	-- The tiny hammer bouncing on the anvil.
+	local handle = ctx:part({ kind = "VCylinder", size = Vector3.new(0.16, 1.1, 0.16), color = Color3.fromRGB(196, 120, 70), role = "body" })
+	local head = ctx:part({ kind = "Block", size = Vector3.new(0.55, 0.36, 0.36), color = Color3.fromRGB(90, 80, 110), role = "body" })
+
+	ctx:animate(function(env: Env)
+		local t = env.time
+		local bounce = math.abs(math.sin(t * 3)) * 0.35
+		local swing = CFrame.new(0.55, 0.95 + bounce, 0.1) * CFrame.Angles(0, 0, rad(-35) + math.sin(t * 6) * rad(25))
+		ctx:move(handle, swing * CFrame.new(0, 0.45, 0))
+		ctx:move(head, swing * CFrame.new(0, 1.0, 0))
+	end)
+
+	ctx:emitter({
+		texture = TEX.spark,
+		color = ColorSequence.new(Color3.fromRGB(255, 240, 160), def.secondary),
+		rate = 7,
+		lifetime = NumberRange.new(0.5, 1.1),
+		speed = NumberRange.new(1, 2.2),
+		size = 0.14,
+		spread = 50,
+		acceleration = Vector3.new(0, -2, 0),
+		essential = true,
+	})
+end
+
 return Shapes

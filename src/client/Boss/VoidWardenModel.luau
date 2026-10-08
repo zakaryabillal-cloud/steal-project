@@ -24,105 +24,22 @@ local RED = Color3.fromRGB(255, 70, 90)
 local WOOD = Color3.fromRGB(196, 120, 70)
 local STRAW = Color3.fromRGB(255, 220, 110)
 
-export type RigPart = {
-	part: BasePart,
-	base: CFrame,
-	size: Vector3,
-	-- body (scaled with squash), face, cap, limb, broom
-	group: string,
-	transparency: number,
-}
+local BossRig = require(script.Parent.BossRig)
 
-export type Rig = {
-	model: Model,
-	scale: number,
-	parts: { RigPart },
-	byName: { [string]: RigPart },
-	mood: string,
-	clock: number,
-	nextBlink: number,
-}
-
-export type Pose = {
-	-- Vertical scale of the body (1 = rest, < 1 squash, > 1 stretch).
-	squash: number,
-	-- Forward / backward lean (radians) and extra spin around Y (radians).
-	lean: number,
-	spin: number,
-	-- Broom angle: 0 = resting on the floor, 1 = raised high, -1 = swept low.
-	broom: number,
-	-- Mouth opening 0..1.
-	mouth: number,
-	mood: string,
-	-- World point the pupils look at.
-	lookAt: Vector3?,
-	dizzy: boolean,
-	eyesClosed: boolean,
-	-- 0 = visible .. 1 = gone (fade out when he runs away).
-	fade: number,
-	-- Gloves bob offset (studs, before scale).
-	hands: number,
-	-- Phase 6.5 readability: body tint while he prepares an attack (yellow)
-	-- or releases it (red), and a white flash when he is hit.
-	tint: Color3?,
-	tintAlpha: number,
-	flash: number,
-}
+export type RigPart = BossRig.RigPart
+export type Rig = BossRig.Rig
+export type Pose = BossRig.Pose
 
 function VoidWardenModel.defaultPose(): Pose
-	return { squash = 1, lean = 0, spin = 0, broom = 0, mouth = 0, mood = "grumpy", lookAt = nil, dizzy = false, eyesClosed = false, fade = 0, hands = 0, tint = nil, tintAlpha = 0, flash = 0 }
+	return BossRig.defaultPose("grumpy")
 end
 
-local function makePart(rig: Rig, name: string, kind: string, size: Vector3, base: CFrame, color: Color3, group: string, transparency: number?): RigPart
-	local part: BasePart
-	local s = rig.scale
-	if kind == "Ball" then
-		local p = Instance.new("Part")
-		p.Shape = Enum.PartType.Ball
-		p.Size = size * s
-		part = p
-	elseif kind == "VCyl" then
-		local p = Instance.new("Part")
-		p.Shape = Enum.PartType.Cylinder
-		-- Cylinders run along X: stand them up.
-		p.Size = Vector3.new(size.Y, size.X, size.Z) * s
-		base = base * CFrame.Angles(0, 0, math.pi / 2)
-		part = p
-	elseif kind == "Ellipsoid" then
-		local p = Instance.new("Part")
-		p.Size = size * s
-		local mesh = Instance.new("SpecialMesh")
-		mesh.MeshType = Enum.MeshType.Sphere
-		mesh.Parent = p
-		part = p
-	else
-		local p = Instance.new("Part")
-		p.Size = size * s
-		part = p
-	end
-	part.Name = name
-	part.Color = color
-	part.Material = Enum.Material.SmoothPlastic
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.CastShadow = group == "body"
-	part.Transparency = transparency or 0
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Parent = rig.model
-	local entry: RigPart = { part = part, base = base, size = part.Size, group = group, transparency = transparency or 0 }
-	table.insert(rig.parts, entry)
-	rig.byName[name] = entry
-	return entry
-end
+local makePart = BossRig.part
 
 -- Builds the rig. `scale` 1 = full size (body 12 studs wide).
 function VoidWardenModel.build(scale: number, parent: Instance?): Rig
-	local model = Instance.new("Model")
-	model.Name = "VoidWarden"
-	local rig: Rig = { model = model, scale = scale, parts = {}, byName = {}, mood = "grumpy", clock = 0, nextBlink = 2 }
+	local rig = BossRig.new("VoidWarden", scale, "grumpy")
+	local model = rig.model
 	local P = CFrame.new
 	-- Body (jelly cube) and its gloss.
 	makePart(rig, "Body", "Block", Vector3.new(12, 11, 12), P(0, 0, 0), JELLY, "body", 0.08)
@@ -299,16 +216,7 @@ function VoidWardenModel.pose(rig: Rig, root: CFrame, pose: Pose, dt: number)
 end
 
 -- Paints the whole rig one colour (Codex silhouette of an unknown boss).
-function VoidWardenModel.silhouette(rig: Rig, color: Color3)
-	for _, entry in rig.parts do
-		entry.part.Color = color
-		entry.part.Transparency = 0
-		entry.transparency = 0
-	end
-end
-
-function VoidWardenModel.destroy(rig: Rig)
-	rig.model:Destroy()
-end
+VoidWardenModel.silhouette = BossRig.silhouette
+VoidWardenModel.destroy = BossRig.destroy
 
 return VoidWardenModel

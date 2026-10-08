@@ -10,6 +10,9 @@
 --     previous music). At most Settings.MaxCachedTracks are kept.
 --   * Slots without an asset id never create a Sound.
 --   * One-shot stingers are throttled and destroyed when finished.
+--   * Phase 7A: setIntensity(level) brightens the leading track during a
+--     boss fight (Music.BossIntensity: level + EqualizerSoundEffect), smoothly,
+--     without touching its speed.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Music = require(ReplicatedStorage.Shared.Config.Music)
@@ -45,6 +48,8 @@ export type MusicPlayer = typeof(setmetatable({} :: {
 	stingerAt: { [string]: number },
 	created: number,
 	destroyed: boolean,
+	intensity: number,
+	boost: number,
 }, MusicPlayer))
 
 function MusicPlayer.new(options: Options): MusicPlayer
@@ -56,7 +61,31 @@ function MusicPlayer.new(options: Options): MusicPlayer
 		stingerAt = {},
 		created = 0,
 		destroyed = false,
+		intensity = 0,
+		boost = 1,
 	}, MusicPlayer)
+end
+
+-- Boss intensity (0 = none, 1..#Music.BossIntensity): EQ on every channel,
+-- level multiplier eased in step().
+function MusicPlayer.setIntensity(self: MusicPlayer, level: number)
+	if level == self.intensity then
+		return
+	end
+	self.intensity = level
+	local spec = Music.BossIntensity[level]
+	for _, channel in self.channels do
+		local existing = channel.sound:FindFirstChildOfClass("EqualizerSoundEffect")
+		if spec then
+			local eq: EqualizerSoundEffect = existing or Instance.new("EqualizerSoundEffect")
+			eq.LowGain = spec.low
+			eq.MidGain = spec.mid
+			eq.HighGain = spec.high
+			eq.Parent = channel.sound
+		elseif existing then
+			existing:Destroy()
+		end
+	end
 end
 
 local function curve(level: number): number
@@ -172,6 +201,9 @@ end
 
 -- Advances fades (call every frame).
 function MusicPlayer.step(self: MusicPlayer, dt: number)
+	local spec = Music.BossIntensity[self.intensity]
+	local target = if spec then spec.volume else 1
+	self.boost += (target - self.boost) * math.clamp(dt * 1.5, 0, 1)
 	for i = #self.channels, 1, -1 do
 		local channel = self.channels[i]
 		if channel.level < channel.target then
@@ -179,7 +211,7 @@ function MusicPlayer.step(self: MusicPlayer, dt: number)
 		elseif channel.level > channel.target then
 			channel.level = math.max(channel.target, channel.level - channel.rate * dt)
 		end
-		channel.sound.Volume = channel.base * curve(channel.level)
+		channel.sound.Volume = channel.base * curve(channel.level) * self.boost
 		if channel.level <= 0 and channel.target <= 0 then
 			park(self, channel)
 		end

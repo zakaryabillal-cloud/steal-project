@@ -48,6 +48,20 @@ return function(ctx)
 		Chase = "rbxassetid://9046474891",
 		ChaseIntense = "rbxassetid://1842546506",
 		["Stinger.ChaseStart"] = "rbxassetid://9044615289",
+		-- Phase 7A: the two boss themes chosen by the creator (checked at runtime).
+		["Boss.VoidWarden.1"] = "rbxassetid://1835955926",
+		["Boss.Forgeheart.1"] = "rbxassetid://1838075377",
+	}
+	-- Phase 7A: sound effect ids proposed by the creator (candidates, used only
+	-- once Controllers/AudioCheck verified them in a real client).
+	local SFX_CANDIDATES = {
+		VWAppear = "rbxassetid://5048722308",
+		VWHop = "rbxassetid://2772396665",
+		VWBounce = "rbxassetid://1885641628",
+		VWImpact = "rbxassetid://2103404398",
+		FHLavaAmbience = "rbxassetid://91914091044238",
+		FHLavaAmbience2 = "rbxassetid://1844669489",
+		FHBigImpact = "rbxassetid://2103404398",
 	}
 	local function testIds()
 		local map = {}
@@ -58,7 +72,7 @@ return function(ctx)
 	end
 
 	--------------------------------------------------------------------------
-	scenario("V2 Audio: shipped config (5 configured slots, the rest stays empty)", function()
+	scenario("V2 Audio: shipped config (7 configured slots, the rest stays empty)", function()
 		local unexpected, undocumented = {}, {}
 		for key, track in Music.Tracks do
 			local expected = CONFIGURED[key]
@@ -77,18 +91,18 @@ return function(ctx)
 			check(Music.Tracks[key] ~= nil, "configured key is a real music slot: " .. key)
 			configured += 1
 		end
-		check(configured == 5, "exactly 5 slots configured")
+		check(configured == 7, "exactly 7 slots configured (5 of phase 3 + 2 boss themes of phase 7A)")
 		check(#unexpected == 0, "every other music slot stays empty (" .. table.concat(unexpected, ", ") .. ")")
 		check(#undocumented == 0, "every music slot is documented (" .. table.concat(undocumented, ", ") .. ")")
 		check(Music.Tracks["Stinger.ChaseStart"].kind == "OneShot", "chase stinger slot is a one-shot")
 		check(Music.Tracks.Explore.kind == "Loop" and Music.Tracks.Rift.kind == "Loop" and Music.Tracks.Chase.kind == "Loop" and Music.Tracks.ChaseIntense.kind == "Loop", "configured main slots are loops")
 		local sfxIds = {}
 		for key, def in Sounds do
-			if def.id ~= "" then
+			if def.id ~= "" and (SFX_CANDIDATES[key] ~= def.id or def.maxLength == nil or def.source == nil) then
 				table.insert(sfxIds, key)
 			end
 		end
-		check(#sfxIds == 0, "no SFX asset id invented either")
+		check(#sfxIds == 0, "no SFX asset id invented: only the creator's candidates, each with a length limit (" .. table.concat(sfxIds, ", ") .. ")")
 		check(Sounds.Music == nil, "music moved out of the SFX registry")
 		for _, state in Music.States do
 			for _, key in Music.candidates(state.id, { boss = "VoidWarden", phase = 3, event = "VoidStorm", intense = true }) do
@@ -224,10 +238,12 @@ return function(ctx)
 		m:update(7, { Event = { event = "VoidStorm" }, Rift = {} }, shipped)
 		m:update(9, { Event = { event = "VoidStorm" }, Rift = {} }, shipped)
 		check(m.current == "Rift" and m.currentKey == "Rift", "shipped: empty event slot falls through to Rift")
-		m:update(12, { Boss = { boss = "VoidWarden", phase = 2 }, Rift = {} }, shipped)
+		-- Phase 7A: the Void Warden and Forgeheart have themes now; a boss
+		-- without one (Tempest Seraph, not playable yet) still falls through.
+		m:update(12, { Boss = { boss = "TempestSeraph", phase = 2 }, Rift = {} }, shipped)
 		check(m.current == "Rift", "shipped: boss without music -> Rift keeps playing")
-		d = m:update(13, { Boss = { boss = "VoidWarden", phase = 2 }, Chase = { intense = true }, Rift = {} }, shipped)
-		m:update(13.5, { Boss = { boss = "VoidWarden", phase = 2 }, Chase = { intense = true }, Rift = {} }, shipped)
+		d = m:update(13, { Boss = { boss = "TempestSeraph", phase = 2 }, Chase = { intense = true }, Rift = {} }, shipped)
+		m:update(13.5, { Boss = { boss = "TempestSeraph", phase = 2 }, Chase = { intense = true }, Rift = {} }, shipped)
 		check(m.current == "Chase" and m.currentKey == "ChaseIntense", "shipped: intense chase plays ChaseIntense (" .. tostring(m.currentKey) .. ")")
 		check(shipped("Stinger.ChaseStart") and not shipped("Stinger.BossIntro"), "shipped: chase stinger set, boss stinger still empty")
 	end)

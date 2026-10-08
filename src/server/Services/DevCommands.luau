@@ -12,13 +12,18 @@
 --   /rh cooldowns                 reset your ability cooldowns
 --   /rh cosmetics [off|reset]     every cosmetic equippable for this session
 --                                 (never saved) / back to the starters only
---   /rh boss open|start|hp <%>|win open the boss portal now / start the
+--   /rh boss open [bossId]|start|hp <%>|win  open the boss portal now
+--                                 (optionally with a given boss) / start the
 --                                 fight now / set the boss Health / 1 HP left
+--   /rh boss next <bossId|auto>   choose the boss of the next opening
 --   /rh boss shards <n>           add Void Shards
+--   /rh boss magma <n>            add Magma Shards (+1 Ember Core per 10)
 --   /rh boss codex                clear your boss Codex (test the discovery)
 --   /rh boss stop                 end the expedition now (everyone back)
 --   /rh weapons all|reset         own every boss weapon / back to the gloves
---   /rh boss wins <n>             set your Void Warden victories (weapon unlocks)
+--   /rh boss wins <n> [bossId]    set your victories (weapon unlocks)
+--   /rh audio                     print the audio check (asset ids) in the
+--                                 client output
 --   /rh reset                     wipe your temporary data
 
 local Players = game:GetService("Players")
@@ -27,6 +32,7 @@ local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
+local Bosses = require(Shared.Config.Bosses)
 local Relics = require(Shared.Config.Relics)
 local Rarities = require(Shared.Config.Rarities)
 local Mutations = require(Shared.Config.Mutations)
@@ -120,8 +126,21 @@ local function run(player: Player, text: string)
 		end
 	elseif command == "boss" then
 		local option = string.lower(args[3] or "open")
+		-- Boss ids are matched without case ("forgeheart" = "Forgeheart").
+		local function bossFrom(name: string?): string?
+			for _, def in Bosses.list do
+				if name and string.lower(def.id) == string.lower(name) then
+					return def.id
+				end
+			end
+			return nil
+		end
 		if option == "open" then
-			BossService.open()
+			BossService.open(bossFrom(args[4]))
+		elseif option == "next" then
+			local id = bossFrom(args[4])
+			BossService.setNextBoss(id)
+			print("[RiftHeist] next boss:", id or "rotation")
 		elseif option == "start" then
 			BossService.devStart()
 		elseif option == "hp" then
@@ -131,12 +150,17 @@ local function run(player: Player, text: string)
 		elseif option == "shards" then
 			local materials = session.data.materials
 			materials.void_shard = math.max(0, (materials.void_shard or 0) + math.floor(tonumber(args[4]) or 30))
+		elseif option == "magma" then
+			local materials = session.data.materials
+			local amount = math.floor(tonumber(args[4]) or 30)
+			materials.magma_shard = math.max(0, (materials.magma_shard or 0) + amount)
+			materials.ember_core = math.max(0, (materials.ember_core or 0) + math.floor(amount / 10))
 		elseif option == "codex" then
 			table.clear(session.data.bosses)
 		elseif option == "stop" then
 			BossService.devReset()
 		elseif option == "wins" then
-			local record = BossService.codex(session, "VoidWarden")
+			local record = BossService.codex(session, bossFrom(args[5]) or "VoidWarden")
 			record.wins = math.max(0, math.floor(tonumber(args[4]) or 10))
 			record.attempts = math.max(record.attempts, record.wins)
 			record.discovered = true
@@ -150,6 +174,8 @@ local function run(player: Player, text: string)
 				session.data.weapons.owned[def.id] = true
 			end
 		end
+	elseif command == "audio" then
+		Remotes.fxTo(player, "AudioReport", {})
 	elseif command == "cooldowns" then
 		table.clear(session.cooldowns)
 		Sessions.markDirty(session)
@@ -194,7 +220,7 @@ function DevCommands.start()
 	if not ok then
 		warn("[DevCommands] TextChatCommand unavailable; using Player.Chatted only")
 	end
-	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|cosmetics|boss|weapons|reset")
+	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|cosmetics|boss|weapons|audio|reset")
 end
 
 return DevCommands

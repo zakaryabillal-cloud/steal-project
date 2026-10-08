@@ -26,6 +26,15 @@
 --   tempo    recommended tempo
 --   length   recommended duration / loop length
 --   context  when the game plays it
+--   title    name of the chosen track (shown on the boss card), if any
+--   source   where the id comes from
+--
+-- Phase 7A: every id is CHECKED by the client at start-up
+-- (Controllers/AudioCheck). A track that fails to load (deleted, private,
+-- not allowed in this experience) is treated as an empty slot (the
+-- existing fallback: the next state's music keeps playing) and the Output
+-- names the failing id. Boss themes are local to each player (2D), keep the
+-- player's Music volume, and are ducked briefly under critical warnings.
 
 export type TrackDef = {
 	id: string,
@@ -35,6 +44,8 @@ export type TrackDef = {
 	tempo: string,
 	length: string,
 	context: string,
+	title: string?,
+	source: string?,
 }
 
 export type StateDef = {
@@ -71,13 +82,15 @@ local ASSET_IDS: { [string]: string } = {
 	["Event.Eclipse"] = "",
 	["Event.CelestialTide"] = "",
 	["Event.Starfall"] = "",
-	-- Bosses (phase 6)
+	-- Bosses (phase 6; themes chosen by the creator in phase 7A, checked at
+	-- runtime: see AudioCheck). Phases 2-3 keep the same theme and get a
+	-- brighter mix + transitions instead (never sped up).
 	["Boss.Default.1"] = "",
 	["Boss.Default.2"] = "",
-	["Boss.VoidWarden.1"] = "",
+	["Boss.VoidWarden.1"] = "rbxassetid://1835955926",
 	["Boss.VoidWarden.2"] = "",
 	["Boss.VoidWarden.3"] = "",
-	["Boss.Forgeheart.1"] = "",
+	["Boss.Forgeheart.1"] = "rbxassetid://1838075377",
 	["Boss.Forgeheart.2"] = "",
 	["Boss.TempestSeraph.1"] = "",
 	["Boss.TempestSeraph.2"] = "",
@@ -162,11 +175,11 @@ Music.Tracks = {
 	--------------------------------------------------------------------------
 	["Boss.Default.1"] = loop(0.7, "Generic boss fight: epic, rhythmic, readable (telegraphs must stay audible).", "120-140 BPM", "1.5-3 min loop", "Any boss without its own music."),
 	["Boss.Default.2"] = loop(0.72, "Generic boss, final phase: more intense layer of Boss.Default.1.", "same as phase 1", "1.5-3 min loop", "Any boss in its last phase."),
-	["Boss.VoidWarden.1"] = loop(0.7, "VOID WARDEN (Cartoon & Goofy): bouncy grumpy-janitor march, tuba + pizzicato + bubbly synths, never scary.", "110-125 BPM", "2-3 min loop", "Void Warden, phase 1 'grumpy' (100-60 % HP)."),
+	["Boss.VoidWarden.1"] = loop(0.62, "VOID WARDEN: cartoon electro-swing, dynamic, funny and chaotic (creator's pick: 'Dynamic Swing').", "~120-130 BPM", "full track, looped", "Void Warden fight, every phase (phases 2-3: brighter mix)."),
 	["Boss.VoidWarden.2"] = loop(0.72, "VOID WARDEN angry: same theme faster, comic brass stabs, slide whistles.", "125-140 BPM", "1.5-2 min loop", "Void Warden, phase 2 'angry' (60-25 % HP, Big Cleanup special)."),
 	["Boss.VoidWarden.3"] = loop(0.75, "VOID WARDEN red as a tomato: frantic cartoon chase version, still playful.", "140+ BPM", "1-2 min loop", "Void Warden, phase 3 'furious' (< 25 % HP)."),
-	["Boss.Forgeheart.1"] = loop(0.7, "FORGEHEART: industrial, anvils, slow heavy groove, brass.", "90-105 BPM", "2-3 min loop", "Forgeheart, phase 1."),
-	["Boss.Forgeheart.2"] = loop(0.72, "FORGEHEART with rising lava: urgent percussion, choir.", "110-125 BPM", "1.5-2 min loop", "Forgeheart, phase 2 (lava rises)."),
+	["Boss.Forgeheart.1"] = loop(0.62, "FORGEHEART: energetic electronic rock, intense and explosive (creator's pick: 'Mindwinder (a)').", "fast", "full track, looped", "Forgeheart fight only, every phase (phases 2-3: brighter mix)."),
+	["Boss.Forgeheart.2"] = loop(0.64, "FORGEHEART optional second layer (unused while empty: phase 1 theme continues).", "same", "full track", "Forgeheart, phases 2-3 (optional)."),
 	["Boss.TempestSeraph.1"] = loop(0.7, "TEMPEST SERAPH: airy, fast strings, wind, soaring melody.", "140-160 BPM", "2-3 min loop", "Tempest Seraph, phase 1."),
 	["Boss.TempestSeraph.2"] = loop(0.72, "TEMPEST SERAPH grounded fight: thunderous drums, triumphant.", "150-170 BPM", "1.5-2 min loop", "Tempest Seraph, phase 2."),
 	["Boss.EclipseOracle.1"] = loop(0.7, "ECLIPSE ORACLE (secret): mystical, ritual chants, odd meter.", "90-120 BPM", "2-3 min loop", "Secret Eclipse boss, phase 1."),
@@ -181,6 +194,12 @@ Music.Tracks = {
 	["Stinger.BossDefeat"] = oneShot(0.6, "Defeat sting, soft and not punishing.", "2-4 s", "Party wiped / time out (phase 6)."),
 } :: { [string]: TrackDef }
 
+-- Names of the chosen tracks (boss card "Theme: ...") and their origin.
+local TITLES: { [string]: string } = {
+	["Boss.VoidWarden.1"] = "Dynamic Swing",
+	["Boss.Forgeheart.1"] = "Mindwinder (a)",
+}
+
 -- Apply ASSET_IDS (every slot must appear in both tables).
 for key, id in ASSET_IDS do
 	local track = Music.Tracks[key]
@@ -190,6 +209,22 @@ end
 for key in Music.Tracks do
 	assert(ASSET_IDS[key] ~= nil, "music slot missing from ASSET_IDS: " .. key)
 end
+for key, title in TITLES do
+	local track = Music.Tracks[key]
+	assert(track and track.id ~= "", "titled music slot without an id: " .. key)
+	track.title = title
+	track.source = "Roblox audio library id chosen by the creator (phase 7A), verified at runtime"
+end
+
+-- Phase 7A mixing: music level multiplier per boss phase (brighter, a bit
+-- louder; never faster) and the EqualizerSoundEffect (dB) applied to the theme.
+Music.BossIntensity = table.freeze({
+	{ volume = 1, low = 0, mid = 0, high = -3 },
+	{ volume = 1.06, low = 1, mid = 0, high = -1.5 },
+	{ volume = 1.12, low = 2.5, mid = 0.5, high = 0 },
+})
+-- Music level while a critical warning plays (priority 1-2 sounds).
+Music.DuckLevel = 0.45
 
 -- Music states in priority order (highest first).
 Music.States = {
@@ -227,8 +262,13 @@ Music.Settings = {
 	IntenseRarity = "Legendary",
 }
 
--- Known boss ids (phase 6 will add their gameplay). Used to document slots.
+-- Known boss ids (Void Warden and Forgeheart are playable). Used to document slots.
 Music.Bosses = { "VoidWarden", "Forgeheart", "TempestSeraph", "EclipseOracle" }
+
+-- The theme of a boss (slot of phase 1), or nil.
+function Music.bossTheme(bossId: string): TrackDef?
+	return Music.Tracks["Boss." .. bossId .. ".1"]
+end
 
 function Music.track(key: string): TrackDef?
 	return Music.Tracks[key]

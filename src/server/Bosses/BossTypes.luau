@@ -16,7 +16,12 @@ local Bosses = require(ReplicatedStorage.Shared.Config.Bosses)
 --   circle  disc of `radius` hitting at `at` (step out of it);
 --   sector  everyone OUTSIDE the safe sector (`safeAngle` +- safeWidth/2,
 --           radians, atan2(z, x) around `center`) is hit at `at`;
---   zone    lingering disc slowing grounded fighters from `at` to `untilTime`.
+--   zone    lingering disc slowing grounded fighters from `at` to `untilTime`;
+--   burn    lingering disc HURTING grounded fighters from `at` to
+--           `untilTime` (phase 7A: lava; drawn red the whole time, the hit
+--           invulnerability limits it to one heart per HitInvulnerability);
+--   outside everyone NOT standing on one of the `safeSpots` discs
+--           (`safeRadius`) is hit at `at` (phase 7A: Final Eruption).
 export type Shape = {
 	kind: string,
 	at: number,
@@ -28,6 +33,8 @@ export type Shape = {
 	safeAngle: number?,
 	safeWidth: number?,
 	slow: number?,
+	safeSpots: { Vector3 }?,
+	safeRadius: number?,
 	-- Runtime (BossService): resolved fighters / finished flag.
 	resolved: { [any]: boolean }?,
 	done: boolean?,
@@ -44,7 +51,8 @@ export type Motion = {
 
 export type Plan = {
 	id: string,
-	-- Boss animation for clients ("Sweep", "Splat", "Throw", "Hop", "Spin").
+	-- Boss animation for clients ("Sweep", "Splat", "Throw", "Hop", "Spin";
+	-- Forgeheart: "Slam", "Lob", "Stomp", "Roar", "Erupt").
 	action: string,
 	telegraphAt: number,
 	-- First moment any shape can hurt (>= telegraphAt + attack telegraph).

@@ -67,6 +67,10 @@ Emoji.Glyphs = table.freeze({
 	droplet = "💧",
 	bunny = "🐰",
 	water = "🌊",
+	-- Phase 7A: Forgeheart (attack bubbles, materials)
+	volcano = "🌋",
+	comet = "🌠",
+	lava = "🔴",
 })
 
 -- Every allowed code point (built from Glyphs, plus a few spare ones).

@@ -10,6 +10,11 @@
 --   * the results card (victory / oops, time, our hits, rewards) shown even
 --     to players already sent back after a KO.
 -- Display only: every number comes from replicated attributes / server FX.
+--
+-- Phase 7A: everything follows the boss of the arena (bar colours, head,
+-- phase notches, "2/3" phase indicator, per-boss texts), big specials get a
+-- "SPECIAL ATTACK!" banner + a pulsing red screen edge until they hit, and
+-- the safe arrow also points to Forgeheart's green rocks.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -40,6 +45,11 @@ local BossFX = require(Controllers.BossFX)
 local BossHud = {}
 
 local JELLY = Color3.fromRGB(176, 110, 255)
+-- Bar colours per boss (panel, fill from, fill to).
+local BAR_COLORS: { [string]: { Color3 } } = {
+	VoidWarden = { Color3.fromRGB(110, 70, 210), Color3.fromRGB(255, 120, 220), JELLY },
+	Forgeheart = { Color3.fromRGB(196, 84, 44), Color3.fromRGB(255, 220, 90), Color3.fromRGB(255, 110, 40) },
+}
 local HEART = Color3.fromRGB(255, 96, 140)
 local HEART_LOST = Color3.fromRGB(150, 156, 186)
 
@@ -47,6 +57,13 @@ local localPlayer = Players.LocalPlayer
 local root: Frame
 local resultsLayer: Instance
 local hpFill: Frame
+local barPanel: Frame
+local barHead: Frame? = nil
+local hpTrack: Frame
+local notches: { Frame } = {}
+local shownBoss = ""
+local specialEdge: Frame
+local specialUntil = 0
 local hpLabel: TextLabel
 local nameLabel: TextLabel
 local moodLabel: TextLabel
@@ -128,8 +145,36 @@ local function paintHeart(frame: Frame, full: boolean)
 	end
 end
 
+-- Forgeheart's little head: a round boulder, rocky brows, glowing mouth.
+local function forgeheartHead(parent: Instance, size: number): Frame
+	local head: Frame = Create("Frame", { Name = "BossHead", Size = UDim2.fromOffset(size, size), BackgroundColor3 = Color3.fromRGB(176, 106, 82), Parent = parent })
+	Style.corner(head, UDim.new(1, 0))
+	Style.stroke(head, Theme.Colors.Ink, 0, 3)
+	Style.shade(head, 0.15)
+	for k, spec in { { 0.3, 0.1, 0.2 }, { 0.55, 0.04, 0.16 }, { 0.74, 0.12, 0.13 } } do
+		local drip: Frame = Create("Frame", { Name = "Lava" .. k, Size = UDim2.fromScale(spec[3], spec[3]), Position = UDim2.fromScale(spec[1], spec[2]), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromRGB(255, 160, 50), Parent = head })
+		Style.corner(drip, UDim.new(1, 0))
+	end
+	for _, side in { -1, 1 } do
+		local eye: Frame = Create("Frame", { Size = UDim2.fromScale(0.28, 0.28), Position = UDim2.fromScale(0.5 + side * 0.17, 0.45), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), Parent = head })
+		Style.corner(eye, UDim.new(1, 0))
+		Style.stroke(eye, Theme.Colors.Ink, 0, 2)
+		local pupil: Frame = Create("Frame", { Size = UDim2.fromScale(0.45, 0.45), Position = UDim2.fromScale(0.5, 0.6), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.Colors.Ink, Parent = eye })
+		Style.corner(pupil, UDim.new(1, 0))
+		local brow: Frame = Create("Frame", { Size = UDim2.fromScale(0.3, 0.09), Position = UDim2.fromScale(0.5 + side * 0.17, 0.27), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = side * 18, BackgroundColor3 = Color3.fromRGB(110, 66, 64), Parent = head })
+		Style.corner(brow, UDim.new(1, 0))
+	end
+	local mouth: Frame = Create("Frame", { Size = UDim2.fromScale(0.46, 0.12), Position = UDim2.fromScale(0.5, 0.76), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromRGB(255, 200, 80), Parent = head })
+	Style.corner(mouth, UDim.new(0, 3))
+	Style.stroke(mouth, Color3.fromRGB(110, 66, 64), 0, 2)
+	return head
+end
+
 -- The boss's little head (for the Health pill and the results card).
-function BossHud.bossHead(parent: Instance, size: number): Frame
+function BossHud.bossHead(parent: Instance, size: number, bossId: string?): Frame
+	if bossId == "Forgeheart" then
+		return forgeheartHead(parent, size)
+	end
 	local head: Frame = Create("Frame", { Name = "BossHead", Size = UDim2.fromOffset(size, size), BackgroundColor3 = JELLY, Parent = parent })
 	Style.corner(head, UDim.new(0, math.floor(size * 0.25)))
 	Style.stroke(head, Theme.Colors.Ink, 0, 3)
@@ -161,24 +206,20 @@ local function buildTop()
 		BackgroundColor3 = Color3.fromRGB(110, 70, 210),
 		Parent = root,
 	})
-	local head = BossHud.bossHead(panel, 62)
-	head.Position = UDim2.fromOffset(10, 11)
-	nameLabel = Style.display({ Name = "BossName", Size = UDim2.new(1, -190, 0, 26), Position = UDim2.fromOffset(82, 6), TextSize = 22, Parent = panel })
-	moodLabel = Style.text({ Name = "Mood", Size = UDim2.new(0, 170, 0, 26), Position = UDim2.new(1, -96, 0, 6), AnchorPoint = Vector2.new(1, 0), TextXAlignment = Enum.TextXAlignment.Right, TextSize = 17, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, Parent = panel })
+	barPanel = panel
+	nameLabel = Style.display({ Name = "BossName", Size = UDim2.new(0, 170, 0, 26), Position = UDim2.fromOffset(82, 6), TextSize = 22, Parent = panel })
+	-- Mood with the phase indicator ("2/3 ANGRY!").
+	moodLabel = Style.text({ Name = "Mood", Size = UDim2.new(0, 230, 0, 26), Position = UDim2.new(1, -96, 0, 6), AnchorPoint = Vector2.new(1, 0), TextXAlignment = Enum.TextXAlignment.Right, TextSize = 17, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, Parent = panel })
 	Style.ink(moodLabel, 2)
 	-- Health track with the phase notches.
 	local track: Frame = Create("Frame", { Name = "Track", Size = UDim2.new(1, -176, 0, 30), Position = UDim2.fromOffset(82, 40), BackgroundColor3 = Theme.Colors.Ink, Parent = panel })
+	hpTrack = track
 	Style.corner(track, UDim.new(1, 0))
 	Style.stroke(track, Theme.Colors.Ink, 0, 3)
 	hpFill = Create("Frame", { Name = "Fill", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track })
 	Style.corner(hpFill, UDim.new(1, 0))
 	Style.gradient(hpFill, Color3.fromRGB(255, 120, 220), JELLY, 0)
 	Style.gloss(hpFill, 2)
-	local def = Bosses.list[1]
-	for index = 2, #def.phases do
-		local notch: Frame = Create("Frame", { Name = "Notch", Size = UDim2.new(0, 4, 1, 6), Position = UDim2.new(def.phases[index].from, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.Colors.Cream, ZIndex = 4, Parent = track })
-		Style.stroke(notch, Theme.Colors.Ink, 0, 1.5)
-	end
 	hpLabel = Style.text({ Name = "Percent", Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 18, FontFace = Theme.Fonts.Display, ZIndex = 5, Parent = track })
 	Style.ink(hpLabel, 2)
 	local timerPill, label = Style.pill({ name = "Timer", text = "3:30", color = Theme.Colors.Warning, size = UDim2.fromOffset(78, 34), position = UDim2.new(1, -10, 0, 38), anchor = Vector2.new(1, 0), textSize = 20, parent = panel })
@@ -197,6 +238,10 @@ local function buildTop()
 		Parent = root,
 	})
 	Create("UIScale", { Parent = banner })
+
+	-- Special attacks: a pulsing red screen edge until the hit.
+	specialEdge = Create("Frame", { Name = "SpecialEdge", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, Parent = root })
+	Style.stroke(specialEdge, Color3.fromRGB(255, 70, 90), 0, 14)
 
 	-- "JUMP!" when a broom wave is about to reach you.
 	jumpHint = Style.text({
@@ -308,8 +353,30 @@ end
 -- Refresh
 ----------------------------------------------------------------------------
 
-local function moodKey(phase: number): string
-	return "boss.phase." .. math.clamp(phase, 1, 3)
+-- Re-skins the top bar for the boss of the arena (colours, head, notches).
+local function applyBoss(def: Bosses.BossDef)
+	shownBoss = def.id
+	local colors = BAR_COLORS[def.id] or BAR_COLORS.VoidWarden
+	barPanel.BackgroundColor3 = colors[1]
+	local gradient = hpFill:FindFirstChildOfClass("UIGradient")
+	if gradient then
+		gradient.Color = ColorSequence.new(colors[2], colors[3])
+	end
+	if barHead then
+		barHead:Destroy()
+	end
+	local head = BossHud.bossHead(barPanel, 62, def.id)
+	head.Position = UDim2.fromOffset(10, 11)
+	barHead = head
+	for _, notch in notches do
+		notch:Destroy()
+	end
+	table.clear(notches)
+	for index = 2, #def.phases do
+		local notch: Frame = Create("Frame", { Name = "Notch", Size = UDim2.new(0, 4, 1, 6), Position = UDim2.new(def.phases[index].from, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.Colors.Cream, ZIndex = 4, Parent = hpTrack })
+		Style.stroke(notch, Theme.Colors.Ink, 0, 1.5)
+		table.insert(notches, notch)
+	end
 end
 
 local function refresh()
@@ -324,7 +391,10 @@ local function refresh()
 	end
 	local t = Boss.now()
 	local state = Boss.fightState()
-	local def = Bosses.get(Boss.attrString(arena, "BossId")) or Bosses.list[1]
+	local def = Boss.arenaBoss() or Bosses.list[1]
+	if def.id ~= shownBoss then
+		applyBoss(def)
+	end
 	nameLabel.Text = Locale.t("boss." .. def.id .. ".name")
 	local maxHp = math.max(1, Boss.attrNumber(arena, "MaxHP"))
 	local hp = Boss.attrNumber(arena, "HP")
@@ -333,7 +403,14 @@ local function refresh()
 	hpFill.Visible = fraction > 0
 	hpLabel.Text = string.format("%d%%", math.ceil(fraction * 100))
 	local phase = math.max(1, Boss.attrNumber(arena, "Phase"))
-	moodLabel.Text = if state == "Open" then Locale.t("boss.portal.dormant") else Locale.t(moodKey(phase))
+	moodLabel.Text = if state == "Open" then Locale.t("boss.portal.dormant") else string.format("%d/%d  %s", math.min(phase, #def.phases), #def.phases, Boss.text(def.id, "phase." .. math.clamp(phase, 1, #def.phases)))
+	specialEdge.Visible = t < specialUntil
+	if specialEdge.Visible then
+		local stroke = specialEdge:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Transparency = 0.25 + math.sin(t * 14) * 0.25
+		end
+	end
 	local endsAt = Boss.attrNumber(arena, "EndsAt")
 	local left = if state == "Open" then Bosses.Combat.Duration elseif endsAt > 0 then math.max(0, endsAt - t) else 0
 	timerLabel.Text = Format.clock(left)
@@ -377,21 +454,36 @@ local function refresh()
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	local camera = workspace.CurrentCamera
 	if zone and t < zone.untilTime and hrp and hrp:IsA("BasePart") and camera then
-		local offset = Vector3.new(hrp.Position.X - zone.center.X, 0, hrp.Position.Z - zone.center.Z)
-		local angle = math.atan2(offset.Z, offset.X)
-		local diff = math.abs(((angle - zone.safeAngle + math.pi) % (math.pi * 2)) - math.pi)
-		local safe = diff <= math.pi / 4 - 0.05
+		local safe = false
+		local goal = zone.position
+		local spots = zone.spots
+		if spots and #spots > 0 then
+			-- Forgeheart: the nearest green rock.
+			local best = math.huge
+			for _, spot in spots do
+				local d = Vector3.new(hrp.Position.X - spot.X, 0, hrp.Position.Z - spot.Z).Magnitude
+				if d < best then
+					best, goal = d, spot
+				end
+			end
+			safe = best <= zone.radius - 0.5
+		elseif zone.safeAngle then
+			local offset = Vector3.new(hrp.Position.X - zone.center.X, 0, hrp.Position.Z - zone.center.Z)
+			local angle = math.atan2(offset.Z, offset.X)
+			local diff = math.abs(((angle - zone.safeAngle + math.pi) % (math.pi * 2)) - math.pi)
+			safe = diff <= math.pi / 4 - 0.05
+		end
 		safeArrow.Visible = true
 		if safe then
 			safeArrowGlyph.Text = Emoji.get("equipped")
 			safeArrowGlyph.Rotation = 0
-			safeArrowText.Text = Locale.t("boss.safeHere")
+			safeArrowText.Text = Boss.text(def.id, "safeHere")
 		else
-			local toward = camera.CFrame:VectorToObjectSpace(zone.position - hrp.Position)
+			local toward = camera.CFrame:VectorToObjectSpace(goal - hrp.Position)
 			safeArrowGlyph.Text = "➜"
 			-- 0 deg = right on screen; screen up = camera forward (-Z).
 			safeArrowGlyph.Rotation = math.deg(math.atan2(toward.Z, toward.X))
-			safeArrowText.Text = Locale.t("boss.safeGo")
+			safeArrowText.Text = Boss.text(def.id, "safeGo")
 		end
 	else
 		safeArrow.Visible = false
@@ -406,7 +498,7 @@ local function refresh()
 
 	local anchor = Boss.anchor()
 	if anchor and anchor:GetAttribute("Action") == "Dizzy" and t >= bannerUntil then
-		banner.Text = Emoji.get("dizzy") .. " " .. Locale.t("boss.dizzy")
+		banner.Text = Emoji.get("dizzy") .. " " .. Boss.text(def.id, "dizzy")
 		banner.TextColor3 = Color3.fromRGB(255, 160, 230)
 		banner.Visible = true
 	elseif t >= bannerUntil then
@@ -419,10 +511,18 @@ function BossHud.attack(payload: { [string]: any }, color: Color3?)
 	if type(payload.attack) ~= "string" then
 		return
 	end
-	banner.Text = Locale.t("boss.attack." .. payload.attack)
+	local def = Boss.arenaBoss()
+	local attack = if def then def.attacks[payload.attack] else nil
+	local special = attack ~= nil and attack.big == true
+	local hint = Locale.t("boss.attack." .. payload.attack)
+	banner.Text = if special then string.format("%s %s %s\n%s", Emoji.get("alarm"), Locale.t("boss.special"), Emoji.get("alarm"), hint) else hint
+	banner.Size = if special then UDim2.fromOffset(700, 96) else UDim2.fromOffset(640, 54)
 	banner.TextColor3 = color or Color3.fromRGB(255, 226, 90)
 	banner.Visible = true
 	bannerUntil = (tonumber(payload.hitAt) or Boss.now()) + 0.4
+	if special then
+		specialUntil = tonumber(payload.hitAt) or Boss.now()
+	end
 	local scale = banner:FindFirstChildOfClass("UIScale")
 	if scale then
 		scale.Scale = 0.6
@@ -471,7 +571,7 @@ function BossHud.results(payload: { [string]: any })
 		Size = UDim2.fromOffset(500, 470),
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = if victory then Color3.fromRGB(110, 70, 210) else Theme.Colors.Panel,
+		BackgroundColor3 = if victory then (BAR_COLORS[tostring(payload.boss)] or BAR_COLORS.VoidWarden)[1] else Theme.Colors.Panel,
 		Outline = Theme.Outline.Thick,
 		ZIndex = 20,
 		Parent = resultsLayer,
@@ -481,14 +581,15 @@ function BossHud.results(payload: { [string]: any })
 		local rays = Juice.rays(card, Theme.Colors.Gold, 12, 19)
 		rays.Size = UDim2.fromOffset(700, 700)
 	end
-	local head = BossHud.bossHead(card, 70)
+	local bossId = if type(payload.boss) == "string" then payload.boss else nil
+	local head = BossHud.bossHead(card, 70, bossId)
 	head.Position = UDim2.new(0.5, 0, 0, -30)
 	head.AnchorPoint = Vector2.new(0.5, 0)
 	head.ZIndex = 22
 	local titleText = if victory then Locale.t("boss.victory") else Locale.t("boss.defeat")
 	local title = Style.text({ Name = "Title", Size = UDim2.new(1, -24, 0, 56), Position = UDim2.fromOffset(12, 44), Text = titleText, TextSize = 46, FontFace = Style.burstFont(titleText), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = if victory then Theme.Colors.Gold else Color3.fromRGB(255, 170, 200), ZIndex = 22, Parent = card })
 	Style.ink(title, 3.5)
-	local sub = if victory then Locale.t("boss.victorySub") else Locale.t("boss.reason." .. tostring(payload.reason))
+	local sub = if victory then Boss.text(bossId, "victorySub") else Boss.text(bossId, "reason." .. tostring(payload.reason))
 	local subLabel = Style.text({ Name = "Sub", Size = UDim2.new(1, -24, 0, 24), Position = UDim2.fromOffset(12, 100), Text = sub, TextSize = 18, FontFace = Theme.Fonts.Heavy, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 22, Parent = card })
 	Style.ink(subLabel, 1.5)
 	local stats = string.format("%s %s     %s", Emoji.get("time"), Locale.t("boss.results.time", { time = Format.clock(tonumber(payload.time) or 0) }), Locale.t("boss.results.damage", { hits = tonumber(payload.hits) or 0, damage = tonumber(payload.damage) or 0 }))

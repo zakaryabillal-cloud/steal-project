@@ -171,7 +171,7 @@ return function(ctx)
 				end
 			end
 		end
-		-- Phase 6 added exactly one cosmetic: the Void Warden drop (source "boss",
+		-- Phase 6 added one cosmetic: the Void Warden drop (source "boss",
 		-- granted only by BossService). Everything else stays automatic.
 		local bossDrops = {}
 		for _, def in Cosmetics.list do
@@ -179,8 +179,9 @@ return function(ctx)
 				table.insert(bossDrops, def.id)
 			end
 		end
-		check(#Cosmetics.list == 27, "26 phase 5 cosmetics + 1 boss drop (" .. #Cosmetics.list .. ")")
-		check(starters == 6 and auto == #Cosmetics.list - #bossDrops and #bossDrops == 1 and bossDrops[1] == "trail_bubbles", "6 starters; every other cosmetic obtainable now; only real boss content (no fake event/daily/premium)")
+		-- Phase 7A adds Forgeheart's exclusive drop (trail_magma), same rules.
+		check(#Cosmetics.list == 28, "26 phase 5 cosmetics + 2 boss drops (" .. #Cosmetics.list .. ")")
+		check(starters == 6 and auto == #Cosmetics.list - #bossDrops and #bossDrops == 2 and bossDrops[1] == "trail_bubbles" and bossDrops[2] == "trail_magma", "6 starters; every other cosmetic obtainable now; only real boss content (no fake event/daily/premium)")
 		local rarities = {}
 		for _, def in Cosmetics.list do
 			rarities[def.rarity] = true

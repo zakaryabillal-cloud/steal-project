@@ -191,7 +191,7 @@ Les étoiles de rareté utilisent le caractère texte `★` (pas un emoji) : 1 �
 - Couleurs des effets : saturées, lisibles de jour ; jamais d'effet sombre « gothique ».
 - Titres : police Fredoka, couleur du titre, contour encre.
 
-## 11. Boss (Phases 6-7) — Void Warden livré (Phase 6), les autres en Phase 7
+## 11. Boss (Phases 6-7) — Void Warden (Phase 6) et Forgeheart (Phase 7A) livrés, les autres en Phase 7B
 
 **Créatures géantes, rondes, expressives, un peu ridicules. Jamais de gore, de sang, de cadavre ni
 d'horreur.** La défaite d'un boss : étoiles qui tournent autour de la tête, « pouf » de confettis, il
@@ -200,7 +200,7 @@ s'enfuit en boudant.
 | Boss (ids prévus) | Concept | Attaques lisibles (exemples) |
 |---|---|---|
 | Void Warden | gros cube-gelée violet, concierge grognon de la Faille, balai géant | coup de balai circulaire (zone qui se remplit), flaques collantes, « ménage » qui repousse |
-| Forgeheart | escargot-forgeron de lave, joues rondes, rote des boulets | boulets en cloche (cercle au sol 1 s avant), coup de marteau-onde, rot de flammes en cône |
+| Forgeheart | **(livré, 7A — le concept a évolué à la demande du créateur)** énorme golem de lave cartoon, rochers ronds, cœur incandescent, grosse bouche rigolote | marteau volcanique, boulettes de lave, sol brûlant, pluie de météores, éruption finale |
 | Tempest Seraph | oiseau-nuage diva qui chante l'opéra | notes aiguës = éclairs (colonnes marquées), tourbillon qui aspire, plumes rebondissantes |
 | Eclipse Oracle | hibou-lune somnolent en pyjama de sorcier | bâillements = bulles de gravité, oreiller qui tombe (ombre au sol), « dodo » qui ralentit |
 
@@ -254,6 +254,31 @@ chiffres de dégâts rouges sanglants (étoiles et « POW! » à la place).
   rapport à l'arme équipée, ACHETER vert, ÉQUIPER bleu, prix colorés (vert si on a assez, rose sinon).
 - **Disposition** : FRAPPE (orange, rond, 💥 → emoji de l'arme) à gauche des capacités, jamais dessus ; cœurs
   sous la barre de vie ; Quitter à côté de la barre ; colonne de droite au-dessus du bouton de saut tactile.
+
+### Forgeheart tel qu'il est construit (Phase 7A)
+
+- **Couleurs** : roche chaude cartoon `176,106,82` / `214,148,112` (jamais noire), lave `255,120,40` →
+  `255,220,90` (Neon), rochers sûrs gris-bleu `150,160,196`, vert sûr `110,255,170`. Barre de vie et carte de
+  résultats `196,84,44`, dégradé jaune → orange.
+- **Corps** (`Client/Boss/ForgeheartModel`, ~40 pièces natives) : gros rocher-corps avec bosses claires et
+  fissures de lave, **cœur incandescent** qui pulse (plus vite quand il est furieux, très fort pendant l'éruption),
+  tête-rocher, **yeux globuleux** qui suivent le joueur et clignent, sourcils de pierre (humeurs), **bouche de lave**
+  qui s'ouvre avec deux dents carrées, « cheveux » de lave qui bouillonnent, épaules, **bras massifs et poings-rochers**
+  (lever / écraser), pieds trapus. Furieux : le corps rougit.
+- **Poses** : marteau (poings au-dessus de la tête, penché en arrière, puis écrasés devant), lancer, piétinement
+  rageur, rugissement vers le ciel (météores), éruption (chauffe, tremble, bras levés), essoufflé (yeux en spirale,
+  étoiles), narquois s'il gagne ; **défaite** : pression, explosion cartoon, puis il se **dégonfle comme un ballon
+  triste** et disparaît.
+- **Attaques** (forme / couleur) : cercle orange du marteau (+ anneau rouge à crête blanche en phase 3), boules
+  de lave Neon en cloche puis flaque rouge-orange qui bouillonne et refroidit en gris, fissures jaunes puis sol
+  rouge, météores (rocher + noyau de lave) qui tombent en diagonale, éruption : tout le sol jaune → rouge sauf
+  3 rochers verts avec faisceaux et « ✨ SAFE ✨ ». La lave qui blesse est **dessinée tant qu'elle blesse**.
+- **Bulle « ! »** : 🔨 marteau, 🔴 boulettes, 🔥 sol brûlant, 🌠 météores, 🌋 éruption.
+- **Arène** : roche chaude, fissures de lave, 6 rochers refroidis, anneau de 22 gros rochers, mer de lave en
+  contrebas, îlots, flèches rocheuses, volcan à cratère Neon et coulées, arche à rideau de lave, braises qui montent.
+- **Sons** : lourds et explosifs mais drôles (WHOOM, BONK grave, FWIP, POP, crépitements, sifflements, KABOOM,
+  roche qui craque + ressort), musique electro-rock « Mindwinder (a) » ; le Void Warden reste rebondissant
+  (BOING, SPLAT, POUF, PAF, trombone) avec « Dynamic Swing ».
 
 ## 12. Interfaces des Phases 6 à 11
 

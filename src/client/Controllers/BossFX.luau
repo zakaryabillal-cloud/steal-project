@@ -1,9 +1,12 @@
 --!strict
 -- Boss visuals (V2 phase 6), client only, Cartoon & Goofy
 -- (docs/ART_DIRECTION.md):
---   * the Void Warden's body (Client/Boss/VoidWardenModel) follows the
---     server anchor with squash & stretch, a face per mood and one readable
---     pose per action (anticipation before every attack);
+--   * the boss's body (Client/Boss/BossModels: Void Warden, Forgeheart)
+--     follows the server anchor with squash & stretch, a face per mood and
+--     one readable pose per action (anticipation before every attack);
+--   * phase 7A: per-boss attack drawings (the Void Warden's here,
+--     Forgeheart's in Client/Boss/ForgeheartFX through the drawing kit),
+--     per-boss warning / action sounds and arena ambience;
 --   * telegraphs: every attack draws its shape on the floor BEFORE it can
 --     hurt, filling yellow -> red with an ink outline (rings, discs,
 --     quarters), then a short impact effect in the attack's own colour;
@@ -35,7 +38,10 @@ local Audio = require(script.Parent.Audio)
 local CameraFX = require(script.Parent.CameraFX)
 local CharacterFX = require(script.Parent.CharacterFX)
 local RelicRenderer = require(script.Parent.RelicRenderer)
-local VoidWardenModel = require(script.Parent.Parent.Boss.VoidWardenModel)
+local BossFolder = script.Parent.Parent.Boss
+local BossRig = require(BossFolder.BossRig)
+local BossModels = require(BossFolder.BossModels)
+local ForgeheartFX = require(BossFolder.ForgeheartFX)
 
 local BossFX = {}
 
@@ -50,13 +56,20 @@ local ATTACK_COLORS: { [string]: Color3 } = {
 	belly_flop = Color3.fromRGB(176, 110, 255),
 	big_cleanup = Color3.fromRGB(90, 190, 255),
 }
+for attackId, color in ForgeheartFX.Colors do
+	ATTACK_COLORS[attackId] = color
+end
 BossFX.AttackColors = ATTACK_COLORS
 local SAFE = Color3.fromRGB(110, 255, 170)
 local POWS = { "POW!", "BAM!", "BONK!", "WHAM!", "BOP!" }
 
 local localPlayer = Players.LocalPlayer
 local folder: Folder
-local rig: VoidWardenModel.Rig? = nil
+local rig: BossRig.Rig? = nil
+local rigModel: BossRig.ModelModule? = nil
+local rigBoss = ""
+local lastAction: string? = nil
+local ambience: { Sound } = {}
 local rigAnchor: BasePart? = nil
 local rigPosition: Vector3? = nil
 local zzz: BillboardGui? = nil
@@ -96,8 +109,9 @@ function BossFX.waveEta(position: Vector3): number?
 	return best
 end
 
--- Safe quarter of the current Big Cleanup (read by the HUD arrow).
-export type SafeZone = { position: Vector3, radius: number, untilTime: number, safeAngle: number, center: Vector3 }
+-- Safe area of the current special (read by the HUD arrow): the Big
+-- Cleanup's quarter (safeAngle) or Forgeheart's safe rocks (spots).
+export type SafeZone = { position: Vector3, radius: number, untilTime: number, safeAngle: number?, center: Vector3, spots: { Vector3 }? }
 BossFX.safeZone = nil :: SafeZone?
 
 type Visual = {
@@ -394,7 +408,7 @@ local function broomWave(data: { [string]: any }, telegraphAt: number)
 				wave.holder.Parent = folder
 				crest.holder.Parent = folder
 				CameraFX.shake(0.15)
-				Audio.playAt("Pulse", origin, { pitch = 0.7 })
+				Audio.playAt("VWSweep", origin)
 			end
 			local radius = (t - startAt) * speed
 			setRing(wave, math.max(0.1, radius))
@@ -414,7 +428,7 @@ local function gooPuddles(data: { [string]: any }, telegraphAt: number)
 			goo.Material = Enum.Material.SmoothPlastic
 			local shine = disc(spot + Vector3.new(radius * 0.3, 0, -radius * 0.25), radius * 0.25, Color3.new(1, 1, 1), 0.4, floorY() + 0.07)
 			burst(spot + Vector3.new(0, 1, 0), ATTACK_COLORS.goo_puddles, 8)
-			Audio.playAt("Splash", spot, { pitch = 0.8 })
+			Audio.playAt("VWGooSplat", spot)
 			addVisual("goo", untilTime, { goo, shine }, function(t: number)
 				local left = untilTime - t
 				if left < 0.6 then
@@ -452,7 +466,7 @@ local function dustBunnies(data: { [string]: any }, telegraphAt: number)
 		local landAt = lands[i] or launchAt + 1
 		discTelegraph(spot, radius, telegraphAt, landAt, function()
 			burst(spot + Vector3.new(0, 1, 0), ATTACK_COLORS.dust_bunnies, 7)
-			Audio.playAt("Hit", spot, { pitch = 1.4, volume = 0.6 })
+			Audio.playAt("VWDustPouf", spot)
 		end)
 		local parts = bunny(from)
 		local target = Vector3.new(spot.X, floorY() + 1.3, spot.Z)
@@ -485,7 +499,7 @@ local function bellyFlop(data: { [string]: any }, telegraphAt: number)
 		hopLand = os.clock()
 		burst(spot + Vector3.new(0, 1, 0), ATTACK_COLORS.belly_flop, 16)
 		CameraFX.shakeAt(spot, 0.45, 70)
-		Audio.playAt("Eruption", spot, { pitch = 1.3, volume = 0.7 })
+		Audio.playAt("VWImpact", spot)
 	end)
 end
 
@@ -567,7 +581,7 @@ local function bigCleanup(data: { [string]: any }, telegraphAt: number)
 					BossFX.safeZone = nil
 				end
 				CameraFX.shake(0.35)
-				Audio.playAt("Splash", center, { pitch = 0.6 })
+				Audio.playAt("VWCleanupSweep", center)
 				for _, fan in fans do
 					burst(center + Vector3.new(math.cos((fan.a + fan.b) / 2), 0.1, math.sin((fan.a + fan.b) / 2)) * radius * 0.6, ATTACK_COLORS.big_cleanup, 10)
 				end
@@ -593,6 +607,9 @@ local WARN_SOUNDS: { [string]: string } = {
 	belly_flop = "BossWarnFlop",
 	big_cleanup = "BossWarnCleanup",
 }
+for attackId, key in ForgeheartFX.WarnSounds do
+	WARN_SOUNDS[attackId] = key
+end
 BossFX.WarnSounds = WARN_SOUNDS
 local ATTACK_ICONS: { [string]: string } = {
 	broom_wave = "swirl",
@@ -601,6 +618,77 @@ local ATTACK_ICONS: { [string]: string } = {
 	belly_flop = "boom",
 	big_cleanup = "water",
 }
+for attackId, icon in ForgeheartFX.Icons do
+	ATTACK_ICONS[attackId] = icon
+end
+BossFX.AttackIcons = ATTACK_ICONS
+
+-- Sounds played when the boss changes action (server attribute "Action").
+local ACTION_SOUNDS: { [string]: { [string]: string } } = {
+	VoidWarden = { Intro = "VWAppear", Hop = "VWHop", Dizzy = "VWBounce", Defeated = "VWDefeat", PhaseChange = "BossPhaseUp" },
+	Forgeheart = ForgeheartFX.ActionSounds :: any,
+}
+BossFX.ActionSounds = ACTION_SOUNDS
+
+-- Drawing kit handed to the per-boss FX modules (same rules for everyone).
+local function setSafeZone(zone: { [string]: any })
+	BossFX.safeZone = zone :: any
+end
+local function clearSafeZone(untilTime: number)
+	if BossFX.safeZone and BossFX.safeZone.untilTime == untilTime then
+		BossFX.safeZone = nil
+	end
+end
+local function safeLabel(adornee: BasePart, text: string, color: Color3): Instance
+	local label: BillboardGui = Create("BillboardGui", {
+		Name = "Safe",
+		Size = UDim2.fromOffset(200, 60),
+		StudsOffsetWorldSpace = Vector3.new(0, 24, 0),
+		AlwaysOnTop = true,
+		LightInfluence = 0,
+		Adornee = adornee,
+		Parent = folder,
+	})
+	local textLabel = Style.text({ Text = Emoji.get("ready") .. " " .. text .. " " .. Emoji.get("ready"), TextSize = 28, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = color, Parent = label })
+	Style.ink(textLabel, 3)
+	return label
+end
+local kit: ForgeheartFX.Kit = {
+	now = now,
+	floorY = floorY,
+	newPart = newPart,
+	disc = disc,
+	setDisc = setDisc,
+	ring = ring :: any,
+	setRing = setRing :: any,
+	discTelegraph = discTelegraph,
+	zoneColor = zoneColor,
+	dangerTick = dangerTick,
+	burst = burst,
+	addVisual = addVisual,
+	addWave = function(origin: Vector3, startAt: number, speed: number, maxRadius: number)
+		table.insert(waves, { origin = origin, startAt = startAt, speed = speed, maxRadius = maxRadius })
+	end,
+	setSafeZone = setSafeZone,
+	clearSafeZone = clearSafeZone,
+	safeLabel = safeLabel,
+	playAt = function(key: string, position: Vector3, options: { [string]: any }?)
+		Audio.playAt(key, position, options :: any)
+	end,
+	play = function(key: string)
+		Audio.play(key)
+	end,
+	shake = function(amount: number)
+		CameraFX.shake(amount)
+	end,
+	shakeAt = function(position: Vector3, amount: number, range: number)
+		CameraFX.shakeAt(position, amount, range)
+	end,
+	colors = { Warn = WARN, Danger = DANGER, Safe = SAFE, Ink = INK },
+}
+for attackId, draw in ForgeheartFX.drawers(kit) do
+	PLAYERS[attackId] = draw
+end
 
 -- Draws an attack announced by the server ("BossAttack" FX).
 function BossFX.attack(payload: { [string]: any })
@@ -625,8 +713,71 @@ local function attr(instance: Instance?, name: string): any
 	return if instance then instance:GetAttribute(name) else nil
 end
 
-local function poseFor(anchor: BasePart, t: number): VoidWardenModel.Pose
-	local pose = VoidWardenModel.defaultPose()
+-- Forgeheart's own actions (phase 7A): arms = pose.broom, lava = pose.glow.
+local function forgeheartPose(pose: BossRig.Pose, action: any, t: number, since: number, hitAt: number, attack: { [string]: any }?)
+	if action == "Slam" then
+		if t < hitAt then
+			-- Fists raised high, leaning back: "WHOOM".
+			local k = math.clamp(since / 0.5, 0, 1)
+			pose.broom = k
+			pose.lean = -0.18 * k
+			pose.squash = 1 + 0.12 * k
+			pose.mouth = 0.4
+			pose.glow = 0.6
+		elseif t < hitAt + 0.6 then
+			pose.broom = -1
+			pose.lean = 0.2
+			pose.squash = 0.82
+			pose.mouth = 0.9
+		end
+	elseif action == "Lob" then
+		local launchAt = if attack and attack.data and type(attack.data.launchAt) == "number" then attack.data.launchAt else hitAt
+		if t < launchAt then
+			pose.broom = 0.4
+			pose.lean = -0.25
+			pose.glow = 0.8
+		elseif t < launchAt + 0.5 then
+			pose.broom = 0.9 - (t - launchAt) * 2
+			pose.lean = 0.2
+			pose.mouth = 0.6
+		end
+	elseif action == "Stomp" then
+		if t < hitAt then
+			-- Angry stomping: bounces and fists pumping.
+			pose.squash = 1 + math.abs(math.sin(t * 9)) * 0.14 - 0.06
+			pose.hands = math.sin(t * 9) * 1.2
+			pose.mouth = 0.3
+			pose.glow = 0.5
+		elseif t < hitAt + 0.4 then
+			pose.squash = 0.8
+		end
+	elseif action == "Roar" then
+		if t < hitAt + 0.8 then
+			-- Roaring at the sky, arms wide: meteors come.
+			pose.mouth = 1
+			pose.lean = -0.3
+			pose.broom = 0.7 + math.sin(t * 6) * 0.1
+			pose.squash = 1.08 + math.sin(t * 30) * 0.02
+			pose.glow = 1
+		end
+	elseif action == "Erupt" then
+		if t < hitAt then
+			-- Heats up: glowing heart, shaking, arms up.
+			pose.broom = 1
+			pose.mouth = 0.7 + math.sin(t * 20) * 0.1
+			pose.squash = 1.1 + math.sin(t * 40) * 0.03
+			pose.glow = 1.4
+		elseif t < hitAt + 0.6 then
+			pose.broom = -1
+			pose.squash = 0.75
+			pose.mouth = 1
+		end
+	end
+end
+
+local function poseFor(anchor: BasePart, t: number): BossRig.Pose
+	local pose = if rigModel then rigModel.defaultPose() else BossRig.defaultPose("grumpy")
+	local forge = rigBoss == "Forgeheart"
 	local action = attr(anchor, "Action")
 	local actionAt = attr(anchor, "ActionAt")
 	local mood = attr(anchor, "Mood")
@@ -714,6 +865,22 @@ local function poseFor(anchor: BasePart, t: number): VoidWardenModel.Pose
 			pose.squash = 1 + math.sin(t * 8) * 0.06
 			pose.broom = 0.6
 		end
+	elseif action == "Defeated" and forge then
+		-- Phase 7A: pressure builds, a cartoon explosion, then he deflates
+		-- like a sad balloon and fades away.
+		if since < 1 then
+			pose.mood = "shocked"
+			pose.squash = 1.15 + math.sin(t * 40) * 0.05
+			pose.glow = 1.5
+			pose.mouth = 1
+		else
+			pose.dizzy = true
+			pose.mood = "dizzy"
+			pose.deflate = math.clamp((since - 1) / 2.4, 0, 1)
+			pose.squash = 1 - pose.deflate * 0.3
+			pose.lean = math.sin(t * 7) * 0.1 * (1 - pose.deflate)
+			pose.fade = math.clamp((since - 4.2) / 1.2, 0, 1)
+		end
 	elseif action == "Defeated" then
 		if since < 2.6 then
 			pose.dizzy = true
@@ -731,6 +898,8 @@ local function poseFor(anchor: BasePart, t: number): VoidWardenModel.Pose
 		pose.mouth = 0.6 + math.sin(t * 16) * 0.3
 		pose.squash = 1 + math.abs(math.sin(t * 9)) * 0.12
 		pose.broom = 0.5 + math.sin(t * 6) * 0.4
+	elseif forge then
+		forgeheartPose(pose, action, t, since, hitAt, attack)
 	end
 	if wobble > 0 then
 		pose.squash *= 1 - math.sin(wobble * math.pi) * 0.12
@@ -748,11 +917,22 @@ local function poseFor(anchor: BasePart, t: number): VoidWardenModel.Pose
 	return pose
 end
 
-local function destroyRig()
-	if rig then
-		VoidWardenModel.destroy(rig)
+local function stopAmbience()
+	for _, sound in ambience do
+		sound:Destroy()
 	end
+	table.clear(ambience)
+end
+
+local function destroyRig()
+	if rig and rigModel then
+		rigModel.destroy(rig)
+	end
+	stopAmbience()
 	rig = nil
+	rigModel = nil
+	rigBoss = ""
+	lastAction = nil
 	rigAnchor = nil
 	rigPosition = nil
 	if zzz then
@@ -772,8 +952,22 @@ local function ensureRig(anchor: BasePart)
 		return
 	end
 	destroyRig()
-	local newRig = VoidWardenModel.build(1, folder)
+	local bossId = anchor:GetAttribute("BossId")
+	rigBoss = if type(bossId) == "string" then bossId else "VoidWarden"
+	local model = BossModels.get(rigBoss)
+	rigModel = model
+	local newRig = model.build(1, folder)
 	rig = newRig
+	-- The forge crackles (only with verified ambience ids; silent otherwise).
+	if rigBoss == "Forgeheart" then
+		for _, key in { "FHLavaAmbience", "FHLavaAmbience2" } do
+			local loop = Audio.playLoop(key, anchor)
+			if loop then
+				loop.RollOffMaxDistance = 220
+				table.insert(ambience, loop)
+			end
+		end
+	end
 	rigAnchor = anchor
 	rigPosition = anchor.Position
 	local body = newRig.byName.Body.part
@@ -841,7 +1035,7 @@ local function stepRig(dt: number)
 		return
 	end
 	ensureRig(anchor)
-	local current = rig :: VoidWardenModel.Rig
+	local current = rig :: BossRig.Rig
 	local t = now()
 	local target = anchor.Position
 	local position = rigPosition or target
@@ -872,7 +1066,17 @@ local function stepRig(dt: number)
 	end
 	local pose = poseFor(anchor, t)
 	local root = CFrame.new(position) * anchor.CFrame.Rotation
-	if anchor:GetAttribute("Action") == "Defeated" then
+	-- One sound per new action (appearance, hop, dizzy, defeat, phase...).
+	local action = anchor:GetAttribute("Action")
+	if type(action) == "string" and action ~= lastAction then
+		lastAction = action
+		local sounds = ACTION_SOUNDS[rigBoss]
+		local key = sounds and sounds[action]
+		if key then
+			Audio.playAt(key, position)
+		end
+	end
+	if anchor:GetAttribute("Action") == "Defeated" and rigBoss ~= "Forgeheart" then
 		local since = t - ((anchor:GetAttribute("ActionAt") :: number?) or t)
 		if since > 2.6 then
 			-- Hop away toward the door.
@@ -880,7 +1084,9 @@ local function stepRig(dt: number)
 			root = root * CFrame.new(0, math.abs(math.sin(since * 9)) * 2, run)
 		end
 	end
-	VoidWardenModel.pose(current, root, pose, dt)
+	if rigModel then
+		rigModel.pose(current, root, pose, dt)
+	end
 	if zzz then
 		zzz.Enabled = anchor:GetAttribute("Action") == "Sleep"
 	end
@@ -918,6 +1124,8 @@ end
 local portalBoard: BillboardGui? = nil
 local portalTitle: TextLabel? = nil
 local portalTimer: TextLabel? = nil
+local portalNext: TextLabel? = nil
+local portalPanel: Frame? = nil
 local membraneOpen: boolean? = nil
 
 local function buildPortalBoard()
@@ -928,7 +1136,7 @@ local function buildPortalBoard()
 	end
 	local gui: BillboardGui = Create("BillboardGui", {
 		Name = "PortalBoard",
-		Size = UDim2.fromOffset(300, 110),
+		Size = UDim2.fromOffset(300, 138),
 		StudsOffsetWorldSpace = Vector3.new(0, 34, 0),
 		MaxDistance = 260,
 		LightInfluence = 0,
@@ -942,7 +1150,9 @@ local function buildPortalBoard()
 	Style.ink(title, 3)
 	local timer = Style.text({ Name = "Timer", Size = UDim2.new(1, -16, 0, 40), Position = UDim2.fromOffset(8, 56), TextSize = 26, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(255, 226, 90), Parent = panel })
 	Style.ink(timer, 2.5)
-	portalBoard, portalTitle, portalTimer = gui, title, timer
+	local nextLabel = Style.text({ Name = "Next", Size = UDim2.new(1, -16, 0, 26), Position = UDim2.fromOffset(8, 100), TextSize = 20, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, Parent = panel })
+	Style.ink(nextLabel, 2)
+	portalBoard, portalTitle, portalTimer, portalNext, portalPanel = gui, title, timer, nextLabel, panel
 end
 
 local function refreshPortal()
@@ -959,6 +1169,15 @@ local function refreshPortal()
 			portalTimer.Text = Locale.t("boss.inProgress", { count = view.count })
 		else
 			portalTimer.Text = Locale.t("boss.opensIn", { time = Format.clock(math.max(0, view.opensAt - t)) })
+		end
+		-- Rotation preview: the boss after this one.
+		local after = Boss.portalNextBoss()
+		if portalNext then
+			portalNext.Text = if after then Locale.t(if view.state == "Dormant" then "boss.after" else "boss.next", { boss = Locale.t("boss." .. after.id .. ".name") }) else ""
+		end
+		local def = Boss.portalBoss()
+		if portalPanel then
+			portalPanel.BackgroundColor3 = if def.id == "Forgeheart" then Color3.fromRGB(196, 84, 44) else Color3.fromRGB(150, 96, 240)
 		end
 	end
 	-- The dormant membrane wakes up (brighter, pinker) while it is open.
@@ -999,7 +1218,7 @@ function BossFX.struck(payload: { [string]: any })
 	local color = if dizzy then Color3.fromRGB(255, 120, 220) elseif finisher then Color3.fromRGB(255, 150, 60) else Color3.fromRGB(255, 226, 70)
 	shout(nil, anchor.Position + Vector3.new(math.random(-5, 5), 6, math.random(-3, 3)), if dizzy then text .. " x1.5" else text, color, if finisher then 46 elseif dizzy then 40 else 34, 0.7)
 	burst(anchor.Position + Vector3.new(0, 4, -6), Color3.fromRGB(255, 230, 120), if finisher then 12 elseif dizzy then 9 else 6)
-	Audio.playAt(if finisher then "PunchFinisher" else "PunchHit", anchor.Position, { volume = 0.9 })
+	Audio.playAt(if finisher then "PunchFinisher" elseif rigBoss == "Forgeheart" then "PunchHitRock" else "PunchHit", anchor.Position, { volume = 0.9 })
 	if payload.weapon == "squeaky_mallet" then
 		Audio.playAt("Squeak", anchor.Position)
 	end
@@ -1122,14 +1341,24 @@ function BossFX.ko(payload: { [string]: any })
 	local character = player and player.Character
 	local head = character and character:FindFirstChild("Head")
 	if head then
-		shout(head, nil, Emoji.get("dizzy") .. " " .. Locale.t("boss.ko"), Color3.fromRGB(206, 160, 255), 28, 1.3)
+		shout(head, nil, Emoji.get("dizzy") .. " " .. Boss.text(if rigBoss ~= "" then rigBoss else nil, "ko"), Color3.fromRGB(206, 160, 255), 28, 1.3)
 	end
 end
 
 function BossFX.ended(payload: { [string]: any })
 	clearVisuals()
 	local anchor = Boss.anchor()
-	if payload.result == "Victory" and anchor then
+	if payload.result == "Victory" and anchor and rigBoss == "Forgeheart" then
+		-- The cartoon explosion before he deflates (pose "Defeated").
+		task.delay(1, function()
+			if Boss.anchor() == anchor then
+				CameraFX.shake(0.5)
+				for i = 0, 5 do
+					burst(anchor.Position + Vector3.new(math.cos(i) * 6, 4 + i, math.sin(i) * 6), if i % 2 == 0 then Color3.fromRGB(255, 150, 60) else Color3.fromRGB(255, 220, 90), 16)
+				end
+			end
+		end)
+	elseif payload.result == "Victory" and anchor then
 		task.delay(2.6, function()
 			if Boss.anchor() == anchor then
 				-- Confetti poof as he runs off.
@@ -1159,8 +1388,13 @@ function BossFX.debugState(): { rig: boolean, visuals: number, parts: number, bo
 	return { rig = rig ~= nil, visuals = kinds, parts = parts, board = portalBoard ~= nil }
 end
 
-function BossFX.rig(): VoidWardenModel.Rig?
+function BossFX.rig(): BossRig.Rig?
 	return rig
+end
+
+-- Tests / debug: which boss body is built ("" = none) and its ambience loops.
+function BossFX.debugBoss(): (string, number)
+	return rigBoss, #ambience
 end
 
 function BossFX.init()

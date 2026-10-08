@@ -10,6 +10,9 @@
 --     player (straight from Config/Bosses, the same table the server rolls);
 --   * the rules, the portal countdown, who is inside, and the ENTER button
 --     (the server re-checks everything).
+--   * phase 7A: the card follows the boss of the portal (Void Warden or
+--     Forgeheart: model, colours, loot rows), shows its music theme and the
+--     next boss of the rotation.
 
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,7 +37,10 @@ local Controllers = script.Parent.Parent.Parent.Controllers
 local Boss = require(Controllers.Boss)
 local Store = require(Controllers.Store)
 local Audio = require(Controllers.Audio)
-local VoidWardenModel = require(script.Parent.Parent.Parent.Boss.VoidWardenModel)
+local Music = require(Shared.Config.Music)
+local BossFolder = script.Parent.Parent.Parent.Boss
+local BossRig = require(BossFolder.BossRig)
+local BossModels = require(BossFolder.BossModels)
 
 local BossPortal = {}
 
@@ -58,7 +64,18 @@ local statusLabel: TextLabel
 local enterButton: Button.Button
 local reasonLabel: TextLabel
 local viewport: ViewportFrame
-local rig: VoidWardenModel.Rig? = nil
+local rig: BossRig.Rig? = nil
+local rigModel: BossRig.ModelModule? = nil
+local poster: Frame
+local lootCard: Frame
+local musicLabel: TextLabel
+local nextLabel: TextLabel
+local shownBoss = ""
+-- Poster colour per boss.
+local POSTER: { [string]: Color3 } = {
+	VoidWarden = Color3.fromRGB(110, 70, 210),
+	Forgeheart = Color3.fromRGB(196, 84, 44),
+}
 local lastReason: string? = nil
 local reasonUntil = 0
 
@@ -105,7 +122,7 @@ function BossPortal.blockReason(): string?
 end
 
 local function buildPoster(body: Frame)
-	local poster = Style.card({ Name = "Poster", Size = UDim2.new(0, 300, 1, 0), BackgroundColor3 = Color3.fromRGB(110, 70, 210), ClipsDescendants = true, Parent = body })
+	poster = Style.card({ Name = "Poster", Size = UDim2.new(0, 300, 1, 0), BackgroundColor3 = POSTER.VoidWarden, ClipsDescendants = true, Parent = body })
 	local rays = Juice.rays(poster, Color3.fromRGB(255, 200, 255), 12, 1)
 	rays.Size = UDim2.fromOffset(520, 520)
 	rays.Position = UDim2.new(0.5, 0, 0, 150)
@@ -125,13 +142,16 @@ local function buildPoster(body: Frame)
 	camera.CFrame = CFrame.lookAt(Vector3.new(14, 6, -34), Vector3.new(0, 1, 0))
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
-	rig = VoidWardenModel.build(1, viewport)
-	VoidWardenModel.pose(rig :: VoidWardenModel.Rig, CFrame.new(0, 0, 0) * CFrame.Angles(0, math.pi, 0), VoidWardenModel.defaultPose(), 0)
 
 	rankLabel = Style.display({ Name = "Rank", Size = UDim2.new(1, -20, 0, 30), Position = UDim2.fromOffset(10, 280), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 24, TextColor3 = Theme.Colors.Gold, ZIndex = 3, Parent = poster })
 	starsLabel = Style.text({ Name = "Difficulty", Size = UDim2.new(1, -20, 0, 26), Position = UDim2.fromOffset(10, 312), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 20, FontFace = Theme.Fonts.Display, ZIndex = 3, Parent = poster })
 	Style.ink(starsLabel, 2)
-	loreLabel = Style.text({ Name = "Lore", Size = UDim2.new(1, -24, 0, 120), Position = UDim2.fromOffset(12, 344), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, TextSize = 16, FontFace = Theme.Fonts.Body, TextColor3 = Theme.Colors.TextDim, ZIndex = 3, Parent = poster })
+	loreLabel = Style.text({ Name = "Lore", Size = UDim2.new(1, -24, 0, 92), Position = UDim2.fromOffset(12, 344), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, TextSize = 16, FontFace = Theme.Fonts.Body, TextColor3 = Theme.Colors.TextDim, ZIndex = 3, Parent = poster })
+	-- Phase 7A: the boss theme and the rotation preview.
+	musicLabel = Style.text({ Name = "Music", Size = UDim2.new(1, -24, 0, 20), Position = UDim2.fromOffset(12, 438), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 15, FontFace = Theme.Fonts.Heavy, ZIndex = 3, Parent = poster })
+	Style.ink(musicLabel, 1.5)
+	nextLabel = Style.text({ Name = "NextBoss", Size = UDim2.new(1, -24, 0, 22), Position = UDim2.fromOffset(12, 460), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 16, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, ZIndex = 3, Parent = poster })
+	Style.ink(nextLabel, 1.5)
 end
 
 local function buildDetails(body: Frame)
@@ -147,16 +167,12 @@ local function buildDetails(body: Frame)
 	bonusLabel = Style.text({ Name = "Bonus", Size = UDim2.new(1, 0, 0, 20), TextSize = 14, FontFace = Theme.Fonts.Body, TextColor3 = Theme.Colors.TextDim, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = 4, Parent = power })
 
 	local loot = Style.card({ Name = "Loot", Size = UDim2.new(1, 0, 0, 228), Position = UDim2.fromOffset(0, 128), Parent = column })
+	lootCard = loot
 	Style.padding(loot, 8, 12)
 	Style.list(loot, 4, Enum.FillDirection.Vertical, Enum.HorizontalAlignment.Left)
 	local header = Style.text({ Name = "Header", Size = UDim2.new(1, 0, 0, 24), Text = Locale.t("boss.loot"), TextSize = 18, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, LayoutOrder = 0, Parent = loot })
 	Style.ink(header, 1.5)
 	header:SetAttribute("Key", "boss.loot")
-	for index, entry in Boss.portalBoss().loot do
-		local row = Style.text({ Name = "Loot_" .. entry.id, Size = UDim2.new(1, 0, 0, 26), TextSize = 17, FontFace = Theme.Fonts.Heavy, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = index, Parent = loot })
-		Style.ink(row, 1.5)
-		lootRows[entry.id] = row
-	end
 	local note = Style.text({ Name = "Note", Size = UDim2.new(1, 0, 0, 34), TextSize = 13, TextWrapped = true, FontFace = Theme.Fonts.Body, TextColor3 = Theme.Colors.TextDim, LayoutOrder = 99, Parent = loot })
 	note:SetAttribute("Key", "boss.lootNote")
 
@@ -181,11 +197,40 @@ local function buildDetails(body: Frame)
 	})
 end
 
+-- Rebuilds what depends on the boss (model, colours, loot rows).
+local function showBoss(def: Bosses.BossDef)
+	shownBoss = def.id
+	poster.BackgroundColor3 = POSTER[def.id] or POSTER.VoidWarden
+	if rig and rigModel then
+		rigModel.destroy(rig)
+	end
+	local model = BossModels.get(def.id)
+	rigModel = model
+	rig = model.build(if def.id == "Forgeheart" then 0.8 else 1, viewport)
+	model.pose(rig :: BossRig.Rig, CFrame.Angles(0, math.pi, 0), model.defaultPose(), 0)
+	for _, row in lootRows do
+		row:Destroy()
+	end
+	table.clear(lootRows)
+	for index, entry in def.loot do
+		local row = Style.text({ Name = "Loot_" .. entry.id, Size = UDim2.new(1, 0, 0, 26), TextSize = 17, FontFace = Theme.Fonts.Heavy, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = index, Parent = lootCard })
+		Style.ink(row, 1.5)
+		lootRows[entry.id] = row
+	end
+end
+
 local function refresh()
 	if not isOpen then
 		return
 	end
 	local def = Boss.portalBoss()
+	if def.id ~= shownBoss then
+		showBoss(def)
+	end
+	local theme = Music.bossTheme(def.id)
+	musicLabel.Text = if theme and theme.title then Emoji.get("music") .. " " .. Locale.t("boss.music", { title = theme.title }) else ""
+	local after = Boss.portalNextBoss()
+	nextLabel.Text = if after then Locale.t("boss.next", { boss = Locale.t("boss." .. after.id .. ".name") }) else ""
 	local view = Boss.portal()
 	local t = Boss.now()
 	modal.title.Text = Locale.t("boss." .. def.id .. ".name")
@@ -227,12 +272,12 @@ local function refresh()
 	else
 		reasonLabel.Text = if reason and reason ~= "closed" and reason ~= "fighting" then Locale.t("boss.join." .. reason) else ""
 	end
-	if rig then
-		local pose = VoidWardenModel.defaultPose()
+	if rig and rigModel then
+		local pose = rigModel.defaultPose()
 		pose.squash = 1 + math.sin(os.clock() * 3) * 0.05
 		pose.broom = 0.5 + math.sin(os.clock() * 2) * 0.3
 		pose.mood = "grumpy"
-		VoidWardenModel.pose(rig, CFrame.Angles(0, math.pi + math.sin(os.clock()) * 0.25, 0), pose, 0.25)
+		rigModel.pose(rig, CFrame.Angles(0, math.pi + math.sin(os.clock()) * 0.25, 0), pose, 0.25)
 	end
 end
 

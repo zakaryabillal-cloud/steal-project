@@ -181,7 +181,7 @@ return function(ctx)
 	-- Opens a fresh expedition and puts `players` in the arena.
 	local function openWith(players)
 		reset()
-		local f = BossService.open()
+		local f = BossService.open("VoidWarden")
 		for i, player in players do
 			atPortal(player, i)
 			local ok, reason = BossService.join(player)
@@ -225,7 +225,8 @@ return function(ctx)
 	--------------------------------------------------------------------------
 	scenario("V2 Bosses: catalogue, exact loot table, formulas, no invented asset", function()
 		reset()
-		check(#Bosses.list == 1 and DEF ~= nil, "exactly one boss for now: the Void Warden (no Phase 7 boss)")
+		-- Phase 7A adds Forgeheart (and only him: no Tempest Seraph / Eclipse Oracle yet).
+		check(#Bosses.list == 2 and DEF ~= nil and Bosses.list[1].id == "VoidWarden" and Bosses.list[2].id == "Forgeheart", "two bosses: the Void Warden then Forgeheart (no Phase 7B boss)")
 		check(Bosses.Portal.Interval == 600 and Bosses.Portal.OpenDuration == 60, "portal every 10 min, open 60 s")
 		check(Bosses.Combat.Duration == 210, "fight limited to 3:30")
 		local kinds, specials = {}, 0
@@ -297,14 +298,16 @@ return function(ctx)
 			end
 		end
 		check(#invented == 0, "no asset id in the boss code (" .. table.concat(invented, ", ") .. ")")
+		-- Phase 7A: only the theme the creator chose fills the Void Warden's slot
+		-- (checked at runtime by AudioCheck); the other slots keep the fallback.
 		local silent = true
-		for _, key in { "Boss.VoidWarden.1", "Boss.VoidWarden.2", "Boss.VoidWarden.3", "Stinger.BossIntro", "Stinger.BossVictory", "Stinger.BossDefeat" } do
+		for _, key in { "Boss.VoidWarden.2", "Boss.VoidWarden.3", "Stinger.BossIntro", "Stinger.BossVictory", "Stinger.BossDefeat" } do
 			local track = Music.track(key)
 			if not track or track.id ~= "" then
 				silent = false
 			end
 		end
-		check(silent, "boss music slots stay empty (fallback, nothing invented)")
+		check(silent and Music.track("Boss.VoidWarden.1").id == "rbxassetid://1835955926", "boss music: only the creator's theme (1835955926), other slots on the fallback")
 		check(Music.track("Explore").id == "rbxassetid://9046476113" and Music.track("Chase").id == "rbxassetid://9046474891", "the phase 3 music ids are untouched")
 	end)
 
@@ -442,7 +445,7 @@ return function(ctx)
 		atPortal(alice)
 		local ok, reason = BossService.join(alice)
 		check(not ok and reason == "closed", "closed portal refuses")
-		BossService.open()
+		BossService.open("VoidWarden")
 		advance(0.1)
 		insideOwnPlot(alice)
 		ok, reason = BossService.join(alice)
@@ -998,6 +1001,8 @@ return function(ctx)
 	--------------------------------------------------------------------------
 	scenario("V2 Bosses: client portal card, exact chances, HUD bar, Codex, board", function()
 		reset()
+		-- Phase 7A: the rotation alternates bosses; this card test is about the Void Warden.
+		BossService.setNextBoss("VoidWarden")
 		BossService.setNextOpen(now() + 125)
 		advance(0.6)
 		local BossPortal = creq("UI.Screens.BossPortal")
@@ -1021,7 +1026,7 @@ return function(ctx)
 		check(UI.isOpen("BossPortal"), "client opened the card")
 		UI.close()
 		-- Open portal at the portal: ENTER lights up.
-		BossService.open()
+		BossService.open("VoidWarden")
 		atPortal(alice)
 		advance(0.5)
 		UI.open("BossPortal")
