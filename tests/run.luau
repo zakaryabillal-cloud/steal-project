@@ -792,6 +792,26 @@ end)
 -- Shutdown
 ----------------------------------------------------------------------------
 
+-- Test groups: `ONLY=<group>[,<group>...]` runs the base scenarios (V1 +
+-- V2 Foundations) plus the listed groups only, for fast iteration. Groups:
+-- world, audio, abilities, cosmetics, art, bosses (bosses + combat + every
+-- boss file). No ONLY = everything (the release gate).
+local ONLY = process.env.ONLY
+local function wants(group: string): boolean
+	if ONLY == nil or ONLY == "" then
+		return true
+	end
+	for name in string.gmatch(ONLY, "[^,%s]+") do
+		if name == group then
+			return true
+		end
+	end
+	return false
+end
+local function skipped(_)
+	return nil
+end
+
 -- V2 phase 1: Foundations (schema v2, Power, Status, abilities, Sync, Scheduler).
 require("./scenarios/V2Foundations")({
 	scenario = scenario,
@@ -822,7 +842,7 @@ require("./scenarios/V2Foundations")({
 })
 
 -- V2 phase 2: World V2 (budgets, routes, caves, pads, landmarks, V1 core).
-;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2World"))({
+;(if wants("world") then require("./scenarios/V2World") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -836,7 +856,7 @@ require("./scenarios/V2Foundations")({
 })
 
 -- V2 phase 3: dynamic audio (music states, crossfades, director).
-;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2Audio"))({
+;(if wants("audio") then require("./scenarios/V2Audio") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -856,7 +876,7 @@ require("./scenarios/V2Foundations")({
 
 -- V2 phase 4: abilities (catalogue, unlocks, loadout, every ability, harmonies,
 -- security, cleanup, two-player chases).
-;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2Abilities"))({
+;(if wants("abilities") then require("./scenarios/V2Abilities") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -885,7 +905,7 @@ require("./scenarios/V2Foundations")({
 
 -- V2 phase 5: cosmetics (catalogue, schema 4, server authority, unlocks, no
 -- gameplay effect, rendering budgets, Cosmetics screen).
-;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2Cosmetics"))({
+;(if wants("cosmetics") then require("./scenarios/V2Cosmetics") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -914,7 +934,7 @@ require("./scenarios/V2Foundations")({
 
 -- V2 phase 5.5: cartoon & goofy art direction (tokens, emoji policy, sunny
 -- world, Rift face, relic faces, chunky UI, reward juice).
-;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2ArtDirection"))({
+;(if wants("art") then require("./scenarios/V2ArtDirection") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -943,7 +963,7 @@ require("./scenarios/V2Foundations")({
 
 -- V2 phase 6: first boss (Void Warden): portal, arena, combat, loot, Codex,
 -- trophies, security, multiplayer, cleanup, client UI.
-require("./scenarios/V2Bosses")({
+;(if wants("bosses") then require("./scenarios/V2Bosses") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -972,7 +992,7 @@ require("./scenarios/V2Bosses")({
 
 -- V2 phase 6.5: Combat 2.0 & boss weapons: weapons, purchases, strikes,
 -- abilities against the boss, readability, punch animation, controls.
-require("./scenarios/V2Combat")({
+;(if wants("bosses") then require("./scenarios/V2Combat") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -996,7 +1016,7 @@ require("./scenarios/V2Combat")({
 })
 
 -- V2 phase 7A: Forgeheart (second boss), boss rotation, boss sound identity.
-require("./scenarios/V2Forgeheart")({
+;(if wants("bosses") then require("./scenarios/V2Forgeheart") else skipped)({
 	scenario = scenario,
 	check = check,
 	advance = advance,
