@@ -8,6 +8,7 @@ local GuiService = game:GetService("GuiService")
 
 local Create = require(script.Kit.Create)
 local Tween = require(script.Kit.Tween)
+local TouchSafe = require(script.Kit.TouchSafe)
 local Signal = require(game:GetService("ReplicatedStorage").Shared.Util.Signal)
 
 local UI = {}
@@ -72,10 +73,15 @@ end
 local function computeScale(): number
 	local camera = workspace.CurrentCamera
 	local size = if camera then camera.ViewportSize else Vector2.new(1280, 720)
-	if UI.touch then
-		return math.clamp(math.min(size.Y / 560, size.X / 900), 0.62, 1.1)
-	end
-	return math.clamp(math.min(size.Y / 900, size.X / 1440), 0.72, 1.3)
+	return TouchSafe.scaleFor(size, UI.touch)
+end
+
+-- Logical bottom offset of the right-hand touch buttons (above Roblox's
+-- Jump button, see Kit/TouchSafe).
+function UI.touchBottom(): number
+	local camera = workspace.CurrentCamera
+	local size = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+	return TouchSafe.bottomOffset(size, UI.scale)
 end
 
 local function applyScale()

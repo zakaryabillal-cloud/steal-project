@@ -63,7 +63,42 @@ local zzz: BillboardGui? = nil
 local dizzyStars: BillboardGui? = nil
 local wobble = 0
 local hopLand = 0
+local hitFlash = 0
 local lastAttack: { [string]: any }? = nil
+local bubble: BillboardGui? = nil
+local bubbleLabel: TextLabel? = nil
+local bubbleIcon: TextLabel? = nil
+local bubbleFrame: Frame? = nil
+
+-- Broom waves rolling right now (read by the HUD "JUMP!" hint).
+type Wave = { origin: Vector3, startAt: number, speed: number, maxRadius: number }
+local waves: { Wave } = {}
+
+-- Seconds before a broom wave front reaches `position` (nil = none coming).
+function BossFX.waveEta(position: Vector3): number?
+	local t = workspace:GetServerTimeNow()
+	local best: number? = nil
+	for i = #waves, 1, -1 do
+		local wave = waves[i]
+		if t > wave.startAt + wave.maxRadius / wave.speed + 0.2 then
+			table.remove(waves, i)
+			continue
+		end
+		local d = Vector3.new(position.X - wave.origin.X, 0, position.Z - wave.origin.Z).Magnitude
+		local front = math.max(0, t - wave.startAt) * wave.speed
+		if front < d and d <= wave.maxRadius then
+			local eta = (d - front) / wave.speed + math.max(0, wave.startAt - t)
+			if best == nil or eta < (best :: number) then
+				best = eta
+			end
+		end
+	end
+	return best
+end
+
+-- Safe quarter of the current Big Cleanup (read by the HUD arrow).
+export type SafeZone = { position: Vector3, radius: number, untilTime: number, safeAngle: number, center: Vector3 }
+BossFX.safeZone = nil :: SafeZone?
 
 type Visual = {
 	kind: string,
@@ -256,6 +291,8 @@ local function addVisual(kind: string, untilTime: number, instances: { Instance 
 end
 
 local function clearVisuals()
+	BossFX.safeZone = nil
+	table.clear(waves)
 	for _, visual in visuals do
 		for _, instance in visual.instances do
 			instance:Destroy()
@@ -264,22 +301,49 @@ local function clearVisuals()
 	table.clear(visuals)
 end
 
-local function fillColor(k: number): Color3
-	return WARN:Lerp(DANGER, math.clamp(k, 0, 1))
+-- Phase 6.5 readability: YELLOW while he prepares, RED (flashing) from
+-- Combat.DangerLead before the server applies the damage. Telegraphs are
+-- parts (never particles): they stay visible on the lowest quality.
+local DANGER_LEAD = Bosses.Combat.DangerLead
+local dangerTickAt = 0
+
+local function zoneColor(t: number, hitAt: number): (Color3, boolean)
+	if t >= hitAt - DANGER_LEAD then
+		local blink = math.floor(t * 16) % 2 == 0
+		return if blink then DANGER else DANGER:Lerp(Color3.new(1, 1, 1), 0.35), true
+	end
+	return WARN, false
+end
+BossFX.zoneColor = zoneColor
+
+-- One "tick!" when zones turn red (several puddles = one tick).
+local function dangerTick()
+	if os.clock() - dangerTickAt > 0.25 then
+		dangerTickAt = os.clock()
+		Audio.play("BossDanger")
+	end
 end
 
--- Disc telegraph: ink outline + a fill growing yellow -> red until `hitAt`,
--- then `onImpact`.
+-- Disc telegraph: thick ink outline + edge ring + a yellow fill that grows
+-- until the danger moment, then flashes red until `hitAt`, then `onImpact`.
 local function discTelegraph(center: Vector3, radius: number, telegraphAt: number, hitAt: number, onImpact: (() -> ())?)
-	local outline = disc(center, radius + 0.45, INK, 0.25, floorY() - 0.02)
-	local back = disc(center, radius, WARN, 0.7, floorY())
-	local fill = disc(center, 0.1, WARN, 0.25, floorY() + 0.02)
-	local fired = false
-	addVisual("disc", hitAt + 0.05, { outline, back, fill }, function(t: number)
-		local k = math.clamp((t - telegraphAt) / math.max(0.05, hitAt - telegraphAt), 0, 1)
+	local outline = disc(center, radius + 0.7, INK, 0.1, floorY() - 0.02)
+	local back = disc(center, radius, WARN, 0.55, floorY())
+	local fill = disc(center, 0.1, WARN, 0.15, floorY() + 0.02)
+	local edge = ring(center, radius + 0.2, 0.8, WARN, floorY() + 0.3)
+	setRing(edge, radius + 0.2)
+	local fired, warned = false, false
+	addVisual("disc", hitAt + 0.05, { outline, back, fill, edge.holder }, function(t: number)
+		local k = math.clamp((t - telegraphAt) / math.max(0.05, hitAt - DANGER_LEAD - telegraphAt), 0, 1)
 		setDisc(fill, radius * k)
-		fill.Color = fillColor(k)
-		back.Color = fillColor(k)
+		local color, danger = zoneColor(t, hitAt)
+		fill.Color = color
+		back.Color = color
+		setRing(edge, radius + 0.2, color)
+		if danger and not warned then
+			warned = true
+			dangerTick()
+		end
 		if t >= hitAt and not fired then
 			fired = true
 			if onImpact then
@@ -300,20 +364,28 @@ local function broomWave(data: { [string]: any }, telegraphAt: number)
 	local band = data.band :: number
 	local maxRadius = data.maxRadius :: number
 	for _, startAt in data.starts :: { number } do
+		table.insert(waves, { origin = origin, startAt = startAt, speed = speed, maxRadius = maxRadius })
 		-- Telegraph: a fat ring around him, filling yellow -> red.
 		local warnRing = ring(origin, 9, band + 1, WARN, floorY() + 0.25)
 		setRing(warnRing, 9)
 		local fill = disc(origin, 0.1, WARN, 0.3, floorY() + 0.02)
-		local wave = ring(origin, 0.1, band, ATTACK_COLORS.broom_wave, floorY() + 0.3)
+		-- The rolling wave IS the danger: red, with a white crest to jump.
+		local wave = ring(origin, 0.1, band, DANGER, floorY() + 0.3)
+		local warned = false
 		local crest = ring(origin, 0.1, band * 0.6, Color3.new(1, 1, 1), floorY() + 1.8)
 		wave.holder.Parent = nil
 		crest.holder.Parent = nil
 		addVisual("wave", startAt + maxRadius / speed + 0.1, { warnRing.holder, fill, wave.holder, crest.holder }, function(t: number)
 			if t < startAt then
-				local k = math.clamp((t - telegraphAt) / math.max(0.05, startAt - telegraphAt), 0, 1)
-				setRing(warnRing, 9 + math.sin(t * 20) * 0.3, fillColor(k))
+				local k = math.clamp((t - telegraphAt) / math.max(0.05, startAt - DANGER_LEAD - telegraphAt), 0, 1)
+				local color, danger = zoneColor(t, startAt)
+				setRing(warnRing, 9 + math.sin(t * 20) * 0.3, color)
 				setDisc(fill, 9 * k)
-				fill.Color = fillColor(k)
+				fill.Color = color
+				if danger and not warned then
+					warned = true
+					dangerTick()
+				end
 				return true
 			end
 			if warnRing.holder.Parent then
@@ -445,10 +517,22 @@ local function bigCleanup(data: { [string]: any }, telegraphAt: number)
 		local safeCenter = center + Vector3.new(math.cos(sweep.safeAngle), 0, math.sin(sweep.safeAngle)) * radius * 0.55
 		local safe = disc(safeCenter, 11, SAFE, 0.45, floorY() + 0.03)
 		table.insert(instances, safe)
+		-- A tall green beacon you can see from anywhere in the arena.
+		local beacon = newPart({
+			Name = "SafeBeacon",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(40, 4, 4),
+			CFrame = CFrame.new(safeCenter.X, floorY() + 20, safeCenter.Z) * CFrame.Angles(0, 0, math.pi / 2),
+			Color = SAFE,
+			Material = Enum.Material.Neon,
+			Transparency = 0.45,
+		})
+		table.insert(instances, beacon)
+		BossFX.safeZone = { position = Vector3.new(safeCenter.X, floorY(), safeCenter.Z), radius = 11, untilTime = hitAt, safeAngle = sweep.safeAngle, center = center }
 		local label: BillboardGui = Create("BillboardGui", {
 			Name = "Safe",
-			Size = UDim2.fromOffset(200, 60),
-			StudsOffsetWorldSpace = Vector3.new(0, 6, 0),
+			Size = UDim2.fromOffset(240, 70),
+			StudsOffsetWorldSpace = Vector3.new(0, 26, 0),
 			AlwaysOnTop = true,
 			LightInfluence = 0,
 			Adornee = safe,
@@ -457,9 +541,14 @@ local function bigCleanup(data: { [string]: any }, telegraphAt: number)
 		local text = Style.text({ Text = Emoji.get("ready") .. " SAFE " .. Emoji.get("ready"), TextSize = 30, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = SAFE, Parent = label })
 		Style.ink(text, 3)
 		table.insert(instances, label)
-		local fired = false
+		local fired, warned = false, false
 		addVisual("cleanup", hitAt + 0.5, instances, function(t: number)
-			local k = math.clamp((t - startAt) / math.max(0.05, hitAt - startAt), 0, 1)
+			local k = math.clamp((t - startAt) / math.max(0.05, hitAt - DANGER_LEAD - startAt), 0, 1)
+			local zone, danger = zoneColor(t, hitAt)
+			if danger and not warned then
+				warned = true
+				dangerTick()
+			end
 			local r = radius * math.max(0.05, k)
 			local y = floorY() + 0.03
 			for _, fan in fans do
@@ -467,12 +556,16 @@ local function bigCleanup(data: { [string]: any }, telegraphAt: number)
 				local b = a + Vector3.new(math.cos(fan.a), 0, math.sin(fan.a)) * r
 				local c = a + Vector3.new(math.cos(fan.b), 0, math.sin(fan.b)) * r
 				triangle(a, b, c, fan.w1, fan.w2)
-				local color = if t >= hitAt then ATTACK_COLORS.big_cleanup else fillColor(k)
+				local color = if t >= hitAt then ATTACK_COLORS.big_cleanup else zone
 				fan.w1.Color, fan.w2.Color = color, color
 			end
 			safe.Transparency = 0.35 + math.sin(t * 10) * 0.15
+			beacon.Transparency = 0.4 + math.sin(t * 8) * 0.15
 			if t >= hitAt and not fired then
 				fired = true
+				if BossFX.safeZone and BossFX.safeZone.untilTime == hitAt then
+					BossFX.safeZone = nil
+				end
 				CameraFX.shake(0.35)
 				Audio.playAt("Splash", center, { pitch = 0.6 })
 				for _, fan in fans do
@@ -492,6 +585,23 @@ local PLAYERS: { [string]: ({ [string]: any }, number) -> () } = {
 	big_cleanup = bigCleanup,
 }
 
+-- One distinct warning sound and one icon per attack (the "!" bubble).
+local WARN_SOUNDS: { [string]: string } = {
+	broom_wave = "BossWarnWave",
+	goo_puddles = "BossWarnGoo",
+	dust_bunnies = "BossWarnBunny",
+	belly_flop = "BossWarnFlop",
+	big_cleanup = "BossWarnCleanup",
+}
+BossFX.WarnSounds = WARN_SOUNDS
+local ATTACK_ICONS: { [string]: string } = {
+	broom_wave = "swirl",
+	goo_puddles = "droplet",
+	dust_bunnies = "bunny",
+	belly_flop = "boom",
+	big_cleanup = "water",
+}
+
 -- Draws an attack announced by the server ("BossAttack" FX).
 function BossFX.attack(payload: { [string]: any })
 	if not folder or type(payload.attack) ~= "string" or type(payload.data) ~= "table" then
@@ -503,6 +613,8 @@ function BossFX.attack(payload: { [string]: any })
 	end
 	lastAttack = payload
 	draw(payload.data, tonumber(payload.telegraphAt) or now())
+	local anchor = Boss.anchor()
+	Audio.playAt(WARN_SOUNDS[payload.attack] or "BossWarnWave", if anchor then anchor.Position else Bosses.Arena.Center, { volume = 1 })
 end
 
 ----------------------------------------------------------------------------
@@ -623,6 +735,13 @@ local function poseFor(anchor: BasePart, t: number): VoidWardenModel.Pose
 	if wobble > 0 then
 		pose.squash *= 1 - math.sin(wobble * math.pi) * 0.12
 	end
+	-- Body tint: yellow while an attack is prepared, red at the danger moment.
+	if attack and type(attack.telegraphAt) == "number" and t >= attack.telegraphAt and t < hitAt then
+		local color, danger = zoneColor(t, hitAt)
+		pose.tint = color
+		pose.tintAlpha = if danger then 0.55 else 0.25 + math.sin(t * 12) * 0.1
+	end
+	pose.flash = hitFlash
 	if os.clock() - hopLand < 0.35 then
 		pose.squash = math.min(pose.squash, 0.7)
 	end
@@ -682,6 +801,35 @@ local function ensureRig(anchor: BasePart)
 	})
 	local stars = Style.text({ Name = "Stars", Text = "★  ★  ★", TextSize = 34, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(255, 220, 70), Parent = dizzyStars })
 	Style.ink(stars, 3)
+	-- "!" speech bubble with the attack icon: yellow while he prepares, red
+	-- when it is about to hit (always on top: readable from anywhere).
+	bubble = Create("BillboardGui", {
+		Name = "AttackBubble",
+		Size = UDim2.fromOffset(150, 96),
+		StudsOffsetWorldSpace = Vector3.new(0, 15, 0),
+		AlwaysOnTop = true,
+		LightInfluence = 0,
+		Adornee = body,
+		Enabled = false,
+		Parent = folder,
+	})
+	local frame: Frame = Create("Frame", { Name = "Bubble", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WARN, Parent = bubble })
+	Style.corner(frame, UDim.new(0, 26))
+	Style.stroke(frame, INK, 0, 4)
+	bubbleFrame = frame
+	local mark = Style.text({ Name = "Mark", Size = UDim2.new(0.45, 0, 1, 0), Text = "!", TextSize = 70, FontFace = Style.Fonts.Burst, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.new(1, 1, 1), Parent = frame })
+	Style.ink(mark, 4)
+	bubbleLabel = mark
+	local icon = Style.text({ Name = "Icon", Size = UDim2.new(0.55, 0, 1, 0), Position = UDim2.fromScale(0.45, 0), Text = "", TextSize = 52, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, Parent = frame })
+	bubbleIcon = icon
+end
+
+-- Tests / debug: the bubble state.
+function BossFX.bubbleState(): (boolean, string, Color3?)
+	if not bubble or not bubbleIcon or not bubbleFrame then
+		return false, "", nil
+	end
+	return bubble.Enabled, bubbleIcon.Text, bubbleFrame.BackgroundColor3
 end
 
 local function stepRig(dt: number)
@@ -697,10 +845,31 @@ local function stepRig(dt: number)
 	local t = now()
 	local target = anchor.Position
 	local position = rigPosition or target
-	-- Smooth the server's 20 Hz moves (snappy enough for hops).
-	position = position:Lerp(target, math.clamp(dt * 18, 0, 1))
+	local motion = if lastAttack and type(lastAttack.motion) == "table" then lastAttack.motion else nil
+	if motion and type(motion.startAt) == "number" and t >= motion.startAt and t <= motion.endAt + 0.05 then
+		-- Exactly the server's arc (same formula, same server clock): the
+		-- body lands when the damage lands.
+		local k = math.clamp((t - motion.startAt) / math.max(0.05, motion.endAt - motion.startAt), 0, 1)
+		position = (motion.from :: Vector3):Lerp(motion.to :: Vector3, k) + Vector3.new(0, motion.height * 4 * k * (1 - k), 0)
+	else
+		-- Smooth the server's 20 Hz moves.
+		position = position:Lerp(target, math.clamp(dt * 24, 0, 1))
+	end
 	rigPosition = position
 	wobble = math.max(0, wobble - dt * 4)
+	hitFlash = math.max(0, hitFlash - dt * 6)
+	-- "!" bubble during the telegraph.
+	local attack = lastAttack
+	if bubble and bubbleFrame and bubbleIcon and bubbleLabel then
+		local showing = attack ~= nil and type(attack.hitAt) == "number" and t >= (attack.telegraphAt or 0) and t < attack.hitAt + 0.15
+		bubble.Enabled = showing
+		if showing and attack then
+			local color, danger = zoneColor(t, attack.hitAt)
+			bubbleFrame.BackgroundColor3 = color
+			bubbleIcon.Text = Emoji.get(ATTACK_ICONS[attack.attack] or "boom")
+			bubbleLabel.Rotation = if danger then math.sin(t * 40) * 12 else math.sin(t * 8) * 6
+		end
+	end
 	local pose = poseFor(anchor, t)
 	local root = CFrame.new(position) * anchor.CFrame.Rotation
 	if anchor:GetAttribute("Action") == "Defeated" then
@@ -823,34 +992,111 @@ function BossFX.struck(payload: { [string]: any })
 		return
 	end
 	wobble = 1
+	hitFlash = if payload.finisher then 1 else 0.6
 	local dizzy = payload.dizzy == true
-	local text = POWS[math.random(1, #POWS)]
-	shout(nil, anchor.Position + Vector3.new(math.random(-5, 5), 6, math.random(-3, 3)), if dizzy then text .. " x1.5" else text, if dizzy then Color3.fromRGB(255, 120, 220) else Color3.fromRGB(255, 226, 70), if dizzy then 40 else 34, 0.7)
-	burst(anchor.Position + Vector3.new(0, 4, -6), Color3.fromRGB(255, 230, 120), if dizzy then 9 else 6)
-	Audio.playAt("Hit", anchor.Position, { pitch = 1.2 + math.random() * 0.3, volume = 0.8 })
-	CameraFX.punch(2)
+	local finisher = payload.finisher == true
+	local text = if finisher then "KAPOW!" else POWS[math.random(1, #POWS)]
+	local color = if dizzy then Color3.fromRGB(255, 120, 220) elseif finisher then Color3.fromRGB(255, 150, 60) else Color3.fromRGB(255, 226, 70)
+	shout(nil, anchor.Position + Vector3.new(math.random(-5, 5), 6, math.random(-3, 3)), if dizzy then text .. " x1.5" else text, color, if finisher then 46 elseif dizzy then 40 else 34, 0.7)
+	burst(anchor.Position + Vector3.new(0, 4, -6), Color3.fromRGB(255, 230, 120), if finisher then 12 elseif dizzy then 9 else 6)
+	Audio.playAt(if finisher then "PunchFinisher" else "PunchHit", anchor.Position, { volume = 0.9 })
+	if payload.weapon == "squeaky_mallet" then
+		Audio.playAt("Squeak", anchor.Position)
+	end
+	if finisher then
+		CameraFX.shake(0.25)
+	end
+	CameraFX.punch(if finisher then 4 else 2)
+end
+
+-- Feedback shouts above a fighter ("DODGED!", "BLOCK!", "+1 heart"...).
+local function overPlayer(userId: any, text: string, color: Color3, size: number?, sound: string?)
+	local player = Players:GetPlayerByUserId(tonumber(userId) or 0)
+	local character = player and player.Character
+	local head = character and (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart"))
+	if head then
+		shout(head, nil, text, color, size or 28, 1)
+	end
+	if sound and player == localPlayer then
+		Audio.play(sound)
+	end
+end
+
+function BossFX.dodge(payload: { [string]: any })
+	overPlayer(payload.userId, Locale.t("boss.dodge." .. tostring(payload.kind)), Color3.fromRGB(120, 255, 170), 28, "Dodge")
+end
+
+function BossFX.block(payload: { [string]: any })
+	overPlayer(payload.userId, Locale.t("boss.block"), Color3.fromRGB(120, 210, 255), 30, "Block")
+end
+
+function BossFX.heal(payload: { [string]: any })
+	overPlayer(payload.userId, Locale.t("boss.heal"), Color3.fromRGB(255, 130, 180), 28, "Recovered")
+end
+
+function BossFX.buff(payload: { [string]: any })
+	overPlayer(payload.userId, Emoji.get("star") .. " " .. Locale.t("boss.buff"), Color3.fromRGB(255, 226, 90), 28, "Fuse")
+end
+
+-- An ability reached the boss: he resists the control, takes the hit.
+function BossFX.ability(payload: { [string]: any })
+	local anchor = Boss.anchor()
+	if not anchor then
+		return
+	end
+	local ability = tostring(payload.ability)
+	local key = "boss.ability." .. ability
+	local text = if Locale.has(key) then Locale.t(key) else "BOING!"
+	shout(nil, anchor.Position + Vector3.new(0, 10, 0), text, Color3.fromRGB(150, 220, 255), 34, 1)
+	if (tonumber(payload.amount) or 0) > 0 then
+		wobble = 1
+		hitFlash = 1
+	end
+	if payload.resist then
+		shout(nil, anchor.Position + Vector3.new(0, 15, 0), Locale.t("boss.resist"), Color3.fromRGB(206, 160, 255), 22, 1.2)
+	end
+end
+
+-- Visual of a swing from `character` (local or another fighter).
+local function swingFrom(character: Model?, weaponId: string?)
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+	local anchor = Boss.anchor()
+	if weaponId == "bubble_blaster" and anchor then
+		-- A soap bubble flies to the boss.
+		local from = root.Position + Vector3.new(0, 1.5, 0)
+		local to = anchor.Position
+		local bubblePart = newPart({ Name = "Bubble", Shape = Enum.PartType.Ball, Size = Vector3.one * 1.4, CFrame = CFrame.new(from), Color = Color3.fromRGB(190, 240, 255), Material = Enum.Material.Glass, Transparency = 0.35 })
+		Tween.play(bubblePart, 0.22, { CFrame = CFrame.new(to) }, Enum.EasingStyle.Linear)
+		task.delay(0.24, function()
+			bubblePart:Destroy()
+		end)
+	elseif weaponId == "star_wand" and anchor then
+		burst(root.Position:Lerp(anchor.Position, 0.5) + Vector3.new(0, 2, 0), Color3.fromRGB(255, 226, 90), 5)
+	end
+	local swoosh = newPart({
+		Name = "Swoosh",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.2, 6, 6),
+		CFrame = root.CFrame * CFrame.new(0, 0.5, -3) * CFrame.Angles(0, math.pi / 2, 0),
+		Color = Color3.new(1, 1, 1),
+		Material = Enum.Material.Neon,
+		Transparency = 0.35,
+	})
+	Tween.play(swoosh, 0.18, { Size = Vector3.new(0.05, 9, 9), Transparency = 1 }, Enum.EasingStyle.Quad)
+	task.delay(0.25, function()
+		swoosh:Destroy()
+	end)
+end
+
+function BossFX.otherSwing(player: Player, def: any, _payload: { [string]: any })
+	swingFrom(player.Character, def.id)
 end
 
 function BossFX.swing()
-	local character = localPlayer.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if root and root:IsA("BasePart") then
-		-- A quick white swoosh in front of the player.
-		local swoosh = newPart({
-			Name = "Swoosh",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.2, 6, 6),
-			CFrame = root.CFrame * CFrame.new(0, 0.5, -3) * CFrame.Angles(0, math.pi / 2, 0),
-			Color = Color3.new(1, 1, 1),
-			Material = Enum.Material.Neon,
-			Transparency = 0.35,
-		})
-		Tween.play(swoosh, 0.18, { Size = Vector3.new(0.05, 9, 9), Transparency = 1 }, Enum.EasingStyle.Quad)
-		task.delay(0.25, function()
-			swoosh:Destroy()
-		end)
-		Audio.play("Dash", { pitch = 1.6, volume = 0.45 })
-	end
+	swingFrom(localPlayer.Character, Boss.weapon().id)
 end
 
 function BossFX.hit(payload: { [string]: any })
@@ -867,6 +1113,7 @@ function BossFX.hit(payload: { [string]: any })
 	end
 	if userId == localPlayer.UserId then
 		CameraFX.shake(0.3)
+		Audio.play("HeartLost")
 	end
 end
 
@@ -931,7 +1178,11 @@ function BossFX.init()
 		end
 	end)
 	Boss.struck:Connect(BossFX.struck)
-	Boss.swung:Connect(BossFX.swing)
+	Boss.swung:Connect(function(weapon: any)
+		swingFrom(localPlayer.Character, if weapon then weapon.id else nil)
+		Audio.play("PunchSwing")
+	end)
+	Boss.otherSwung:Connect(BossFX.otherSwing)
 end
 
 return BossFX

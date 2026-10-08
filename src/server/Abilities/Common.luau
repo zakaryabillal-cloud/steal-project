@@ -13,6 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Layout = require(Shared.Layout)
 local Abilities = require(Shared.Config.Abilities)
+local Bosses = require(Shared.Config.Bosses)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
@@ -161,6 +162,34 @@ export type Target = { session: Session, root: BasePart, offset: Vector3 }
 -- expedition: PvP stays on the island (Core/Expeditions).
 function Common.canAffect(caster: Session, target: Session): boolean
 	return caster ~= target and Expeditions.canAffect(caster, target)
+end
+
+-- Boss expeditions (phase 6.5) -------------------------------------------
+-- BossService registers a handler; ability modules report the effects that
+-- may concern a boss (pulse, frost wave). Only fighters reach it.
+export type BossHandler = (caster: Session, abilityId: string, origin: Vector3, radius: number) -> ()
+local bossHandler: BossHandler? = nil
+
+function Common.setBossHandler(handler: BossHandler?)
+	bossHandler = handler
+end
+
+function Common.bossEffect(caster: Session, abilityId: string, origin: Vector3, radius: number)
+	local handler = bossHandler
+	if handler and Expeditions.isAway(caster) then
+		handler(caster, abilityId, origin, radius)
+	end
+end
+
+-- May `session` end up at `position`? Inside a boss expedition the answer is
+-- "only inside the arena walls" (Blink never crosses them).
+function Common.allowedSpot(session: Session, position: Vector3): boolean
+	if not Expeditions.isAway(session) then
+		return true
+	end
+	local c = Bosses.Arena.Center
+	local flat = Vector3.new(position.X - c.X, 0, position.Z - c.Z).Magnitude
+	return flat <= Bosses.Arena.Radius - 1 and math.abs(position.Y - c.Y) < 40
 end
 
 -- Other live players within `radius` of `origin` (optionally in sight).

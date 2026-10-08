@@ -16,6 +16,7 @@ local Shared = ReplicatedStorage.Shared
 local WorldFeatures = require(Shared.WorldFeatures)
 local GameConfig = require(Shared.Config.GameConfig)
 local AbilityConfig = require(Shared.Config.Abilities)
+local Bosses = require(Shared.Config.Bosses)
 
 local Kit = script.Parent.Parent.UI.Kit
 local Create = require(Kit.Create)
@@ -65,12 +66,36 @@ function GrappleTargeting.equipped(): boolean
 	return table.find(Store.state.loadout, "grapple") ~= nil
 end
 
+-- Anchors usable right now: the world's, or (phase 6.5) the 4 floating
+-- bubbles of the boss arena while fighting there.
+function GrappleTargeting.anchors(): { { index: number, position: Vector3 } }
+	local fightId = localPlayer:GetAttribute("BossFight")
+	if type(fightId) == "string" and fightId ~= "" then
+		return Bosses.arenaGrapplePoints()
+	end
+	local list = {}
+	for index, spec in WorldFeatures.GrapplePoints do
+		table.insert(list, { index = index, position = spec.position })
+	end
+	return list
+end
+
+local function anchorPosition(index: number): Vector3?
+	for _, anchor in GrappleTargeting.anchors() do
+		if anchor.index == index then
+			return anchor.position
+		end
+	end
+	return nil
+end
+
 -- Best anchor index for a head position and look direction, or nil.
 function GrappleTargeting.pick(head: Vector3, look: Vector3): number?
 	local best: number? = nil
 	local bestScore = math.huge
-	for index, spec in WorldFeatures.GrapplePoints do
-		local offset = spec.position - head
+	for _, anchor in GrappleTargeting.anchors() do
+		local index = anchor.index
+		local offset = anchor.position - head
 		local distance = offset.Magnitude
 		if distance > TUNING.Range or distance < TUNING.MinDistance then
 			continue
@@ -118,8 +143,8 @@ local function update()
 	refreshFilter()
 	current = GrappleTargeting.pick(root.Position + Vector3.new(0, 1.5, 0), camera.CFrame.LookVector)
 	if current then
-		local spec = WorldFeatures.GrapplePoints[current]
-		markerPart.CFrame = CFrame.new(spec.position)
+		local position = anchorPosition(current) :: Vector3
+		markerPart.CFrame = CFrame.new(position)
 		marker.Enabled = true
 		local ready = Store.cooldownRemaining("grapple") <= 0
 		ring.BackgroundTransparency = if ready then 0.35 else 0.8

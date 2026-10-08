@@ -35,6 +35,8 @@ local pending: { Pending } = {}
 
 local function burst(caster: Session, origin: Vector3, tuning: { [string]: any }, cosmicEye: boolean, look: Vector3)
 	Decoy.popNear(origin, tuning.Radius, caster)
+	-- Boss arena: the boss resists the push (BossService decides the effect).
+	Common.bossEffect(caster, "pulse", origin, tuning.Radius)
 	for _, target in Common.targets(caster, origin, tuning.Radius, false) do
 		local session = target.session
 		Common.onControlHit(cosmicEye, session)

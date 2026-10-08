@@ -219,6 +219,14 @@ function RuneTrap.cleanup(session: Session, reason: string)
 end
 
 -- Tests / debug.
+-- The trap was set off by something else (a boss walking on it).
+function RuneTrap.consume(session: Session, how: string)
+	local trap = traps[session]
+	if trap then
+		destroy(trap, how)
+	end
+end
+
 function RuneTrap.of(session: Session): Trap?
 	return traps[session]
 end

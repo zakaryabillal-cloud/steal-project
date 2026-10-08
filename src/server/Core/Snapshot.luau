@@ -29,7 +29,7 @@ Snapshot.HotKeys = table.freeze({
 })
 Snapshot.ColdKeys = table.freeze({
 	"upgrades", "dex", "stats", "tutorial", "tips", "settings", "canSave", "dataStatus", "loadout", "unlocked", "powerPeak",
-	"harmonyOff", "cosmetics", "bosses", "materials", "trophies",
+	"harmonyOff", "cosmetics", "bosses", "materials", "trophies", "weapons",
 })
 
 -- Status snapshot provider, injected by StatusService's owner (avoids a
@@ -135,6 +135,7 @@ function Snapshot.cold(session: Types.Session): { [string]: any }
 		bosses = Snapshot.codexView(session),
 		materials = table.clone(data.materials),
 		trophies = Snapshot.trophiesView(session),
+		weapons = { owned = table.clone(data.weapons.owned), equipped = data.weapons.equipped },
 	}
 end
 

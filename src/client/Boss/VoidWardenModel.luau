@@ -62,10 +62,15 @@ export type Pose = {
 	fade: number,
 	-- Gloves bob offset (studs, before scale).
 	hands: number,
+	-- Phase 6.5 readability: body tint while he prepares an attack (yellow)
+	-- or releases it (red), and a white flash when he is hit.
+	tint: Color3?,
+	tintAlpha: number,
+	flash: number,
 }
 
 function VoidWardenModel.defaultPose(): Pose
-	return { squash = 1, lean = 0, spin = 0, broom = 0, mouth = 0, mood = "grumpy", lookAt = nil, dizzy = false, eyesClosed = false, fade = 0, hands = 0 }
+	return { squash = 1, lean = 0, spin = 0, broom = 0, mouth = 0, mood = "grumpy", lookAt = nil, dizzy = false, eyesClosed = false, fade = 0, hands = 0, tint = nil, tintAlpha = 0, flash = 0 }
 end
 
 local function makePart(rig: Rig, name: string, kind: string, size: Vector3, base: CFrame, color: Color3, group: string, transparency: number?): RigPart
@@ -225,7 +230,14 @@ function VoidWardenModel.pose(rig: Rig, root: CFrame, pose: Pose, dt: number)
 		local alpha = entry.transparency
 		if entry.group == "body" then
 			part.Size = Vector3.new(entry.size.X * wide, entry.size.Y * squash, entry.size.Z * wide)
-			part.Color = if furious then JELLY:Lerp(JELLY_ANGRY, 0.5 + math.sin(t * 6) * 0.2) else JELLY
+			local body = if furious then JELLY:Lerp(JELLY_ANGRY, 0.5 + math.sin(t * 6) * 0.2) else JELLY
+			if pose.tint and pose.tintAlpha > 0 then
+				body = body:Lerp(pose.tint, math.clamp(pose.tintAlpha, 0, 1))
+			end
+			if pose.flash > 0 then
+				body = body:Lerp(WHITE, math.clamp(pose.flash, 0, 1))
+			end
+			part.Color = body
 		elseif entry.group == "face" or entry.group == "cap" then
 			position = Vector3.new(position.X * wide, position.Y * squash, position.Z * wide)
 		elseif entry.group == "limb" then

@@ -95,6 +95,26 @@ local Sounds: { [string]: SoundDef } = {
 
 	-- World ------------------------------------------------------------------
 	EventStart = def(BOOM, 0.4, 0.45, 0, "Deep horn / sky rumble announcing a Rift event."),
+
+	-- V2 phase 6.5: boss fight readability + combat (built-in fallbacks) -----
+	-- One distinct warning per attack, played when its telegraph appears.
+	BossWarnWave = def(WIND, 0.5, 1.45, 0, "Broom wind-up: rising cartoon whoosh (0.8-1.2s)."),
+	BossWarnGoo = def(WATER, 0.45, 1.75, 0.03, "Bubbly 'bloop-bloop' of goo about to splat."),
+	BossWarnBunny = def(JUMP, 0.5, 0.6, 0.04, "Springy 'boing' of dust bunnies being thrown."),
+	BossWarnFlop = def(WIND, 0.5, 0.35, 0, "Deep falling whistle before a belly flop."),
+	BossWarnCleanup = def(SLIDER, 0.6, 0.42, 0, "Silly alarm 'wee-woo' for the Big Cleanup special."),
+	-- The telegraph turns red: danger NOW.
+	BossDanger = def(SLIDER, 0.55, 2.2, 0, "Sharp short 'tick!' when a zone turns red."),
+	BossImpact = def(LAND, 0.6, 0.55, 0.05, "Heavy squishy impact of an attack landing."),
+	-- Player combat.
+	PunchSwing = def(JUMP, 0.35, 2.1, 0.08, "Quick cartoon swoosh of a swing."),
+	PunchHit = def(LAND, 0.55, 1.45, 0.08, "Bouncy 'bonk' on the jelly boss."),
+	PunchFinisher = def(BOOM, 0.5, 1.25, 0.04, "Big 'KAPOW' of a combo finisher."),
+	Squeak = def(SLIDER, 0.4, 2.8, 0.06, "Rubber squeak of the Squeaky Mallet."),
+	Dodge = def(JUMP, 0.4, 1.9, 0.04, "Happy 'whoop' when you dodge an attack."),
+	HeartLost = def(LAND, 0.55, 0.5, 0, "Soft 'oof' when you lose a heart (never scary)."),
+	Block = def(SLIDER, 0.5, 1.6, 0, "Shield 'ding' blocking a boss hit."),
+	WeaponBuy = def(BOOM, 0.4, 1.4, 0, "Shiny 'ta-da' for a new boss weapon."),
 	AmbientWorld = def("", 0.25, 1, 0, "Looping ambient night bed under the music: wind, soft chimes, distant hum (1-3 min seamless loop).", true),
 	-- MUSIC is not here: every music track and stinger is in Config/Music.
 }

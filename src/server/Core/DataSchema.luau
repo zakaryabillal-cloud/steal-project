@@ -13,6 +13,7 @@ local Abilities = require(Shared.Config.Abilities)
 local Cosmetics = require(Shared.Config.Cosmetics)
 local Bosses = require(Shared.Config.Bosses)
 local Materials = require(Shared.Config.Materials)
+local Weapons = require(Shared.Config.Weapons)
 local PowerConfig = require(Shared.Config.Power)
 local Economy = require(Shared.Economy)
 local Layout = require(Shared.Layout)
@@ -68,7 +69,12 @@ function DataSchema.default(): SaveData
 		bosses = {},
 		materials = {},
 		trophies = {},
+		weapons = DataSchema.defaultWeapons(),
 	}
+end
+
+function DataSchema.defaultWeapons(): Types.WeaponData
+	return { owned = { [Weapons.Starter] = true }, equipped = Weapons.Starter }
 end
 
 function DataSchema.newBossRecord(): Types.BossRecord
@@ -128,6 +134,15 @@ local MIGRATIONS: { [number]: (any) -> any } = {
 			raw.trophies = {}
 		end
 		raw.schema = 5
+		return raw
+	end,
+	-- 5 -> 6 (V2 phase 6.5): boss weapons. Everyone owns and holds the free
+	-- starter weapon (added by normalize).
+	[5] = function(raw: any): any
+		if type(raw.weapons) ~= "table" then
+			raw.weapons = { owned = {}, equipped = Weapons.Starter }
+		end
+		raw.schema = 6
 		return raw
 	end,
 }
@@ -391,6 +406,21 @@ function DataSchema.normalize(raw: any): SaveData
 		end
 	end
 
+	-- Weapons: known ids only, `true` only, the starter always owned, the
+	-- equipped one must be owned (else the starter).
+	if type(raw.weapons) == "table" then
+		local owned = data.weapons.owned
+		if type(raw.weapons.owned) == "table" then
+			for weaponId, flag in raw.weapons.owned do
+				if flag == true and Weapons.get(weaponId) then
+					owned[weaponId] = true
+				end
+			end
+		end
+		local equipped = raw.weapons.equipped
+		data.weapons.equipped = if type(equipped) == "string" and owned[equipped] then equipped else Weapons.Starter
+	end
+
 	-- Relics: valid ids only, unique uids, unique slots within unlocked range.
 	local unlocked = Economy.unlockedPedestals(data.upgrades)
 	local usedSlots: { [number]: boolean } = {}
@@ -497,6 +527,10 @@ function DataSchema.serialize(data: SaveData): { [string]: any }
 		bosses = bosses,
 		materials = table.clone(data.materials),
 		trophies = trophies,
+		weapons = {
+			owned = table.clone(data.weapons.owned),
+			equipped = data.weapons.equipped,
+		},
 	}
 end
 

@@ -69,6 +69,14 @@ export type BossRecord = {
 	lastFight: string,
 }
 
+-- Schema 6 (V2 phase 6.5): boss weapons (expeditions only, never PvP).
+export type WeaponData = {
+	-- weaponId -> true. Always contains the starter weapon.
+	owned: { [string]: boolean },
+	-- Equipped weapon id (always an owned one).
+	equipped: string,
+}
+
 -- Boss relic kept on a trophy pedestal (never stealable).
 export type SaveTrophy = {
 	uid: string,
@@ -105,6 +113,8 @@ export type SaveData = {
 	bosses: { [string]: BossRecord },
 	materials: { [string]: number },
 	trophies: { SaveTrophy },
+	-- schema 6
+	weapons: WeaponData,
 }
 
 -- Runtime crowd-control state (never saved). See Shared/Status.

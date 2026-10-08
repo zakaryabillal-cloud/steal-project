@@ -83,10 +83,42 @@ Bosses.Combat = table.freeze({
 	-- that a root must be to clear a ground wave (a normal jump is ~7.6).
 	RootHeight = 3,
 	JumpClear = 2.2,
-	-- Abilities usable inside the arena (movement / defence only). Every
-	-- other ability is refused there, and abilities never affect anyone
-	-- across the expedition border (Core/Expeditions).
-	ArenaAbilities = table.freeze({ dash = true, blink = true, shield = true, phase = true }),
+	-- Telegraphs: yellow while the boss prepares, RED this long before the
+	-- server applies the damage (clients flash and tick at that moment).
+	DangerLead = 0.35,
+})
+
+-- Every ability works in the arena (phase 6.5), with effects adapted to the
+-- boss. Abilities never touch another fighter nor cross the expedition
+-- border (Core/Expeditions); the boss RESISTS every push, stun, root and
+-- slow (control abilities get an alternative effect instead).
+Bosses.Abilities = table.freeze({
+	dash = table.freeze({ kind = "movement" }),
+	-- Destination must stay inside the arena walls.
+	blink = table.freeze({ kind = "movement" }),
+	-- Only the 4 floating bubble anchors of the arena (see ArenaGrapple).
+	grapple = table.freeze({ kind = "movement" }),
+	-- No push / stun on the boss: a heavy "BOING" hit instead, and it
+	-- washes the sticky goo off the caster.
+	pulse = table.freeze({ kind = "control", damage = 25 }),
+	-- No slow on the boss: "chilled", he takes more damage for a while.
+	frost_wave = table.freeze({ kind = "control", damage = 10, chill = 0.15, chillDuration = 4 }),
+	-- The boss walking / landing on an armed rune sets it off: "ZAP!".
+	rune_trap = table.freeze({ kind = "control", damage = 40 }),
+	-- Blocks the next boss hit while it is up (consumed).
+	shield = table.freeze({ kind = "defence" }),
+	-- Spectral Phase: boss attacks pass through you.
+	phase = table.freeze({ kind = "defence" }),
+	-- The boss aims his puddles, bunnies and hops at decoys too.
+	decoy = table.freeze({ kind = "defence" }),
+})
+
+-- Floating bubble anchors for the Grapple inside the arena (index 101+).
+Bosses.ArenaGrapple = table.freeze({
+	FirstIndex = 101,
+	Radius = 40,
+	Height = 15,
+	Angles = table.freeze({ 45, 135, 225, 315 }),
 })
 
 -- "Strike" (Frappe): the only way to damage a boss. Arena only.
@@ -319,6 +351,13 @@ function Bosses.powerBonus(power: number): number
 	return math.clamp(power / s.PowerForCap, 0, 1) * s.PowerBonusCap
 end
 
+-- Damage of one hit: `base` (weapon) x multipliers (combo, dizzy, chill,
+-- team buff) x the capped current-Power bonus, rounded to 0.1.
+function Bosses.hitDamage(base: number, power: number, multiplier: number): number
+	local damage = base * multiplier * (1 + Bosses.powerBonus(power))
+	return math.floor(damage * 10 + 0.5) / 10
+end
+
 function Bosses.strikeDamage(power: number, dizzy: boolean): number
 	local s = Bosses.Strike
 	local damage = s.Damage * (1 + Bosses.powerBonus(power))
@@ -354,6 +393,27 @@ end
 -- Can a Power record enter this boss's expedition?
 function Bosses.canEnter(def: BossDef, powerRecord: number): boolean
 	return powerRecord >= def.minPowerRecord
+end
+
+-- Grapple anchors of the arena: { index, position } (index >= FirstIndex).
+function Bosses.arenaGrapplePoints(): { { index: number, position: Vector3 } }
+	local g = Bosses.ArenaGrapple
+	local c = Bosses.Arena.Center
+	local points = {}
+	for k, deg in g.Angles do
+		local a = math.rad(deg)
+		table.insert(points, { index = g.FirstIndex + k - 1, position = Vector3.new(c.X + math.cos(a) * g.Radius, c.Y + g.Height, c.Z + math.sin(a) * g.Radius) })
+	end
+	return points
+end
+
+function Bosses.arenaGrapplePoint(index: number): Vector3?
+	for _, point in Bosses.arenaGrapplePoints() do
+		if point.index == index then
+			return point.position
+		end
+	end
+	return nil
 end
 
 -- Trophy pedestals unlocked for a Power record (1..#Unlocks).

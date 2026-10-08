@@ -50,6 +50,8 @@ export type State = {
 	bosses: { [string]: CodexEntry },
 	materials: { [string]: number },
 	trophies: { { id: string, level: number, slot: number } },
+	-- Phase 6.5 (cold): boss weapons.
+	weapons: { owned: { [string]: boolean }, equipped: string },
 }
 
 export type CodexEntry = {
@@ -100,6 +102,7 @@ Store.state = {
 	bosses = {},
 	materials = {},
 	trophies = {},
+	weapons = { owned = { foam_gloves = true }, equipped = "foam_gloves" },
 } :: State
 
 Store.ready = false

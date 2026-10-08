@@ -98,8 +98,8 @@ function ArenaBuilder.build(parent: Instance, bossId: string): Arena
 		local a = (i + 0.5) / walls * math.pi * 2
 		local length = 2 * (R + 3.5) * math.sin(math.pi / walls) + 1
 		local p = Vector3.new(c.X + math.cos(a) * (R + 3.5), top + A.WallHeight / 2, c.Z + math.sin(a) * (R + 3.5))
-		local wall = Parts.block({ size = Vector3.new(length, A.WallHeight, 1), cf = CFrame.lookAt(p, Vector3.new(c.X, p.Y, c.Z)), transparency = 1, shadow = false, parent = model, name = "Wall" })
-		wall.CanQuery = false
+		-- Queryable: Blink, Grapple and every raycast stop at the walls.
+		Parts.block({ size = Vector3.new(length, A.WallHeight, 1), cf = CFrame.lookAt(p, Vector3.new(c.X, p.Y, c.Z)), transparency = 1, shadow = false, parent = model, name = "Wall" })
 	end
 
 	-- Arrival door: a cartoon closet door frame behind the spawn arc.
@@ -164,6 +164,14 @@ function ArenaBuilder.build(parent: Instance, bossId: string): Arena
 	sun.CanQuery = false
 	Parts.light(sun, Color3.fromRGB(255, 235, 250), 60, 0.8)
 	floor:SetAttribute("ArenaFloor", true)
+
+	-- Floating bubble anchors for the Grapple (phase 6.5).
+	local anchors = Parts.folder("GrapplePoints", model)
+	for _, point in Bosses.arenaGrapplePoints() do
+		local bubble = Parts.ball({ size = Vector3.one * 2.6, cf = CFrame.new(point.position), color = BUBBLE, material = M.Glass, transparency = 0.35, collide = false, shadow = false, parent = anchors, name = "Anchor" })
+		bubble:SetAttribute("GrapplePoint", point.index)
+		Parts.ball({ size = Vector3.one * 1.1, cf = CFrame.new(point.position), color = Color3.fromRGB(120, 240, 255), material = M.Neon, collide = false, shadow = false, parent = anchors, name = "AnchorCore" })
+	end
 
 	local spawns = {}
 	for k = 1, 8 do

@@ -60,6 +60,13 @@ Emoji.Glyphs = table.freeze({
 	globe = "🌍",
 	camera = "🎥",
 	snowman = "⛄",
+	-- Phase 6.5: boss weapons and attack bubbles
+	weapons = "🥊",
+	hammer = "🔨",
+	splash = "💦",
+	droplet = "💧",
+	bunny = "🐰",
+	water = "🌊",
 })
 
 -- Every allowed code point (built from Glyphs, plus a few spare ones).

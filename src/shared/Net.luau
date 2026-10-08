@@ -38,6 +38,9 @@ Net.Functions = table.freeze({
 	SetHarmony = "SetHarmony", -- (relicId, enabled) -> (ok, reason)
 	EquipCosmetic = "EquipCosmetic", -- (category, cosmeticId | "") -> (ok, reason)
 	BossJoin = "BossJoin", -- () -> (ok, reason) join the open expedition from the portal
+	-- V2 phase 6.5: boss weapons (expeditions only).
+	BuyWeapon = "BuyWeapon", -- (weaponId) -> (ok, reason)
+	EquipWeapon = "EquipWeapon", -- (weaponId) -> (ok, reason)
 }) :: { [string]: string }
 
 local FOLDER_NAME = "Remotes"

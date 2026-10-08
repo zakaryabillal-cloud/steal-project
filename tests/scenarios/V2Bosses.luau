@@ -48,6 +48,7 @@ return function(ctx)
 	local VoidWarden = sreq("Bosses.VoidWarden")
 	local ArenaBuilder = sreq("World.ArenaBuilder")
 	local Bosses = shared("Config.Bosses")
+	local Weapons = shared("Config.Weapons")
 	local Materials = shared("Config.Materials")
 	local Relics = shared("Config.Relics")
 	local Cosmetics = shared("Config.Cosmetics")
@@ -309,7 +310,9 @@ return function(ctx)
 
 	--------------------------------------------------------------------------
 	scenario("V2 Bosses: schema 5 migration, sanitising, newer-schema guard, Sync", function()
-		check(GameConfig.Data.SchemaVersion == 5 and DataSchema.Version == 5, "schema 5")
+		-- Phase 6.5 bumped the schema to 6 (weapons): the boss data stays, the
+		-- checks follow the current version.
+		check(DataSchema.Version >= 5 and GameConfig.Data.SchemaVersion == DataSchema.Version, "schema 5 or later (" .. DataSchema.Version .. ")")
 		local phase5 = {
 			schema = 4,
 			essence = 777,
@@ -320,7 +323,7 @@ return function(ctx)
 			abilities = { unlocked = { dash = true, pulse = true }, loadout = { "dash", "pulse", "" }, harmonyOff = {} },
 		}
 		local data = DataSchema.normalize(deepCopy(phase5))
-		check(data.schema == 5 and next(data.bosses) == nil and next(data.materials) == nil and #data.trophies == 0, "phase 5 save -> empty Codex, no material, no trophy")
+		check(data.schema == DataSchema.Version and next(data.bosses) == nil and next(data.materials) == nil and #data.trophies == 0, "phase 5 save -> empty Codex, no material, no trophy")
 		check(data.essence == 777 and data.power.peak == 321 and #data.relics == 1 and data.cosmetics.owned.trail_riftwake, "nothing lost from phase 5")
 		check(phase5.schema == 4 and phase5.bosses == nil, "the stored record is never mutated")
 		local tampered = deepCopy(phase5)
@@ -355,15 +358,15 @@ return function(ctx)
 		local round = DataSchema.normalize(DataSchema.serialize(clean))
 		check(round.bosses.VoidWarden.wins == 3 and round.materials.void_shard == 12 and #round.trophies == 1 and round.bosses.VoidWarden.lastFight == clean.bosses.VoidWarden.lastFight, "serialize -> normalize round trip is lossless")
 		-- Newer schema: never touched.
-		local future = { schema = 6, essence = 1, bosses = { NewBoss = {} } }
+		local future = { schema = DataSchema.Version + 1, essence = 1, bosses = { NewBoss = {} } }
 		Engine.dataStoreData[STORE .. "6363"] = deepCopy(future)
 		local player = Engine.addPlayer("FutureBoss", 6363)
 		advance(3)
 		local s = sessionOf(player)
-		check(s and s.dataStatus == "newer" and s.canSave == false, "schema 6 save: temporary data, saving disabled")
+		check(s and s.dataStatus == "newer" and s.canSave == false, "newer-schema save: temporary data, saving disabled")
 		Engine.removePlayer(player)
 		advance(2)
-		check(Engine.dataStoreData[STORE .. "6363"].schema == 6 and Engine.dataStoreData[STORE .. "6363"].bosses.NewBoss ~= nil, "newer record untouched")
+		check(Engine.dataStoreData[STORE .. "6363"].schema == DataSchema.Version + 1 and Engine.dataStoreData[STORE .. "6363"].bosses.NewBoss ~= nil, "newer record untouched")
 		-- Sync: cold half carries the Codex (without the anti-replay id).
 		local sa = sessionOf(alice)
 		local cold = Snapshot.cold(sa)
@@ -503,8 +506,10 @@ return function(ctx)
 			end
 		end
 		check(not found, "Alice is never an ability target while away")
+		-- Phase 6.5: every PvP ability works in the arena again, but only
+		-- against the boss (isolation above stays).
 		local used, reason = AbilityService.use(alice, "pulse", nil)
-		check(not used and reason == "arena", "PvP abilities refused inside the arena (" .. tostring(reason) .. ")")
+		check(reason ~= "arena", "PvP abilities usable inside the arena, boss only (" .. tostring(used) .. " " .. tostring(reason) .. ")")
 		local dashOk, dashReason = AbilityService.use(alice, "dash", nil)
 		check(dashReason ~= "arena", "movement abilities still allowed in the arena (" .. tostring(dashOk) .. " " .. tostring(dashReason) .. ")")
 		-- Protection ends with the expedition.
@@ -564,13 +569,22 @@ return function(ctx)
 		check(not struck and why == "cooldown", "cooldown enforced on the server")
 		-- Spam + forged payloads through the remote.
 		local hpBefore, hitsBefore = f.hp, BossService.participant(alice).hits
+		clearLog(alice)
 		for _ = 1, 30 do
 			Engine.fireServer(remote("BossStrike"), alice, 1e9, "kill", Vector3.new(0, 0, 0))
 			advance(0.03)
 		end
 		local hits = BossService.participant(alice).hits - hitsBefore
 		check(hits <= 3, "30 spammed strikes in ~1 s: at most 3 count (" .. hits .. ")")
-		check(math.abs((hpBefore - f.hp) - hits * Bosses.strikeDamage(sa.power, false)) < 1e-6, "forged payloads ignored: damage = server formula")
+		-- Phase 6.5: each hit follows the equipped weapon's combo step.
+		local expected = 0
+		for _, entry in Engine.clientLog[alice] or {} do
+			if entry.remote == "FX" and entry.args[1] == "BossStruck" then
+				local w = Weapons.get(entry.args[2].weapon)
+				expected += Bosses.hitDamage(w.damage, sa.power, w.combo[entry.args[2].combo])
+			end
+		end
+		check(expected > 0 and math.abs((hpBefore - f.hp) - expected) < 1e-6, "forged payloads ignored: damage = server formula")
 		-- Untouchable moments.
 		advance(0.5)
 		f.motion = { from = f.anchor.Position, to = f.anchor.Position, startAt = now() - 0.1, endAt = now() + 5, height = 20 }
@@ -788,7 +802,7 @@ return function(ctx)
 		-- Saved right away.
 		advance(1)
 		local saved = Engine.dataStoreData[STORE .. alice.UserId]
-		check(saved and saved.schema == 5 and saved.bosses.VoidWarden.wins == record.wins and saved.materials.void_shard == sa.data.materials.void_shard and #saved.trophies == 1, "rewards saved immediately")
+		check(saved and saved.schema == DataSchema.Version and saved.bosses.VoidWarden.wins == record.wins and saved.materials.void_shard == sa.data.materials.void_shard and #saved.trophies == 1, "rewards saved immediately")
 		advance(Bosses.Combat.Outro + 0.5)
 		check(fight() == nil, "expedition over")
 		-- Duplicates: trophy levels up, owned cosmetic -> shards.

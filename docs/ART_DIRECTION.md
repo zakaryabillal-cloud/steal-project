@@ -234,6 +234,27 @@ chiffres de dégâts rouges sanglants (étoiles et « POW! » à la place).
   boss en 3D sur fond de rayons, cœurs dessinés, gros bouton rond orange **FRAPPE** (💥), carte de résultats
   (VICTOIRE ! / OUPS !) avec la tête du boss, Codex avec silhouette encre « ??? » tant qu'il est inconnu.
 
+### Lisibilité et armes (Phase 6.5)
+
+- **Deux temps de couleur, pour tous les boss** : **jaune** (`255,220,60`) pendant la préparation, **rouge
+  clignotant** (`255,70,90`) pendant les `Combat.DangerLead` = 0,35 s qui précèdent les dégâts. Les zones sont des
+  **pièces** (disques, éventails, contour encre épais), jamais des particules : elles restent visibles en qualité
+  Basse. Vert menthe (`110,255,170`) = sûr (faisceau de 40 studs + flèche HUD + « ✅ SAFE ✅ »).
+- **Bulle « ! »** au-dessus du boss (toujours visible), avec un emoji par attaque (🌀 balai, 💧 flaques, 🐰 moutons,
+  💥 plat ventre, 🌊 Grand Ménage), jaune puis rouge ; le corps se teinte de la couleur de l'attaque puis flashe
+  en blanc à l'impact ; **un son d'alerte par attaque**.
+- **Mots qui sautent** (Luckiest Guy, contour encre) : « ESQUIVÉ ! », « SAUTÉ ! », « À L'ABRI ! »,
+  « BLOQUÉ ! », « WOUSH, À TRAVERS ! », « BOING ! », « ZAP ! », « BRRR ! GELÉ », « +1 CŒUR ! », « ÉQUIPE +15 % ! », « KAPOW! » au finisher.
+- **Coup de poing** : geste exagéré (élan en arrière, frappe, retour) par décalage des articulations, 3ᵉ coup plus
+  ample ; « swoosh » blanc, bulle de savon pour le blaster, étincelles pour la baguette.
+- **Armes** : jouets cartoon en pièces natives aux couleurs de la marque — gants rouges à manchette crème, maillet
+  rose à bande crème et manche jaune, blaster bleu ciel à réservoir et canon rose, baguette crème à étoile dorée,
+  ventouse rouge à manche bois, marteau à bandes rouge / jaune / bleu. Rareté = étoiles + couleur de la carte.
+  Écran **ARMES** : accent **orange** (🥊), cartes avec aperçu 3D, barres de stats avec ▲ vert / ▼ rouge par
+  rapport à l'arme équipée, ACHETER vert, ÉQUIPER bleu, prix colorés (vert si on a assez, rose sinon).
+- **Disposition** : FRAPPE (orange, rond, 💥 → emoji de l'arme) à gauche des capacités, jamais dessus ; cœurs
+  sous la barre de vie ; Quitter à côté de la barre ; colonne de droite au-dessus du bouton de saut tactile.
+
 ## 12. Interfaces des Phases 6 à 11
 
 - **Boss** (livré en Phase 6) : écran pré-combat = carte « affiche de catch » (boss en 3D, nom, rang,

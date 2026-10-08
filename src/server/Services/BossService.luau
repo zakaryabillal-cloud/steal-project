@@ -31,6 +31,7 @@ local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
 local Bosses = require(Shared.Config.Bosses)
 local Materials = require(Shared.Config.Materials)
+local Weapons = require(Shared.Config.Weapons)
 local WorldFeatures = require(Shared.WorldFeatures)
 
 local Core = script.Parent.Parent.Core
@@ -49,6 +50,11 @@ local CosmeticService = require(script.Parent.CosmeticService)
 local TrophyService = require(script.Parent.TrophyService)
 local DexService = require(script.Parent.DexService)
 local DataService = require(script.Parent.DataService)
+local WeaponService = require(script.Parent.WeaponService)
+local AbilitiesFolder = script.Parent.Parent.Abilities
+local Common = require(AbilitiesFolder.Common)
+local RuneTrap = require(AbilitiesFolder.RuneTrap) :: any
+local Decoy = require(AbilitiesFolder.Decoy) :: any
 local ArenaBuilder = require(script.Parent.Parent.World.ArenaBuilder)
 local BossTypes = require(script.Parent.Parent.Bosses.BossTypes)
 
@@ -91,6 +97,12 @@ export type Participant = {
 	pullBacks: number,
 	-- Reward outcome (set at the end): "rewarded" | reason it was not.
 	outcome: string?,
+	-- Phase 6.5: combo step (1..3) and time of the last hit, next heal
+	-- (Rainbow Hammer), last dodge feedback.
+	combo: number,
+	lastHitAt: number,
+	healReadyAt: number,
+	dodgeFxAt: number,
 }
 
 export type Fight = {
@@ -129,6 +141,11 @@ export type Fight = {
 	reason: string?,
 	duration: number,
 	outroUntil: number,
+	-- Phase 6.5: Frost Wave "chill" and Star Wand team buff.
+	chillUntil: number,
+	chillValue: number,
+	buffUntil: number,
+	buffValue: number,
 }
 
 local fight: Fight? = nil
@@ -275,6 +292,7 @@ local function teleportOut(f: Fight, p: Participant)
 	Expeditions.leave(p.session)
 	StatusService.clearSlow(p.session, "goo")
 	clearAttributes(p.session)
+	WeaponService.detach(p.session)
 	if p.inArena then
 		p.inArena = false
 		local _, _, root = Sessions.character(p.session)
@@ -354,6 +372,10 @@ function BossService.join(player: Player): (boolean, string?)
 			inArena = false,
 			pullBacks = 0,
 			outcome = nil,
+			combo = 0,
+			lastHitAt = 0,
+			healReadyAt = 0,
+			dodgeFxAt = 0,
 		}
 	p.status = "waiting"
 	p.ready = false
@@ -369,6 +391,8 @@ function BossService.join(player: Player): (boolean, string?)
 	session.stealHold = nil
 	p.inArena = true
 	moveCharacter(session, f.arena.spawns[((#f.participants - 1) % #f.arena.spawns) + 1])
+	-- The equipped boss weapon appears in hand (arena only).
+	WeaponService.attach(session)
 	player:SetAttribute("BossFight", f.id)
 	player:SetAttribute("BossHearts", p.hearts)
 	local record = codex(session, f.boss.id)
@@ -490,6 +514,10 @@ function BossService.open(): Fight?
 		reason = nil,
 		duration = 0,
 		outroUntil = 0,
+		chillUntil = 0,
+		chillValue = 0,
+		buffUntil = 0,
+		buffValue = 0,
 	}
 	newAnchor(f)
 	fight = f
@@ -708,12 +736,33 @@ local function ko(f: Fight, p: Participant, t: number)
 	sendFight(f, "BossKO", { userId = p.userId })
 end
 
+-- "DODGED!" feedback (throttled per fighter).
+local function dodged(f: Fight, p: Participant, kind: string, t: number)
+	if t - p.dodgeFxAt < 0.8 then
+		return
+	end
+	p.dodgeFxAt = t
+	sendFight(f, "BossDodge", { userId = p.userId, kind = kind })
+end
+
 local function hit(f: Fight, p: Participant, from: Vector3, t: number)
 	if p.status ~= "fighting" or t < p.invulnerableUntil then
 		return
 	end
 	local _, _, root = Sessions.character(p.session)
 	if not root then
+		return
+	end
+	-- Spectral Phase: the attack passes through.
+	if StatusService.isPhased(p.session) then
+		dodged(f, p, "phase", t)
+		return
+	end
+	-- Shield: blocks this hit, then breaks.
+	if StatusService.isShielded(p.session) then
+		StatusService.endBuff(p.session, "shield")
+		p.invulnerableUntil = t + 0.6
+		sendFight(f, "BossBlock", { userId = p.userId, position = root.Position })
 		return
 	end
 	p.hearts -= 1
@@ -765,8 +814,12 @@ local function resolveShapes(f: Fight, t: number)
 							resolved[entry.p] = true
 						elseif front >= d - band / 2 then
 							resolved[entry.p] = true
-							if front <= d + band / 2 + speed * 0.15 and grounded(f, entry.root) then
-								hit(f, entry.p, shape.center, t)
+							if front <= d + band / 2 + speed * 0.15 then
+								if grounded(f, entry.root) then
+									hit(f, entry.p, shape.center, t)
+								else
+									dodged(f, entry.p, "jump", t)
+								end
 							end
 						end
 					end
@@ -777,8 +830,12 @@ local function resolveShapes(f: Fight, t: number)
 			if t >= shape.at then
 				for _, entry in list do
 					local offset = entry.root.Position - shape.center
-					if flat(offset).Magnitude <= shape.radius + 1 and offset.Y < COMBAT.RootHeight + 6 then
+					local d = flat(offset).Magnitude
+					if d <= shape.radius + 1 and offset.Y < COMBAT.RootHeight + 6 then
 						hit(f, entry.p, shape.center, t)
+					elseif d <= shape.radius + 7 then
+						-- Stepped out just in time.
+						dodged(f, entry.p, "step", t)
 					end
 				end
 				remove = true
@@ -792,6 +849,8 @@ local function resolveShapes(f: Fight, t: number)
 					local diff = math.abs(((angle - (shape.safeAngle or 0) + math.pi) % (math.pi * 2)) - math.pi)
 					if diff > half and offset.Magnitude <= shape.radius then
 						hit(f, entry.p, shape.center, t)
+					else
+						dodged(f, entry.p, "safe", t)
 					end
 				end
 				remove = true
@@ -878,11 +937,27 @@ local function chooseAttack(f: Fight): string
 	return pool[f.rng:NextInteger(1, #pool)]
 end
 
-local function planNext(f: Fight, t: number)
+-- Floor points the next attack aims at: fighters, then their decoys.
+local function targetsOf(f: Fight, t: number): { Vector3 }
 	local targets = {}
 	for _, entry in fighters(f) do
 		table.insert(targets, Vector3.new(entry.root.Position.X, f.arena.floorY, entry.root.Position.Z))
 	end
+	-- Decoys draw his attention too (phase 6.5).
+	for _, record in Decoy.active() do
+		local p = f.bySession[record.owner]
+		if p and p.status == "fighting" then
+			local position = Decoy.position(record, t)
+			if ArenaBuilder.inside(position, 0) then
+				table.insert(targets, Vector3.new(position.X, f.arena.floorY, position.Z))
+			end
+		end
+	end
+	return targets
+end
+
+local function planNext(f: Fight, t: number)
+	local targets = targetsOf(f, t)
 	local view: BossTypes.FightView = {
 		boss = f.boss,
 		phase = f.phase,
@@ -920,6 +995,8 @@ local function planNext(f: Fight, t: number)
 		endsAt = plan.endsAt,
 		phase = f.phase,
 		data = plan.payload,
+		-- Same arc as updateMotion: clients move the body exactly with it.
+		motion = if plan.motion then { from = plan.motion.from, to = plan.motion.to, startAt = plan.motion.startAt, endAt = plan.motion.endAt, height = plan.motion.height } else nil,
 	})
 end
 
@@ -940,8 +1017,31 @@ local function enterPhase(f: Fight, phase: number, t: number)
 	sendFight(f, "BossPhase", { phase = phase, mood = phaseDef.mood })
 end
 
+-- Applies damage to the boss (strikes and abilities). Returns true when the
+-- boss is defeated by it.
+local function damageBoss(f: Fight, p: Participant?, amount: number, t: number): boolean
+	if p then
+		p.damage += amount
+		p.lastActive = t
+	end
+	f.hp = math.max(0, f.hp - amount)
+	publishArena(f)
+	if f.hp <= 0 then
+		endFight(f, t, "Victory", "defeated")
+		return true
+	end
+	local phase = Bosses.phaseAt(f.boss, f.hp / f.maxHp)
+	if phase > f.phase then
+		enterPhase(f, phase, t)
+	end
+	return false
+end
+
 -- Returns (ok, reason?). reason: invalid | arena | notYet | cooldown |
 -- noCharacter | shield | air | range
+-- Everything comes from the server: the equipped weapon (damage, speed,
+-- reach, combo, special), the combo step, Power bonus, dizzy / chill / team
+-- buff multipliers. The client sends nothing but "Strike".
 function BossService.strike(player: Player): (boolean, string?)
 	local session = Sessions.ready(player)
 	if not session then
@@ -971,29 +1071,128 @@ function BossService.strike(player: Player): (boolean, string?)
 		return false, "air"
 	end
 	local def = f.boss
+	local weapon = WeaponService.weaponOf(session)
 	local offset = root.Position - f.anchor.Position
-	if flat(offset).Magnitude > def.radius + STRIKE.Reach or math.abs(offset.Y) > STRIKE.Height then
+	if flat(offset).Magnitude > def.radius + weapon.reach or math.abs(offset.Y) > STRIKE.Height then
 		return false, "range"
 	end
-	Sessions.setCooldown(session, "bossStrike", STRIKE.Cooldown * 0.9)
+	Sessions.setCooldown(session, "bossStrike", weapon.cooldown * 0.9)
 	Sessions.touch(session)
+	local combo = Weapons.nextCombo(weapon, p.combo, p.lastHitAt, t)
+	p.combo = combo
+	p.lastHitAt = t
+	local finisher = combo == #weapon.combo
 	local dizzy = t >= f.dizzyFrom and t < f.dizzyUntil
-	local damage = Bosses.strikeDamage(session.power, dizzy)
-	p.damage += damage
+	local multiplier = weapon.combo[combo]
+	if dizzy then
+		multiplier *= STRIKE.DizzyMultiplier
+		if weapon.special.kind == "dizzyBonus" then
+			multiplier *= weapon.special.value or 1
+		end
+	end
+	local chilled = t < f.chillUntil
+	if chilled then
+		multiplier *= 1 + f.chillValue
+	end
+	if t < f.buffUntil then
+		multiplier *= 1 + f.buffValue
+	end
+	local damage = Bosses.hitDamage(weapon.damage, session.power, multiplier)
 	p.hits += 1
-	p.lastActive = t
-	f.hp = math.max(0, f.hp - damage)
-	publishArena(f)
-	Remotes.fxTo(player, "BossStruck", { fight = f.id, amount = damage, dizzy = dizzy, hp = f.hp })
-	if f.hp <= 0 then
-		endFight(f, t, "Victory", "defeated")
-		return true, nil
+	-- Finisher specials.
+	local special: string? = nil
+	if finisher and weapon.special.kind == "teamBuff" then
+		f.buffUntil = t + (weapon.special.duration or 5)
+		f.buffValue = weapon.special.value or 0
+		special = "teamBuff"
+		sendFight(f, "BossBuff", { userId = p.userId, untilTime = f.buffUntil, value = f.buffValue })
+	elseif finisher and weapon.special.kind == "heal" and t >= p.healReadyAt and p.hearts < COMBAT.Hearts then
+		p.hearts += 1
+		p.healReadyAt = t + (weapon.special.duration or 15)
+		player:SetAttribute("BossHearts", p.hearts)
+		special = "heal"
+		sendFight(f, "BossHeal", { userId = p.userId, hearts = p.hearts })
 	end
-	local phase = Bosses.phaseAt(def, f.hp / f.maxHp)
-	if phase > f.phase then
-		enterPhase(f, phase, t)
+	Remotes.fxTo(player, "BossStruck", {
+		fight = f.id,
+		amount = damage,
+		dizzy = dizzy,
+		chilled = chilled,
+		combo = combo,
+		finisher = finisher,
+		weapon = weapon.id,
+		special = special,
+		hp = math.max(0, f.hp - damage),
+	})
+	-- Everyone else in the arena sees the swing (their clients animate it).
+	for _, other in f.participants do
+		if other ~= p and other.inArena and not other.session.released and other.session.player.Parent ~= nil then
+			Remotes.fxTo(other.session.player, "BossSwing", { fight = f.id, userId = p.userId, weapon = weapon.id, combo = combo, finisher = finisher })
+		end
 	end
+	damageBoss(f, p, damage, t)
 	return true, nil
+end
+
+-- Ability effects on the boss (Config/Bosses.Abilities), reported by the
+-- ability modules through Common.bossEffect. The boss RESISTS every push,
+-- stun and slow: pulse hits hard instead, frost wave chills him.
+local function onAbility(caster: Session, abilityId: string, origin: Vector3, radius: number)
+	local f = fight
+	local p = if f then f.bySession[caster] else nil
+	if not f or not p or p.status ~= "fighting" or f.state ~= "Fight" then
+		return
+	end
+	local t = now()
+	if abilityId == "pulse" then
+		-- Washes the sticky goo off the caster.
+		StatusService.clearSlow(caster, "goo")
+	end
+	local effect = Bosses.Abilities[abilityId]
+	if not effect or not effect.damage then
+		return
+	end
+	local offset = f.anchor.Position - origin
+	if flat(offset).Magnitude > radius + f.boss.radius or math.abs(offset.Y) > STRIKE.Height + 4 then
+		return
+	end
+	p.lastActive = t
+	if t < f.bossInvulnerableUntil or bossAirborne(f, t) then
+		sendFight(f, "BossAbility", { userId = p.userId, ability = abilityId, amount = 0, resist = true })
+		return
+	end
+	if abilityId == "frost_wave" then
+		f.chillUntil = t + (effect.chillDuration or 4)
+		f.chillValue = effect.chill or 0
+	end
+	sendFight(f, "BossAbility", { userId = p.userId, ability = abilityId, amount = effect.damage, resist = true, chillUntil = f.chillUntil })
+	damageBoss(f, p, effect.damage, t)
+end
+BossService.onAbility = onAbility
+
+-- Armed rune traps under the boss go off (he cannot avoid them: he resists
+-- the root, takes the "ZAP!" damage instead).
+local function checkTraps(f: Fight, t: number)
+	if bossAirborne(f, t) then
+		return
+	end
+	local effect = Bosses.Abilities.rune_trap
+	for _, p in f.participants do
+		if p.status ~= "fighting" then
+			continue
+		end
+		local trap = RuneTrap.of(p.session)
+		if trap and trap.armed then
+			local d = flat(trap.position - f.anchor.Position).Magnitude
+			if d <= (trap.tuning.TriggerRadius or 3) + f.boss.radius then
+				RuneTrap.consume(p.session, "boss")
+				sendFight(f, "BossAbility", { userId = p.userId, ability = "rune_trap", amount = effect.damage, resist = true, position = trap.position })
+				if damageBoss(f, p, effect.damage, t) then
+					return
+				end
+			end
+		end
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -1099,6 +1298,10 @@ local function step(t: number)
 		if f.state == "Fight" then
 			updateMotion(f, t)
 			resolveShapes(f, t)
+			checkTraps(f, t)
+			if f.state ~= "Fight" then
+				return
+			end
 			if f.dizzyUntil > 0 and t >= f.dizzyFrom and t < f.dizzyUntil and f.anchor:GetAttribute("Action") ~= "Dizzy" then
 				setAction(f, "Dizzy", nil)
 			end
@@ -1167,6 +1370,7 @@ local function onDied(session: Session)
 	p.leaveAt = nil
 	Expeditions.leave(session)
 	clearAttributes(session)
+	WeaponService.detach(session)
 	publishArena(f)
 end
 
@@ -1221,6 +1425,12 @@ function BossService.setNextOpen(at: number)
 	nextOpenAt = at
 	announced = false
 	publishPortal()
+end
+
+-- Tests / debug: what the next attack would aim at.
+function BossService.debugTargets(): { Vector3 }
+	local f = fight
+	return if f then targetsOf(f, now()) else {}
 end
 
 function BossService.participant(player: Player): Participant?
@@ -1300,6 +1510,12 @@ function BossService.start()
 		BossService.ready(player)
 	end)
 	CharacterService.died:Connect(onDied)
+	Common.setBossHandler(onAbility)
+	WeaponService.setFightingCheck(function(session: Session): boolean
+		local f = fight
+		local p = if f then f.bySession[session] else nil
+		return f ~= nil and p ~= nil and p.status == "fighting" and (f.state == "Intro" or f.state == "Fight")
+	end)
 	EconomyService.peakRaised:Connect(function(session: Session)
 		TrophyService.onPeakRaised(session)
 	end)

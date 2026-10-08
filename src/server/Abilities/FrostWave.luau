@@ -24,6 +24,8 @@ function FrostWave.activate(ctx: Types.AbilityContext)
 	local cosmicEye = ctx.harmonies.cosmic_eye == true
 	Remotes.fx("FrostWave", { userId = session.userId, position = origin, radius = tuning.Radius, lotus = ctx.harmonies.frost_lotus == true })
 	Decoy.popNear(origin, tuning.Radius, session)
+	-- Boss arena: no slow on the boss, "chilled" instead (BossService).
+	Common.bossEffect(session, "frost_wave", origin, tuning.Radius)
 	for _, target in Common.targets(session, origin, tuning.Radius, true) do
 		Common.onControlHit(cosmicEye, target.session)
 		if StatusService.applySlow(target.session, "frost", tuning.Slow, tuning.SlowDuration) then

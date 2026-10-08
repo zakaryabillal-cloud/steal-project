@@ -19,7 +19,7 @@ Future, ombres douces, nuages volumétriques, particules, beams, interface) est 
 pas sur ces images. Anciens aperçus V2 (nuit) : `docs/previews/v2_*.png`. Direction artistique complète :
 [`docs/ART_DIRECTION.md`](docs/ART_DIRECTION.md).</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités », 5 « Cosmétiques », 5.5 « Direction artistique cartoon » et 6 « Premier boss : Void Warden » terminées).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités », 5 « Cosmétiques », 5.5 « Direction artistique cartoon », 6 « Premier boss : Void Warden » et 6.5 « Combat 2.0 & armes de boss » terminées).
 
 ### Direction artistique (Phase 5.5)
 
@@ -179,19 +179,52 @@ tant qu'on participe. **Prêt !** de tout le monde lance le combat plus tôt.
 
 Le **Void Warden** est un gros cube de gelée violet, casquette de concierge, énormes yeux, moustache, gants
 flottants et balai géant (pièces Roblox natives, pas de modèle sculpté). Ses attaques sont **toutes annoncées**
-(zone qui se remplit du jaune au rouge, ≥ 0,8 s ; 2 s pour la spéciale) : **coup de balai** (anneau de poussière
+(zone **jaune** pendant la préparation, ≥ 0,8 s ; 2 s pour la spéciale, puis **rouge clignotant** 0,35 s avant les
+dégâts, son d'alerte propre à chaque attaque, bulle « ! » avec l'icône de l'attaque au-dessus de lui) : **coup de balai** (anneau de poussière
 à sauter), **flaques collantes** (cercles qui font SPLAT puis ralentissent), **moutons de poussière** lancés en
 cloche (marques au sol), **plat ventre** (une ombre grossit où il atterrit), et en phase 2 le **Grand Ménage**
 (trois quarts de l'arène balayés, un quart qui brille est sûr ; il finit étourdi : dégâts ×1,5). Phases : grognon
 (100–60 %), fâché (60–25 %), rouge comme une tomate (< 25 %). Chacun a **4 cœurs** (1,5 s d'invincibilité après un
 coup) ; KO = retour au plateau. **Frappe** (clic / E / X / gros bouton) : seulement dans l'arène, portée et
 dégâts calculés par le serveur ; le Power actuel donne au plus **+25 %** de dégâts **contre les boss** (jamais en
-PvP). Les PV du boss augmentent de 70 % par joueur supplémentaire ; un débutant peut gagner seul en 3:30.
+PvP). Toutes les capacités marchent contre lui, mais il **résiste** aux contrôles (voir ci-dessous). Les PV du boss augmentent de 70 % par joueur supplémentaire ; un débutant peut gagner seul en 3:30.
 Récompenses **individuelles**, tirées côté serveur, seulement pour les participants éligibles (≥ 20 % d'une part
 équitable des dégâts, encore là, ni AFK ni partis), **jamais deux fois pour le même combat**. La relique de boss
 va sur un **socle de trophée non volable** (1 à 3 socles débloqués par le Power record) ; un doublon la fait
 monter de niveau. **Boss Codex** : découverte, tentatives, victoires, meilleur temps, trouvailles rares, matériaux
 gardés pour la future Forge. Détails : `docs/V2_PLAN.md` §12.
+
+### Combat 2.0 et armes de boss (Phase 6.5)
+
+- **Lisible sans connaître le boss** : jaune = il prépare, rouge = ça tape ; zones dessinées en pièces (visibles
+  même en qualité Basse) ; un son d'alerte par attaque ; bulle « ! » ; pendant le **Grand Ménage**, un grand
+  faisceau vert sur le quart sûr et une flèche à l'écran ; « SAUTE ! » avant le coup de balai ; « ESQUIVÉ ! »,
+  « SAUTÉ ! », « À L'ABRI ! », « BLOQUÉ ! », « WOUSH, À TRAVERS ! » quand on évite, « BONK! » quand on est touché.
+- **Coup de poing animé** sans aucun ID d'animation (articulations Motor6D des rigs **R15 et R6**, rien sur les rigs
+  personnalisés), **combo de 3 coups** (direct, direct, uppercut « KAPOW! »), sons cartoon, recharge et pastilles de
+  combo sur le bouton ; les autres joueurs voient le geste. Dégâts toujours calculés par le serveur.
+- Bouton **FRAPPE** à gauche des capacités (plus jamais par-dessus), Sceau masqué dans l'arène, cœurs en haut ;
+  disposition vérifiée sans chevauchement sur PC, téléphones et tablettes, y compris avec le bouton de saut de Roblox.
+- **Capacités contre le boss** (jamais contre un coéquipier) : Repousser = 25 dégâts sans recul (et enlève la
+  flaque collante) · Onde de givre = 10 dégâts + « gelé » (+15 % de dégâts 4 s) · Piège runique = 40 dégâts s'il
+  marche dessus · Bouclier = bloque un coup · Phase = ses attaques te traversent · Leurre = il le vise aussi ·
+  Blink limité à l'arène · Grappin vers **4 bulles** de l'arène · Dash normal.
+- **6 armes de boss** (écran **ARMES** : bouton orange à côté de la barre Boss, touche V, croix droite), **une seule
+  équipée**, utiles **uniquement contre les boss** (aucun effet en PvP), tenues en main dans l'arène :
+
+| Arme | Rareté | Dégâts · recharge · portée | Combo | Spécial | Prix | Victoires |
+|---|---|---|---|---|---|---|
+| Gants en mousse | Commun | 10 · 0,40 s · 10 | 1 / 1 / 1,5 | — | gratuit | 0 |
+| Maillet qui couine | Rare | 17 · 0,62 s · 11 | 1 / 1 / 2 | coups lourds | 25 000 Essence | 0 |
+| Blaster à bulles | Rare | 7 · 0,30 s · **28** | 1 / 1 / 1,3 | à distance | 120 000 | 1 |
+| Baguette étoilée | Épique | 9 · 0,34 s · 18 | 1 / 1 / 1,5 | finisher : +15 % pour l'équipe 5 s | 400 000 + 10 Éclats | 2 |
+| Ventouse géante | Épique | 12 · 0,42 s · 11 | 1 / 1 / 2,1 | ×1,5 de plus sur boss étourdi | 1,5 M + 20 Éclats + 1 Catalyseur | 5 |
+| Marteau arc-en-ciel | Légendaire | 14 · 0,46 s · 13 | 1 / 1,15 / 2,3 | finisher : +1 cœur (1 fois / 15 s) | 6 M + 40 Éclats + 2 Catalyseurs | 10 |
+
+  Prix calculés sur l'économie réelle (≈ 130 Essence/s à 20 min, ≈ 1 000/s à 1 h, ≈ 2 300/s à 2 h pour un joueur
+  occasionnel) : première arme dans la première session, collection complète en ≈ 16-20 victoires sur plusieurs
+  sessions. Le DPS du prestige est ×1,55 celui des gants (plafond ×1,6) : on gagne en lisant le boss. Détails,
+  calculs et checklist Studio : `docs/V2_PLAN.md` §13.
 
 ### Rythme visé
 
@@ -212,7 +245,8 @@ gardés pour la future Forge. Détails : `docs/V2_PLAN.md` §12.
 | Écran Capacités (loadout, déblocages, harmonies) | L | croix haut | bouton rond à gauche des capacités |
 | Écran Style (cosmétiques) | C | croix bas | bouton « Style » du menu |
 | Carte du boss (portail, récompenses) | E devant le portail | X | toucher la carte / barre « Boss » du HUD |
-| **Frappe** (arène du boss uniquement) | clic gauche ou E | X | gros bouton FRAPPE |
+| **Frappe** (arène du boss uniquement, combo de 3) | clic gauche ou E | X | gros bouton FRAPPE (à gauche des capacités) |
+| Écran **Armes** (armes de boss) | V | croix droite | bouton orange « Armes » à côté de la barre Boss |
 | Sauter par-dessus le coup de balai | Espace | A | bouton de saut |
 | Fermer un menu | Échap | B | ✕ |
 
@@ -369,9 +403,9 @@ Pour 6–8 joueurs : même procédure ; à partir du 9ᵉ joueur, la file d'atte
   publié). Sans cela le jeu fonctionne avec des **données temporaires** (message « Studio : DataStores
   indisponibles »), rien n'est écrit.
 - Store : `RiftHeist_Player_v1`, clé `u_<UserId>`, schéma versionné (`GameConfig.Data.SchemaVersion`,
-  actuellement **5** : la V2 ajoute le loadout de capacités et le Power record (2), les interrupteurs
-  d'harmonies (3), l'inventaire de cosmétiques (4) puis le **Boss Codex**, les **matériaux** et les **trophées**
-  (5) ; les sauvegardes V1 à V4 sont migrées automatiquement sans perte).
+  actuellement **6** : la V2 ajoute le loadout de capacités et le Power record (2), les interrupteurs
+  d'harmonies (3), l'inventaire de cosmétiques (4), le **Boss Codex**, les **matériaux** et les **trophées**
+  (5) puis l'**inventaire d'armes de boss** (6) ; les sauvegardes V1 à V5 sont migrées automatiquement sans perte).
 - Boss : les récompenses sont écrites dans la session **et sauvegardées immédiatement** ; l'identifiant du combat
   payé est gardé dans le Codex, si bien qu'un même combat ne peut jamais payer deux fois (déconnexion, crash,
   relance).
@@ -522,6 +556,8 @@ Actives **uniquement dans Studio** (`RunService:IsStudio()`), via le chat :
 | `/rh cosmetics [off\|reset]` | tous les cosmétiques équipables pour la session (**jamais sauvegardé**) · `off` : retire ce qui n'est pas possédé · `reset` : inventaire ramené aux 6 cosmétiques de départ (les déblocages reviennent selon ta progression) |
 | `/rh boss open` · `start` · `hp <%>` · `win` · `stop` | ouvre le portail tout de suite · lance le combat sans attendre · fixe les PV du boss · le laisse à 1 PV · termine l'expédition |
 | `/rh boss shards <n>` · `codex` | ajoute des Éclats du Néant · vide ton Codex (pour retester la découverte) |
+| `/rh boss wins <n>` | fixe tes victoires contre le Void Warden (déblocage des armes) |
+| `/rh weapons all` · `reset` | possède toutes les armes de boss · revient aux seuls Gants en mousse |
 | `/rh reset` | réinitialise les données (kick) |
 
 ## 12. Tests automatisés et outils
@@ -539,10 +575,12 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **1355 vérifications, 0 échec, 0 erreur d'exécution**
-(1094 des phases précédentes, inchangées — V1, V2 phases 1 à 5.5 —, 1 contrôle automatique de plus pour le nom du nouveau cosmétique, et 260 de la
-phase 6 dans `tests/scenarios/V2Bosses.luau`). `ONLY=bosses lune run tests/run.luau` saute les scénarios V2 sans
-rapport avec les boss pour itérer plus vite (≈ 40 s). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
+serveur et un vrai client tournent dedans. Résultat actuel : **1658 vérifications, 0 échec, 0 erreur d'exécution**
+(1094 des phases précédentes — V1, V2 phases 1 à 5.5 —, 1 contrôle automatique pour le nom du cosmétique de boss,
+260 de la phase 6 dans `tests/scenarios/V2Bosses.luau`, 297 de la phase 6.5 dans `tests/scenarios/V2Combat.luau`
+et 6 contrôles automatiques pour les 6 nouveaux emojis ; 7 vérifications de la phase 6 suivent désormais le schéma 6,
+les capacités permises contre le boss et les dégâts par arme — voir `docs/V2_PLAN.md` §13). `ONLY=bosses lune run tests/run.luau` saute les scénarios V2 sans
+rapport avec les boss (boss + combat 2.0) pour itérer plus vite (≈ 1 min). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
 groupes de collision, terrain en voxels) pour valider Blink, Grappin, lignes de vue et pièges.
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
@@ -590,6 +628,13 @@ vers le joueur le plus proche, clignement, mutations sans effet sur les yeux, ch
 (grille 2×2 de gros boutons emoji ≥ 44 px, compteur d'Essence), bouton « chunky » (familles, désactivé, setKind),
 rubans des 5 modales, plafond des confettis, pastilles de rareté au-dessus des reliques, et aucune lecture des
 nouveaux modules visuels par le code de gameplay.
+Phase 6.5 (combat 2.0) : armes (prix, DPS bornés, combos, modèles natifs), schéma 6, achats et équipement
+(victoires, Essence, matériaux, doublons, spam, ids falsifiés, en plein combat), aucune lecture des armes par le
+code PvP, frappes par arme (combo, portée, recharge, étourdi, gel, bonus d'équipe, soin), capacités contre le boss
+(sans recul ni ralentissement, rune, bouclier, phase, leurre, Blink / Grappin bornés à l'arène), lisibilité
+(jaune → rouge en qualité Basse, sons, bulle, arc synchronisé, quart sûr), coup de poing sur des rigs R15 / R6 /
+personnalisé, aucun chevauchement de boutons sur 9 écrans (PC, téléphones, tablettes, bouton de saut Roblox),
+écran ARMES.
 
 ### Aperçus du monde et des reliques (direction artistique)
 ```bash
@@ -634,6 +679,11 @@ lus dans la palette exportée ; nécessite numpy + Pillow. Ce n'est pas le moteu
   retiré sans récompense ; un intrus dans l'arène est renvoyé au plateau ; inactif 35 s = renvoyé (AFK) ;
   récompenses individuelles seulement pour les éligibles, une seule fois par combat ; chaque téléportation est
   signalée au `MovementGuard` ; aucune capacité ne traverse la frontière de l'expédition (`Core/Expeditions`).
+- Armes de boss (Phase 6.5) : `BuyWeapon(id)` vérifie l'id, la possession, les victoires, l'Essence **et** les
+  matériaux puis débite tout en une étape serveur (limiteur, spam = un seul achat) ; `EquipWeapon(id)` exige
+  l'arme possédée et refuse en plein combat ; la Frappe reste sans argument (arme, combo, portée, recharge et
+  dégâts lus et calculés par le serveur) ; seules les routines de boss lisent les armes (aucun effet en PvP) ;
+  dans l'arène, Blink et Grappin restent dans les murs et les capacités ne touchent que le boss.
 - Le serveur seul crée/détruit les reliques et modifie l'Essence ; les sauvegardes chargées sont assainies.
 
 ## 14. Performance
@@ -689,6 +739,14 @@ lus dans la palette exportée ; nécessite numpy + Pillow. Ce n'est pas le moteu
 | Boss : se faire voler pendant l'expédition | impossible : « Le propriétaire affronte un boss » |
 | Boss : déconnexion en plein combat | le combat continue pour les autres ; aucune récompense pour l'absent |
 | Boss : victoire | « VICTOIRE ! », confettis, il s'enfuit en boudant, carte des récompenses ; Codex mis à jour |
+| Boss : une attaque arrive | zone jaune + son d'alerte + bulle « ! », puis rouge clignotant juste avant le coup |
+| Boss : Grand Ménage | faisceau vert sur le quart sûr, flèche à l'écran ; y rester = « À L'ABRI ! » |
+| Boss : 3 frappes rapides | direct, direct, uppercut « KAPOW! » (bras animés en R15 et R6) |
+| Boss : Repousser sur le boss | « BOING ! » + « Il résiste à la poussée ! », il ne bouge pas, il perd des PV |
+| Boss : Bouclier puis se faire toucher | « BLOQUÉ ! », aucun cœur perdu, le bouclier se brise |
+| Acheter une arme sans les victoires | ACHETER grisé avec la raison ; une requête forcée est refusée par le serveur |
+| Changer d'arme en plein combat | refusé (« pas pendant un combat ») |
+| Arme de boss sur l'île | rien en main, aucun effet en PvP |
 
 ---
 

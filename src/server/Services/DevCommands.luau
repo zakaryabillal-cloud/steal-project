@@ -17,6 +17,8 @@
 --   /rh boss shards <n>           add Void Shards
 --   /rh boss codex                clear your boss Codex (test the discovery)
 --   /rh boss stop                 end the expedition now (everyone back)
+--   /rh weapons all|reset         own every boss weapon / back to the gloves
+--   /rh boss wins <n>             set your Void Warden victories (weapon unlocks)
 --   /rh reset                     wipe your temporary data
 
 local Players = game:GetService("Players")
@@ -43,6 +45,7 @@ local EventService = require(script.Parent.EventService)
 local AbilityService = require(script.Parent.AbilityService)
 local CosmeticService = require(script.Parent.CosmeticService)
 local BossService = require(script.Parent.BossService)
+local Weapons = require(Shared.Config.Weapons)
 
 local DevCommands = {}
 
@@ -132,6 +135,20 @@ local function run(player: Player, text: string)
 			table.clear(session.data.bosses)
 		elseif option == "stop" then
 			BossService.devReset()
+		elseif option == "wins" then
+			local record = BossService.codex(session, "VoidWarden")
+			record.wins = math.max(0, math.floor(tonumber(args[4]) or 10))
+			record.attempts = math.max(record.attempts, record.wins)
+			record.discovered = true
+		end
+	elseif command == "weapons" then
+		local option = string.lower(args[3] or "all")
+		if option == "reset" then
+			session.data.weapons = DataSchema.defaultWeapons()
+		else
+			for _, def in Weapons.list do
+				session.data.weapons.owned[def.id] = true
+			end
 		end
 	elseif command == "cooldowns" then
 		table.clear(session.cooldowns)
@@ -177,7 +194,7 @@ function DevCommands.start()
 	if not ok then
 		warn("[DevCommands] TextChatCommand unavailable; using Player.Chatted only")
 	end
-	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|cosmetics|boss|reset")
+	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|cosmetics|boss|weapons|reset")
 end
 
 return DevCommands

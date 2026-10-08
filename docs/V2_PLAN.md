@@ -1,6 +1,6 @@
 # RIFT HEIST — Plan V2 (validé)
 
-> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique), 4 (Capacités), 5 (Cosmétiques) et 5.5 (Direction artistique cartoon) terminées.** Phases 6 à 11 : non commencées (attente d'autorisation).
+> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique), 4 (Capacités), 5 (Cosmétiques), 5.5 (Direction artistique cartoon), 6 (Premier boss : Void Warden) et 6.5 (Combat 2.0 & armes de boss) terminées.** Phases 7 à 11 : non commencées (attente d'autorisation).
 > Toute nouvelle phase suit [`ART_DIRECTION.md`](ART_DIRECTION.md).
 
 Boucle principale conservée : *Faille → Reliques → Vol/PvP → Sanctuaire → Essence → Progression → contenu plus difficile → récompenses rares.*
@@ -57,6 +57,7 @@ Sync découpé chaud / froid.
 | 5 | Cosmétiques (moteur) | possession / équipement / rendu : 7 catégories (traînées, auras, effets de transport, thèmes de Sanctuaire, arrivée, sécurisation, titres), 26 cosmétiques, déblocages par la progression, écran Style, budgets de rendu | ✅ |
 | 5.5 | Direction artistique « Cartoon & Goofy » | jetons UI cartoon, HUD / menus refaits, monde de jour (palette, matériaux jouet, fleurs, champignons, fanions), Faille avec un visage, visages des reliques, présentation des cosmétiques, `ART_DIRECTION.md` (règles + boss) | ✅ |
 | 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, matériaux pour la Forge, protection Expédition, piédestaux trophées | ✅ |
+| 6.5 | Combat 2.0 & armes de boss | lisibilité des attaques (jaune → rouge, sons, bulle « ! », quart sûr), coup de poing procédural R15/R6 + combo, bouton FRAPPE séparé des capacités, capacités PvP utilisables contre le boss, 6 armes de boss (inventaire, boutique Essence + matériaux, écran ARMES), schéma 6 | ✅ |
 | 7 | Boss 2 & 3 | Forgeheart, Tempest Seraph | — |
 | 8 | Événements V2 | Rift Overload, Void Storm, Golden Surge, Eclipse enrichis + Marée Céleste, Chute d'Étoile ; WorldDirector (pas de chevauchement boss / événement modifiant la carte) | — |
 | 9 | Daily | 7 jours sans reset, horloge serveur, boosts en temps de jeu | — |
@@ -75,7 +76,9 @@ Store inchangé : `RiftHeist_Player_v1`, clé `u_<UserId>`. Le numéro de **sch�
 | **2** | `abilities = { unlocked, loadout }`, `power = { peak }` | **1 ✅** |
 | **3** | `abilities.harmonyOff` (interrupteurs d'harmonies) | **4 ✅** |
 | **4** | `cosmetics = { owned, equipped }` | **5 ✅** |
-| 5+ | `boss`, `materials`, `daily`, `boosts`, `receipts` (chacun dans sa phase, avec sa migration) | 6–10 |
+| **5** | `bosses` (Codex), `materials`, `trophies` | **6 ✅** |
+| **6** | `weapons = { owned, equipped }` (armes de boss) | **6.5 ✅** |
+| 7+ | `daily`, `boosts`, `receipts` (chacun dans sa phase, avec sa migration) | 9–10 |
 
 Règles :
 - les migrations **ajoutent** des champs, ne suppriment jamais de progression ; `normalize` assainit tout ensuite ;
@@ -656,7 +659,7 @@ toutes les 4 attaques) · **rouge comme une tomate** < 25 % (1,0 s, spéciale to
 - **Frappe** : `BossStrike` sans argument ; portée 10 studs depuis le corps du boss, recharge 0,4 s, 10 dégâts ;
   arène uniquement. Contrôles : clic gauche / E (PC), X (manette), gros bouton rond FRAPPE (mobile).
 - Capacités dans l'arène : **Dash, Blink, Bouclier, Phase** seulement ; aucune capacité ne touche un autre
-  combattant ni ne traverse la frontière (`Common.canAffect`).
+  combattant ni ne traverse la frontière (`Common.canAffect`). *(Phase 6.5 : toutes les capacités, voir §13.)*
 - Fin : PV à 0 = victoire ; 3:30 = défaite « temps écoulé » ; plus aucun combattant = défaite « balayés » (KO)
   ou « abandon » (sortis / déconnectés).
 
@@ -747,3 +750,159 @@ HUD, Codex, panneau). `ONLY=bosses lune run tests/run.luau` pour itérer (≈ 40
 6. Pendant une expédition, un 2ᵉ joueur tente de voler le Sanctuaire du combattant : « affronte un boss ».
 7. Déconnexion / reset en plein combat ; publication puis vérification de la sauvegarde (Codex, Éclats, trophée).
 8. Performance : MicroProfiler pendant le Grand Ménage à 8 joueurs ; Qualité Basse sur téléphone.
+
+---
+
+## 13. Phase 6.5 — Combat 2.0 & armes de boss — ce qui a été livré
+
+Le Void Warden plaisait mais le combat manquait de lisibilité et de ressenti. Cette phase reprend le combat
+(lisibilité, coup de poing animé, contrôles, capacités) et ajoute une progression durable : les **armes de boss**.
+Phase 7 : non commencée.
+
+### Lisibilité des attaques (priorité 1)
+- **Deux temps, partout** : la zone se remplit en **jaune** pendant la préparation, puis passe au **rouge
+  clignotant** `Combat.DangerLead` = **0,35 s** avant que le serveur applique les dégâts (`BossFX.zoneColor`), avec
+  un « tic » sonore (`BossDanger`). Chaque attaque garde ≥ 0,5 s de jaune avant le rouge (testé).
+- **Télégraphes = pièces** (disques, éventails, contours encre épais), jamais des particules : ils restent
+  entièrement visibles en **qualité Basse** (testé en qualité Basse).
+- **Un son d'alerte distinct par attaque** (`BossWarnWave`, `BossWarnGoo`, `BossWarnBunny`, `BossWarnFlop`,
+  `BossWarnCleanup`, sons intégrés de repli) et une **bulle « ! »** au-dessus du boss (visible à travers les murs)
+  avec l'icône de l'attaque (tourbillon, goutte, lapin, boum, vague), jaune puis rouge et qui tremble.
+- **Le corps prévient aussi** : teinte de l'attaque pendant la préparation puis flash blanc à l'impact.
+- **Synchronisation** : le message `BossAttack` transporte l'arc exact du saut (`motion`) ; le client déplace le
+  corps sur la même courbe que l'ancre serveur ; les dégâts serveur (`shape.at`) ne tombent jamais avant `hitAt`.
+- **Grand Ménage** : grand **faisceau vert** (40 studs) sur le quart sûr, texte « ✅ SAFE ✅ » et **flèche HUD**
+  qui pointe vers lui (« Va dans le quart SÛR ! » / « Tu es à l'abri ! »).
+- **Coup de balai** : indication « SAUTE ! » au bon moment (`BossFX.waveEta`).
+- **Retour quand on évite ou subit** : « ESQUIVÉ ! » (pas de côté ≤ 7 studs du bord), « SAUTÉ ! », « À L'ABRI ! »,
+  « WOUSH, À TRAVERS ! » (Phase), « BLOQUÉ ! » (Bouclier), sons `Dodge` / `Block` / `HeartLost`, « BONK! » + cœur perdu.
+
+### Coup de poing procédural (priorité 2) — `Client/Controllers/Punch`
+- **Aucun ID d'animation** : le client décale le `C0` des Motor6D du personnage pendant quelques dixièmes de
+  seconde (le script `Animate` par défaut n'écrit que `Transform`, les deux se cumulent), puis remet le `C0`
+  d'origine (mémorisé dans l'attribut `PunchBaseC0`).
+  - **R15** : `Waist`, `RightShoulder`, `LeftShoulder`, `RightElbow`, `LeftElbow`.
+  - **R6** : `Right Shoulder`, `Left Shoulder` (pas de coude ni de taille).
+  - **Autres rigs** (sans ces articulations) : aucun mouvement de bras, effets et sons conservés — limite
+    documentée et testée (aucune erreur).
+- Styles par arme : **punch** (direct droit, direct gauche, uppercut), **smash** (lever au-dessus de la tête puis
+  écraser), **shoot** (viser + recul), **zap** (coup de baguette), **thrust** (fente avant). Le 3ᵉ coup du combo est
+  plus ample. Durée ≤ recharge de l'arme (jamais de bras bloqué). Les autres combattants voient le geste
+  (`BossSwing` envoyé aux autres participants, chaque client anime le personnage).
+- **Combo de 3 coups** (fenêtre 1,1 s) ; impact « POW! » / « KAPOW! » au finisher, son cartoon (`PunchHit`,
+  `PunchFinisher`, `Squeak` pour le maillet), boss qui tremble + flash ; **recharge visible** sur le bouton
+  et 3 pastilles de combo. **Dégâts calculés par le serveur** (`Bosses.hitDamage(arme, Power, multiplicateur)`).
+
+### Contrôles (priorité 3)
+- Le bouton **FRAPPE** n'est plus au-dessus des compétences : il est **à gauche du groupe de capacités**, aligné
+  en bas (`BossHud.Layout`), et le **Sceau est masqué dans l'arène** (`Hud.setArenaMode`). Cœurs en haut sous la
+  barre de vie, bouton Quitter à côté de la barre (la liste des joueurs occupe le coin haut droit).
+- **Bouton de saut de Roblox** (tactile) : 70 px sur téléphone, **120 px sur tablette** ; il chevauchait déjà le
+  groupe de capacités sur tablette (problème antérieur, corrigé) : `Kit/TouchSafe` remonte capacités et FRAPPE
+  au-dessus de lui selon l'écran.
+- **Testé sans chevauchement** (rectangles réels, avec la lèvre des boutons) sur PC 1280×720, 1366×768,
+  1920×1080, téléphones 667×375, 812×375, 932×430, tablettes 1024×768, 1180×820, 1366×1024 ; tous les boutons
+  restent à l'écran ; FRAPPE ≥ 70 px réels sur mobile.
+- PC : clic gauche ou **E** ; manette : **X** ; mobile : gros bouton. Hors expédition rien ne change (E / X
+  restent aux invites ; l'arène n'a aucune invite). Écran ARMES : **V**, croix **droite**, bouton orange.
+
+### Capacités PvP contre le boss (priorité 4) — `Config/Bosses.Abilities`
+Toutes les capacités sont utilisables dans l'arène ; aucune ne touche un autre combattant (`Common.canAffect`
+inchangé) ; le boss **résiste** à tout contrôle (« Il résiste à la poussée ! ») et reçoit un autre effet :
+
+| Capacité | Contre le boss |
+|---|---|
+| Dash | mouvement normal |
+| Blink | destination limitée à l'intérieur de l'arène (`Common.allowedSpot`) |
+| Grappin | **4 bulles d'ancrage** flottantes dans l'arène (index 101-104, `Bosses.ArenaGrapple`) ; ancres de l'île refusées dans l'arène et inversement |
+| Repousser | **aucun recul** : 25 dégâts « BOING! », et nettoie la flaque collante sur soi |
+| Onde de givre | **aucun ralentissement** : 10 dégâts + « gelé » 4 s (+15 % de dégâts reçus) |
+| Piège runique | le boss qui passe ou atterrit sur la rune armée la déclenche : 40 dégâts « ZAP! » |
+| Bouclier | bloque le prochain coup du boss (puis se brise) |
+| Leurre | le boss vise aussi les leurres (flaques, moutons, plat ventre) |
+| Phase spectrale | les attaques du boss traversent le joueur |
+
+Recharges, autorité serveur et anti-exploit inchangés (`AbilityService`), seul le refus « arène » de la phase 6 a
+été retiré.
+
+### Armes de boss (priorités 5-6) — `Config/Weapons`, `Services/WeaponService`, `UI/Screens/Weapons`
+Une seule arme équipée, **lue uniquement par `BossService`** : aucun effet en PvP (analyse du code source testée).
+Prix calibrés sur l'économie réelle (simulation de la production avec les vraies formules : joueur occasionnel —
+une relique toutes les 90 s — **≈ 130 Essence/s à 20 min, ≈ 1 000/s à 1 h, ≈ 2 300/s à 2 h** ; joueur actif ≈ ×1,5).
+Toutes les améliorations du Sanctuaire (~0,8 M) sont achetées vers la 1ʳᵉ heure : les armes deviennent le
+débouché durable. Butin : 3-6 Éclats par victoire, Catalyseur 15 %.
+
+| Arme | Rareté | Style | Dégâts | Recharge | Portée | Combo | Spécial | DPS | Prix | Victoires | Repère |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Gants en mousse | Commun | punch | 10 | 0,40 s | 10 | 1 / 1 / 1,5 | — | 29,2 | gratuit | 0 | départ |
+| Maillet qui couine | Rare | smash | 17 | 0,62 s | 11 | 1 / 1 / 2 | lourd | 36,6 | 25 000 | 0 | ~20 min (1ʳᵉ session) |
+| Blaster à bulles | Rare | shoot | 7 | 0,30 s | **28** | 1 / 1 / 1,3 | à distance | 25,7 | 120 000 | 1 | ~30-40 min |
+| Baguette étoilée | Épique | zap | 9 | 0,34 s | 18 | 1 / 1 / 1,5 | finisher : +15 % équipe 5 s | 30,9 | 400 000 + 10 Éclats | 2 | ~1 h |
+| Ventouse géante | Épique | thrust | 12 | 0,42 s | 11 | 1 / 1 / 2,1 | ×1,5 de plus sur boss étourdi | 39,0 | 1,5 M + 20 Éclats + 1 Catalyseur | 5 | ~1,5-2 h |
+| Marteau arc-en-ciel | Légendaire | smash | 14 | 0,46 s | 13 | 1 / 1,15 / 2,3 | finisher : +1 cœur (1 fois / 15 s) | 45,1 | 6 M + 40 Éclats + 2 Catalyseurs | 10 | ~3-4 h (prestige) |
+
+- DPS plafonné à **×1,6** celui des gants (`Weapons.MaxDpsRatio`, vérifié au chargement) : le prestige est
+  ×1,55 — on bat le boss en lisant ses attaques, pas grâce aux statistiques.
+- Collection complète ≈ **16-20 victoires** (Éclats / Catalyseurs) : plusieurs sessions, jamais un grind sans fin.
+- **Écran ARMES** (accent orange 🥊) : 6 cartes (aperçu 3D, possédée / équipée / verrouillée, prix), détail avec
+  aperçu qui tourne, rareté, style, barres dégâts / vitesse / portée / DPS avec **comparaison ▲ / ▼** à l'arme
+  équipée, capacité spéciale, prix (Essence et matériaux colorés selon ce qu'on a), victoires requises, raison
+  d'un refus, **ACHETER** / **ÉQUIPER**. Accès : bouton orange **ARMES** à côté de la barre Boss du HUD, lien sur la
+  carte du boss, touche V / croix droite.
+- L'arme est **tenue en main dans l'arène** (modèle de pièces natives soudé à la main R15 / au bras R6, racine en
+  secours), retirée à la sortie, au KO, à la mort, à la fin ; changement d'arme impossible en plein combat.
+
+### Sécurité (priorité 7)
+- `BuyWeapon(id)` : id connu, pas déjà possédée, victoires, Essence **et** matériaux vérifiés puis débités en une
+  seule étape serveur ; limiteur (1/s, rafale 3) ; spam = un seul achat (testé : 20 requêtes → 1 achat, 1 débit).
+- `EquipWeapon(id)` : arme possédée uniquement, jamais pendant un combat.
+- `BossStrike` reste **sans argument** : arme, combo, dégâts, portée, recharge (90 % de celle de l'arme) sont
+  calculés par le serveur ; arguments falsifiés ignorés (testé). Arme jamais utilisable hors arène / en PvP.
+- Données **schéma 6** : `weapons = { owned, equipped }` ; migration 5 → 6 (gants offerts et équipés) ;
+  assainissement (ids connus, `true` uniquement, gants toujours possédés, arme équipée possédée sinon gants).
+
+### Écarts (et pourquoi)
+1. **Tests existants modifiés (justifiés)** : 7 vérifications de `V2Bosses` supposaient le schéma 5, le refus des
+   capacités PvP dans l'arène et une frappe à dégâts fixes. Elles suivent maintenant le schéma courant, vérifient
+   que les capacités sont permises contre le boss (l'isolation PvP reste vérifiée juste au-dessus) et calculent
+   les dégâts attendus coup par coup à partir de l'arme et du combo renvoyés par le serveur.
+2. **Raccourci V / croix droite** ajouté pour l'écran ARMES (même famille que L et C).
+3. Le **bouton de saut tactile de Roblox** est pris en compte pour toute la colonne de droite (correction d'un
+   chevauchement antérieur sur tablette).
+
+### Tests (phase 6.5)
+`tests/scenarios/V2Combat.luau` : **+297 vérifications** (+ 6 contrôles automatiques existants pour les 6 nouveaux emojis), **1658 au total, 0 échec, 0 erreur d'exécution** — les 1355 vérifications précédentes sont conservées :
+catalogue (prix croissants, conditions, DPS bornés, combos, bloqueurs, modèles natifs, aucun ID d'asset),
+schéma 6 (migration, inventaire falsifié, aller-retour, Sync), achats (ids falsifiés, Essence, victoires,
+matériaux, doublons, spam de remote, arguments absurdes), équipement (verrouillé, en combat, remote), analyse du
+code (aucun code PvP ne lit les armes, Power et revenus identiques), frappes (arme tenue et soudée, combo 1-2-3-1,
+finisher annoncé, coups des autres diffusés, pause, recharge, portée du blaster, ventouse sur boss étourdi,
+gel, bonus d'équipe, soin limité, payload falsifié, nettoyage), capacités contre le boss (Repousser sans recul,
+givre, rune, bouclier, phase, leurre ciblé, Blink et Grappin bornés à l'arène, ancres refusées hors expédition),
+lisibilité (jaune puis rouge en qualité Basse, sons distincts, bulle, arc synchronisé, dégâts jamais avant le
+rouge, quart sûr + flèche, esquive / sûr / sons), rigs R15 / R6 / personnalisé (articulations animées puis
+restaurées, combo gauche/droite, interruption), disposition sans chevauchement (9 écrans), touches, écran ARMES
+(cartes, aperçus, comparaison, verrouillages, achat, équipement, touche V et manette).
+
+### Limites connues
+- Animation par `C0` : aucune animation Roblox (pas d'ID inventé) ; elle se superpose à l'animation de marche ;
+  les rigs sans articulations standard n'ont que les effets.
+- Les sons sont les sons intégrés de repli (`Config/Sounds`, `id = ""`) : à remplacer par de vrais SFX cartoon.
+- Le serveur juge toujours les coups sur sa vue des positions (≈ 100 ms de retard) : la fenêtre rouge de 0,35 s
+  et l'invincibilité de 1,5 s compensent.
+
+### À vérifier dans Roblox Studio (phase 6.5)
+1. **Lisibilité** : `/rh boss open` puis `start` ; chaque attaque passe jaune → rouge, son d'alerte différent,
+   bulle « ! » ; Qualité **Basse** dans les réglages : les zones restent nettes ; Grand Ménage (`/rh boss hp 55`) :
+   faisceau vert + flèche HUD ; « ESQUIVÉ ! », « SAUTÉ ! », « À L'ABRI ! ».
+2. **Coup de poing** avec un avatar **R15** puis **R6** (*Game Settings → Avatar*) : direct droit / gauche /
+   uppercut, bras qui reviennent en place ; un 2ᵉ client voit le geste ; « KAPOW! » au 3ᵉ coup.
+3. **Contrôles** : PC (clic / E), manette (X), téléphone et tablette (émulateur Studio *iPhone* et *iPad*) :
+   FRAPPE à gauche des capacités, rien ne se chevauche, bouton de saut libre, Sceau masqué dans l'arène.
+4. **Capacités** : Repousser (BOING !, pas de recul), Onde de givre (BRRR ! GELÉ), Piège runique sous le boss (ZAP !),
+   Bouclier (BLOQUÉ !), Phase (WOUSH, À TRAVERS !), Leurre, Blink contre un mur, Grappin vers les 4 bulles.
+5. **Armes** : `/rh essence 30000` → écran ARMES (bouton orange / V) → acheter le Maillet → équiper → l'arme en
+   main dans l'arène ; `/rh weapons all` pour essayer les 6 ; `/rh boss wins 10` + `/rh boss shards 70` pour tester
+   les déblocages ; `/rh weapons reset`.
+6. **Sauvegarde** : publier, acheter, rejoindre : inventaire et arme équipée conservés.
+7. **PvP** : sur l'île, aucune arme en main, E garde les invites, aucune différence de Power.

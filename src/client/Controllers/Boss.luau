@@ -7,6 +7,11 @@
 -- The server decides everything (range, damage, cooldown, hits, rewards):
 -- Strike carries no payload at all, a refused strike only undoes the local
 -- swing feedback.
+--
+-- Phase 6.5: the swing uses the equipped boss weapon (cooldown, style) and a
+-- 3-hit combo; the local character animates at once (Punch), the server's
+-- answer (BossStruck) corrects the combo step; other fighters' swings come
+-- from "BossSwing".
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -15,9 +20,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
 local Bosses = require(Shared.Config.Bosses)
+local Weapons = require(Shared.Config.Weapons)
 local Signal = require(Shared.Util.Signal)
 
 local ClientNet = require(script.Parent.Parent.ClientNet)
+local Store = require(script.Parent.Store)
+local Punch = require(script.Parent.Punch)
 
 local Boss = {}
 
@@ -29,6 +37,8 @@ Boss.denied = Signal.new()
 Boss.swung = Signal.new()
 -- () the portal prompt asked for the boss card.
 Boss.menuRequested = Signal.new()
+-- (player, weaponDef, payload) another fighter swung.
+Boss.otherSwung = Signal.new()
 
 Boss.StrikeKeys = table.freeze({
 	keyboard = Enum.KeyCode.E,
@@ -38,6 +48,9 @@ Boss.StrikeKeys = table.freeze({
 local localPlayer = Players.LocalPlayer
 local readyAt = 0
 local initialized = false
+-- Predicted combo step (corrected by the server) and its time.
+local comboStep = 0
+local comboAt = 0
 
 local function attrString(instance: Instance?, name: string): string
 	local value = if instance then instance:GetAttribute(name) else nil
@@ -137,13 +150,31 @@ function Boss.leave()
 	ClientNet.fire(Net.Events.BossLeave)
 end
 
+-- Equipped boss weapon (from the synced inventory; the server re-checks).
+function Boss.weapon(): Weapons.WeaponDef
+	local inventory = Store.state.weapons
+	local def = Weapons.get(inventory and inventory.equipped)
+	if def and inventory.owned[def.id] then
+		return def
+	end
+	return Weapons.get(Weapons.Starter) :: Weapons.WeaponDef
+end
+
 -- Local cooldown fraction (0 = ready .. 1 = just used), display only.
 function Boss.cooldownFraction(): number
 	local remaining = readyAt - os.clock()
 	if remaining <= 0 then
 		return 0
 	end
-	return math.clamp(remaining / Bosses.Strike.Cooldown, 0, 1)
+	return math.clamp(remaining / Boss.weapon().cooldown, 0, 1)
+end
+
+-- Current combo step for the HUD pips (0 when the combo timed out).
+function Boss.comboStep(): number
+	if os.clock() - comboAt > Weapons.ComboWindow then
+		return 0
+	end
+	return comboStep
 end
 
 function Boss.canStrike(): boolean
@@ -155,9 +186,16 @@ function Boss.strike(): boolean
 	if not Boss.canStrike() or os.clock() < readyAt then
 		return false
 	end
-	readyAt = os.clock() + Bosses.Strike.Cooldown
+	local weapon = Boss.weapon()
+	readyAt = os.clock() + weapon.cooldown
+	local step = if os.clock() - comboAt > Weapons.ComboWindow or comboStep >= #weapon.combo then 1 else comboStep + 1
+	comboStep, comboAt = step, os.clock()
 	ClientNet.fire(Net.Events.BossStrike)
-	Boss.swung:Fire()
+	local character = localPlayer.Character
+	if character then
+		Punch.play(character, weapon.style, step, step == #weapon.combo, weapon.cooldown)
+	end
+	Boss.swung:Fire(weapon, step)
 	return true
 end
 
@@ -175,11 +213,24 @@ function Boss.init()
 		end
 	end)
 	ClientNet.on("BossStruck", function(payload)
+		if type(payload.combo) == "number" then
+			comboStep, comboAt = payload.combo, os.clock()
+		end
 		Boss.struck:Fire(payload)
+	end)
+	-- Another fighter's swing: animate their character here.
+	ClientNet.on("BossSwing", function(payload)
+		local player = Players:GetPlayerByUserId(tonumber(payload.userId) or 0)
+		local def = Weapons.get(payload.weapon)
+		if player and player ~= localPlayer and player.Character and def then
+			Punch.play(player.Character, def.style, tonumber(payload.combo) or 1, payload.finisher == true, def.cooldown)
+			Boss.otherSwung:Fire(player, def, payload)
+		end
 	end)
 	ClientNet.on("BossStrikeDenied", function(payload)
 		if payload.reason ~= "cooldown" then
 			readyAt = 0
+			comboStep = 0
 		end
 		Boss.denied:Fire(payload.reason)
 	end)

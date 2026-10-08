@@ -970,6 +970,31 @@ require("./scenarios/V2Bosses")({
 	end,
 })
 
+-- V2 phase 6.5: Combat 2.0 & boss weapons: weapons, purchases, strikes,
+-- abilities against the boss, readability, punch animation, controls.
+require("./scenarios/V2Combat")({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	waitFor = waitFor,
+	sreq = sreq,
+	shared = shared,
+	remote = remote,
+	Engine = Engine,
+	Loader = Loader,
+	game = game,
+	sessionOf = sessionOf,
+	teleport = teleport,
+	hasNotification = hasNotification,
+	clearLog = clearLog,
+	alice = function()
+		return alice
+	end,
+	bob = function()
+		return bob
+	end,
+})
+
 scenario("Shutdown: BindToClose saves everyone", function()
 	local sa = sessionOf(alice)
 	sa.data.essence += 12345

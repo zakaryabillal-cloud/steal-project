@@ -95,7 +95,7 @@ function Blink.destination(session: Session, root: BasePart, direction: Vector3,
 			-- The body travels level, then drops (or rises first, then travels):
 			-- both legs of that path must be clear.
 			local corner = if stand.Y <= origin.Y then Vector3.new(stand.X, origin.Y, stand.Z) else Vector3.new(origin.X, stand.Y, origin.Z)
-			if headroomClear and Common.clear(origin, corner, params) and Common.clear(corner, stand, params) and not pathSealed(session, origin, stand) then
+			if headroomClear and Common.clear(origin, corner, params) and Common.clear(corner, stand, params) and not pathSealed(session, origin, stand) and Common.allowedSpot(session, stand) then
 				return stand
 			end
 		end

@@ -10,13 +10,19 @@
 -- below the movement guard threshold: the guard keeps watching the whole
 -- flight, nothing is switched off. Any hard control on the grappler cuts the
 -- cable (StatusService.controlled).
+--
+-- Boss arena (phase 6.5): only the 4 floating bubble anchors of the arena
+-- (Config/Bosses.ArenaGrapple, indices 101+) can be grappled there, and
+-- they cannot be grappled from anywhere else.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local WorldFeatures = require(ReplicatedStorage.Shared.WorldFeatures)
+local Bosses = require(ReplicatedStorage.Shared.Config.Bosses)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Remotes = require(Core.Remotes)
+local Expeditions = require(Core.Expeditions)
 local Services = script.Parent.Parent.Services
 local StatusService = require(Services.StatusService)
 local Common = require(script.Parent.Common)
@@ -37,7 +43,7 @@ local Grapple = {}
 local flying: { [Session]: Flight } = {}
 
 function Grapple.readPayload(raw: any): any
-	if type(raw) ~= "number" or raw ~= math.floor(raw) or WorldFeatures.GrapplePoints[raw] == nil then
+	if type(raw) ~= "number" or raw ~= math.floor(raw) or Grapple.anchorPosition(raw) == nil then
 		return nil
 	end
 	return { anchor = raw }
@@ -45,6 +51,9 @@ end
 
 -- Anchor position (server truth) or nil.
 function Grapple.anchorPosition(index: number): Vector3?
+	if index >= Bosses.ArenaGrapple.FirstIndex then
+		return Bosses.arenaGrapplePoint(index)
+	end
 	local spec = WorldFeatures.GrapplePoints[index]
 	return if spec then spec.position else nil
 end
@@ -53,6 +62,10 @@ end
 function Grapple.check(session: Session, root: BasePart, index: number, tuning: { [string]: any }): (boolean, string?)
 	local target = Grapple.anchorPosition(index)
 	if not target then
+		return false, "noAnchor"
+	end
+	-- Arena anchors only from inside the arena, world anchors only outside.
+	if Expeditions.isAway(session) ~= (index >= Bosses.ArenaGrapple.FirstIndex) then
 		return false, "noAnchor"
 	end
 	local head = root.Position + Vector3.new(0, 1.5, 0)

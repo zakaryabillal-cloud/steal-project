@@ -43,6 +43,7 @@ local PURPLE = Color3.fromRGB(150, 96, 240)
 local modal: Modal.Modal
 local closeModal: () -> ()
 local openCodex: (() -> ())? = nil
+local openWeapons: (() -> ())? = nil
 local isOpen = false
 local rankLabel: TextLabel
 local starsLabel: TextLabel
@@ -267,6 +268,10 @@ function BossPortal.setCodexOpener(fn: () -> ())
 	openCodex = fn
 end
 
+function BossPortal.setWeaponsOpener(fn: () -> ())
+	openWeapons = fn
+end
+
 function BossPortal.init(parent: Instance, close: () -> ()): Modal.Modal
 	closeModal = close
 	modal = Modal.new({ name = "BossPortal", size = UDim2.fromOffset(780, 600), parent = parent, onClose = close, accent = PURPLE, emoji = Emoji.get("trophy") })
@@ -290,6 +295,24 @@ function BossPortal.init(parent: Instance, close: () -> ()): Modal.Modal
 		end,
 	})
 	local _ = codex
+	-- Boss weapons shop (phase 6.5), next to the Codex.
+	Button.new({
+		name = "WeaponsLink",
+		size = UDim2.fromOffset(120, 44),
+		position = UDim2.new(1, -198, 0, 26),
+		anchor = Vector2.new(1, 0),
+		kind = "orange",
+		corner = Theme.Radius.Large,
+		text = Emoji.get("weapons") .. " " .. Locale.t("hud.weapons"),
+		textSize = 17,
+		zIndex = 8,
+		parent = modal.panel,
+		onClick = function()
+			if openWeapons then
+				openWeapons()
+			end
+		end,
+	})
 	local baseOpen, baseClose = modal.open, modal.close
 	modal.open = function()
 		isOpen = true

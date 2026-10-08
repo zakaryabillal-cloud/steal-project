@@ -29,13 +29,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
 local Abilities = require(Shared.Config.Abilities)
-local Bosses = require(Shared.Config.Bosses)
 local Materials = require(Shared.Config.Materials)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
-local Expeditions = require(Core.Expeditions)
 local Remotes = require(Core.Remotes)
 local Scheduler = require(Core.Scheduler)
 local PlotService = require(script.Parent.PlotService)
@@ -139,10 +137,9 @@ function AbilityService.use(player: Player, abilityId: any, rawPayload: any): (b
 	if not root then
 		return false, "noCharacter"
 	end
-	-- Boss arena: movement / defence only (no PvP tool between fighters).
-	if Expeditions.isAway(session) and not Bosses.Combat.ArenaAbilities[def.id] then
-		return deny(session, def.id, "arena")
-	end
+	-- Boss arena (phase 6.5): every ability works, with boss effects
+	-- (Config/Bosses.Abilities); none ever touches another fighter
+	-- (Common.canAffect) and destinations stay inside the arena.
 	local canAct, reason = StatusService.canAct(session, def)
 	if not canAct then
 		return deny(session, def.id, reason or "stunned")

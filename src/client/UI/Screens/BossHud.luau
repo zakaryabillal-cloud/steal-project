@@ -29,11 +29,13 @@ local Create = require(Kit.Create)
 local Style = require(Kit.Style)
 local Tween = require(Kit.Tween)
 local Button = require(Kit.Button)
+local TouchSafe = require(Kit.TouchSafe)
 local Juice = require(Kit.Juice)
 
 local Controllers = script.Parent.Parent.Parent.Controllers
 local Boss = require(Controllers.Boss)
 local Audio = require(Controllers.Audio)
+local BossFX = require(Controllers.BossFX)
 
 local BossHud = {}
 
@@ -64,6 +66,26 @@ local readyButton: Button.Button
 local results: Frame? = nil
 local topStack: GuiObject? = nil
 local shownHearts = -1
+local comboPips: { Frame } = {}
+local strikeEmoji: TextLabel
+local safeArrow: Frame
+local safeArrowGlyph: TextLabel
+local safeArrowText: TextLabel
+local jumpHint: TextLabel
+local isTouch = false
+
+-- Layout (phase 6.5): the big Strike button sits LEFT of the ability
+-- cluster (Hud), bottom-aligned with it, never on top of it; hearts sit
+-- under the Health pill; Leave sits next to the pill (the player list owns
+-- the top-right corner). Exposed for the overlap tests.
+BossHud.Layout = table.freeze({
+	-- Touch: the Y offset follows the ability cluster (BossHud.setTouchBottom).
+	strikeTouch = table.freeze({ size = 120, position = UDim2.new(1, -272, 1, -TouchSafe.DefaultBottom) }),
+	strikePc = table.freeze({ size = 104, position = UDim2.new(1, -284, 1, -26) }),
+	hearts = table.freeze({ size = Vector2.new(200, 42), position = UDim2.new(0.5, 0, 0, 100) }),
+	leave = table.freeze({ size = Vector2.new(110, 46), position = UDim2.new(0.5, 262, 0, 14) }),
+	bar = table.freeze({ size = Vector2.new(500, 84), position = UDim2.new(0.5, 0, 0, 10) }),
+})
 
 ----------------------------------------------------------------------------
 -- Little drawings
@@ -166,7 +188,7 @@ local function buildTop()
 	banner = Style.display({
 		Name = "AttackBanner",
 		Size = UDim2.fromOffset(640, 54),
-		Position = UDim2.new(0.5, 0, 0, 104),
+		Position = UDim2.new(0.5, 0, 0, 148),
 		AnchorPoint = Vector2.new(0.5, 0),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextSize = 34,
@@ -175,20 +197,46 @@ local function buildTop()
 		Parent = root,
 	})
 	Create("UIScale", { Parent = banner })
+
+	-- "JUMP!" when a broom wave is about to reach you.
+	jumpHint = Style.text({
+		Name = "JumpHint",
+		Size = UDim2.fromOffset(360, 70),
+		Position = UDim2.new(0.5, 0, 0.62, 0),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "",
+		TextSize = 56,
+		FontFace = Theme.Fonts.Display,
+		TextColor3 = Color3.fromRGB(255, 120, 120),
+		Visible = false,
+		Parent = root,
+	})
+	Style.ink(jumpHint, 4)
+
+	-- Arrow toward the safe quarter of the Big Cleanup.
+	safeArrow = Create("Frame", { Name = "SafeArrow", Size = UDim2.fromOffset(230, 120), Position = UDim2.new(0.5, 0, 0.36, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Visible = false, Parent = root })
+	safeArrowGlyph = Style.text({ Name = "Glyph", Size = UDim2.fromOffset(90, 90), Position = UDim2.new(0.5, 0, 0, 0), AnchorPoint = Vector2.new(0.5, 0), TextXAlignment = Enum.TextXAlignment.Center, Text = "➜", TextSize = 84, FontFace = Theme.Fonts.Display, TextColor3 = Color3.fromRGB(110, 255, 170), Parent = safeArrow })
+	Style.ink(safeArrowGlyph, 4)
+	safeArrowText = Style.text({ Name = "Text", Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 1, -30), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 22, FontFace = Theme.Fonts.Display, TextColor3 = Color3.fromRGB(110, 255, 170), Parent = safeArrow })
+	Style.ink(safeArrowText, 2.5)
 end
 
 local function buildBottom(touch: boolean)
-	heartRow = Create("Frame", { Name = "Hearts", Size = UDim2.fromOffset(200, 42), Position = UDim2.new(0.5, 0, 1, -150), AnchorPoint = Vector2.new(0.5, 1), BackgroundTransparency = 1, Parent = root })
+	isTouch = touch
+	local L = BossHud.Layout
+	heartRow = Create("Frame", { Name = "Hearts", Size = UDim2.fromOffset(L.hearts.size.X, L.hearts.size.Y), Position = L.hearts.position, AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = root })
 	Style.list(heartRow, 6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
 	for i = 1, Bosses.Combat.Hearts do
 		table.insert(hearts, heartIcon(heartRow, i))
 	end
 
-	local size = if touch then 132 else 104
+	local spec = if touch then L.strikeTouch else L.strikePc
+	local size = spec.size
 	strikeButton = Button.new({
 		name = "Strike",
 		size = UDim2.fromOffset(size, size),
-		position = if touch then UDim2.new(1, -24, 1, -170) else UDim2.new(1, -26, 1, -40),
+		position = spec.position,
 		anchor = Vector2.new(1, 1),
 		kind = "orange",
 		corner = UDim.new(1, 0),
@@ -199,6 +247,16 @@ local function buildBottom(touch: boolean)
 	})
 	local emoji = Style.text({ Name = "Emoji", Size = UDim2.new(1, 0, 0.5, 0), Position = UDim2.fromScale(0, 0.08), TextXAlignment = Enum.TextXAlignment.Center, TextSize = math.floor(size * 0.34), FontFace = Theme.Fonts.Display, Text = Emoji.get("boom"), ZIndex = 4, Parent = strikeButton.content })
 	emoji:SetAttribute("Emoji", true)
+	strikeEmoji = emoji
+	-- Combo pips (1-2-3) along the top of the button.
+	local pips: Frame = Create("Frame", { Name = "Combo", Size = UDim2.fromOffset(60, 16), Position = UDim2.new(0.5, 0, 0, -10), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, ZIndex = 7, Parent = strikeButton.instance })
+	Style.list(pips, 4, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
+	for i = 1, 3 do
+		local pip: Frame = Create("Frame", { Name = "Pip" .. i, Size = UDim2.fromOffset(16, 16), BackgroundColor3 = Theme.Colors.Cream, LayoutOrder = i, ZIndex = 7, Parent = pips })
+		Style.corner(pip, UDim.new(1, 0))
+		Style.stroke(pip, Theme.Colors.Ink, 0, 2)
+		table.insert(comboPips, pip)
+	end
 	local caption = Style.display({ Name = "Caption", Size = UDim2.new(1, -8, 0.3, 0), Position = UDim2.new(0.5, 0, 0.6, 0), AnchorPoint = Vector2.new(0.5, 0), TextXAlignment = Enum.TextXAlignment.Center, TextSize = math.floor(size * 0.18), ZIndex = 4, Parent = strikeButton.content })
 	caption.Text = Locale.t("boss.strike")
 	strikeCooldown = Create("Frame", { Name = "Cooldown", Size = UDim2.fromScale(1, 0), Position = UDim2.fromScale(0, 1), AnchorPoint = Vector2.new(0, 1), BackgroundColor3 = Theme.Colors.Ink, BackgroundTransparency = 0.45, ZIndex = 5, Parent = strikeButton.content })
@@ -211,8 +269,8 @@ local function buildBottom(touch: boolean)
 	leaveButton = Button.new({
 		name = "Leave",
 		size = UDim2.fromOffset(120, 46),
-		position = UDim2.new(1, -16, 0, 14),
-		anchor = Vector2.new(1, 0),
+		position = L.leave.position,
+		anchor = Vector2.new(0, 0),
 		kind = "red",
 		corner = Theme.Radius.Large,
 		text = Locale.t("boss.leave"),
@@ -224,7 +282,7 @@ local function buildBottom(touch: boolean)
 	})
 
 	-- Waiting room card.
-	waiting = Style.panel({ Name = "Waiting", Size = UDim2.fromOffset(440, 150), Position = UDim2.new(0.5, 0, 1, -200), AnchorPoint = Vector2.new(0.5, 1), BackgroundColor3 = Color3.fromRGB(110, 70, 210), Visible = false, Parent = root })
+	waiting = Style.panel({ Name = "Waiting", Size = UDim2.fromOffset(440, 150), Position = UDim2.new(0.5, 0, 0, 104), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(110, 70, 210), Visible = false, Parent = root })
 	waitingTitle = Style.display({ Name = "Title", Size = UDim2.new(1, -24, 0, 34), Position = UDim2.fromOffset(12, 10), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 24, Parent = waiting })
 	waitingCount = Style.text({ Name = "Count", Size = UDim2.new(1, -24, 0, 22), Position = UDim2.fromOffset(12, 44), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 17, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.TextDim, Parent = waiting })
 	readyButton = Button.new({
@@ -259,7 +317,7 @@ local function refresh()
 	local arena = Boss.arena()
 	root.Visible = inFight and arena ~= nil
 	if topStack then
-		topStack.Position = if root.Visible then UDim2.new(0.5, 0, 0, 160) else UDim2.new(0.5, 0, 0, 10)
+		topStack.Position = if root.Visible then UDim2.new(0.5, 0, 0, 210) else UDim2.new(0.5, 0, 0, 10)
 	end
 	if not root.Visible then
 		return
@@ -307,6 +365,43 @@ local function refresh()
 	end
 	strikeButton:setEnabled(Boss.canStrike())
 	strikeCooldown.Size = UDim2.fromScale(1, Boss.cooldownFraction())
+	local weapon = Boss.weapon()
+	strikeEmoji.Text = Emoji.get(weapon.emoji)
+	local step = Boss.comboStep()
+	for i, pip in comboPips do
+		pip.BackgroundColor3 = if i <= step then (if i == 3 then Color3.fromRGB(255, 120, 60) else Theme.Colors.Gold) else Theme.Colors.Cream
+	end
+	-- Safe-quarter arrow (screen space, from the camera).
+	local zone = BossFX.safeZone
+	local character = localPlayer.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	local camera = workspace.CurrentCamera
+	if zone and t < zone.untilTime and hrp and hrp:IsA("BasePart") and camera then
+		local offset = Vector3.new(hrp.Position.X - zone.center.X, 0, hrp.Position.Z - zone.center.Z)
+		local angle = math.atan2(offset.Z, offset.X)
+		local diff = math.abs(((angle - zone.safeAngle + math.pi) % (math.pi * 2)) - math.pi)
+		local safe = diff <= math.pi / 4 - 0.05
+		safeArrow.Visible = true
+		if safe then
+			safeArrowGlyph.Text = Emoji.get("equipped")
+			safeArrowGlyph.Rotation = 0
+			safeArrowText.Text = Locale.t("boss.safeHere")
+		else
+			local toward = camera.CFrame:VectorToObjectSpace(zone.position - hrp.Position)
+			safeArrowGlyph.Text = "➜"
+			-- 0 deg = right on screen; screen up = camera forward (-Z).
+			safeArrowGlyph.Rotation = math.deg(math.atan2(toward.Z, toward.X))
+			safeArrowText.Text = Locale.t("boss.safeGo")
+		end
+	else
+		safeArrow.Visible = false
+	end
+	-- "JUMP!" right before a broom wave reaches you.
+	local eta = if hrp and hrp:IsA("BasePart") then BossFX.waveEta(hrp.Position) else nil
+	jumpHint.Visible = eta ~= nil and eta < 0.9
+	if jumpHint.Visible then
+		jumpHint.Text = Locale.t("boss.jump")
+	end
 	strikeKey.Text = if UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then "X" else "E"
 
 	local anchor = Boss.anchor()
@@ -479,6 +574,17 @@ end
 
 function BossHud.strikeButton(): GuiObject
 	return strikeButton.instance
+end
+
+function BossHud.isTouchLayout(): boolean
+	return isTouch
+end
+
+-- Touch only: keeps Strike bottom-aligned with the (lifted) ability cluster.
+function BossHud.setTouchBottom(bottom: number)
+	if isTouch and strikeButton then
+		strikeButton.instance.Position = UDim2.new(1, -272, 1, -bottom)
+	end
 end
 
 function BossHud.init(parent: Instance, overlay: Instance, touch: boolean, stack: GuiObject?)

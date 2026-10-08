@@ -632,6 +632,8 @@ function InstanceLib.new(className, parent)
 	end
 	return inst
 end
+-- Harness instances for scenario code (fake rigs, phase 6.5).
+Engine.Instance = InstanceLib
 
 Engine.createInternal = function(className, name, parent)
 	local inst = newInstance(className, true)

@@ -34,6 +34,8 @@ function Text.args(args: { [string]: any }?): { [string]: any }
 			out[key] = "<b>" .. Style.colored(Locale.mutation(value), if mutation then mutation.color else Style.Colors.Text) .. "</b>"
 		elseif key == "cosmetic" and type(value) == "string" then
 			out[key] = "<b>" .. Locale.t("cos." .. value) .. "</b>"
+		elseif key == "weapon" and type(value) == "string" then
+			out[key] = "<b>" .. Locale.t("weapon." .. value .. ".name") .. "</b>"
 		elseif key == "boss" and type(value) == "string" then
 			out[key] = "<b>" .. Style.colored(Locale.t("boss." .. value .. ".name"), Color3.fromRGB(206, 160, 255)) .. "</b>"
 		elseif key == "ability" and type(value) == "string" then

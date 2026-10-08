@@ -35,6 +35,7 @@ local Icons = require(Kit.Icons)
 local Button = require(Kit.Button)
 local RelicViewport = require(Kit.RelicViewport)
 local Juice = require(Kit.Juice)
+local TouchSafe = require(Kit.TouchSafe)
 
 local Controllers = UIRoot.Parent.Controllers
 local Store = require(Controllers.Store)
@@ -377,26 +378,49 @@ local bossBarCaption: TextLabel? = nil
 local bossBarTimer: TextLabel? = nil
 local bossBarWasOpen = false
 
+local weaponsButton: Button.Button? = nil
+
 local function buildBossBar(parent: Instance, order: number)
+	-- One row: the Boss bar (portal countdown) and the WEAPONS button.
+	local row: Frame = Create("Frame", { Name = "BossRow", Size = UDim2.fromOffset(270, 54), BackgroundTransparency = 1, LayoutOrder = order, Parent = parent })
+	Style.list(row, 8, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Left)
 	local button = Button.new({
 		name = "BossBar",
-		size = UDim2.fromOffset(270, 54),
+		size = UDim2.fromOffset(182, 54),
 		kind = "purple",
 		corner = Theme.Radius.Large,
-		layoutOrder = order,
-		parent = parent,
+		layoutOrder = 1,
+		parent = row,
 		onClick = function()
 			openModal("BossPortal")
 		end,
 	})
-	local emoji = Style.text({ Name = "Emoji", Size = UDim2.fromOffset(40, 40), Position = UDim2.new(0, 8, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 28, FontFace = Theme.Fonts.Display, Text = Emoji.get("trophy"), ZIndex = 3, Parent = button.content })
+	local emoji = Style.text({ Name = "Emoji", Size = UDim2.fromOffset(36, 40), Position = UDim2.new(0, 6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 26, FontFace = Theme.Fonts.Display, Text = Emoji.get("trophy"), ZIndex = 3, Parent = button.content })
 	emoji:SetAttribute("Emoji", true)
-	local caption = Style.text({ Name = "Caption", Size = UDim2.new(0, 100, 1, -8), Position = UDim2.new(0, 52, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), TextSize = 18, FontFace = Theme.Fonts.Display, Text = Locale.t("hud.boss"), ZIndex = 3, Parent = button.content })
+	local caption = Style.text({ Name = "Caption", Size = UDim2.new(1, -50, 0, 18), Position = UDim2.new(0, 44, 0, 4), TextSize = 15, FontFace = Theme.Fonts.Display, Text = Locale.t("hud.boss"), ZIndex = 3, Parent = button.content })
 	Style.ink(caption, Theme.Outline.Text)
-	local timer = Style.text({ Name = "Timer", Size = UDim2.new(1, -150, 1, -8), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), TextXAlignment = Enum.TextXAlignment.Right, TextSize = 18, TextScaled = true, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, ZIndex = 3, Parent = button.content })
+	local timer = Style.text({ Name = "Timer", Size = UDim2.new(1, -50, 0, 22), Position = UDim2.new(0, 44, 0, 22), TextSize = 18, TextScaled = true, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, ZIndex = 3, Parent = button.content })
 	Create("UITextSizeConstraint", { MaxTextSize = 18, MinTextSize = 10, Parent = timer })
 	Style.ink(timer, Theme.Outline.Text)
 	bossBar, bossBarCaption, bossBarTimer = button, caption, timer
+
+	local weapons = Button.new({
+		name = "WeaponsButton",
+		size = UDim2.fromOffset(80, 54),
+		kind = "orange",
+		corner = Theme.Radius.Large,
+		layoutOrder = 2,
+		parent = row,
+		onClick = function()
+			openModal("Weapons")
+		end,
+	})
+	local glove = Style.text({ Name = "Emoji", Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 2), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 24, FontFace = Theme.Fonts.Display, Text = Emoji.get("weapons"), ZIndex = 3, Parent = weapons.content })
+	glove:SetAttribute("Emoji", true)
+	local label = Style.text({ Name = "Caption", Size = UDim2.new(1, -4, 0, 16), Position = UDim2.new(0, 2, 0, 30), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 13, TextScaled = true, FontFace = Theme.Fonts.Display, Text = Locale.t("hud.weapons"), ZIndex = 3, Parent = weapons.content })
+	Create("UITextSizeConstraint", { MaxTextSize = 13, MinTextSize = 8, Parent = label })
+	Style.ink(label, Theme.Outline.Text)
+	weaponsButton = weapons
 end
 
 local function refreshBossBar()
@@ -407,6 +431,13 @@ local function refreshBossBar()
 	local view = Boss.portal()
 	local t = workspace:GetServerTimeNow()
 	caption.Text = Locale.t("hud.boss")
+	local weapons = weaponsButton
+	if weapons then
+		local weaponCaption = weapons.content:FindFirstChild("Caption")
+		if weaponCaption and weaponCaption:IsA("TextLabel") then
+			weaponCaption.Text = Locale.t("hud.weapons")
+		end
+	end
 	if view.state == "Open" then
 		timer.Text = Locale.t("hud.bossOpen", { time = Format.clock(math.max(0, view.closesAt - t)) })
 		if not bossBarWasOpen then
@@ -617,7 +648,7 @@ local function buildAbilities(parent: Instance)
 	abilityCluster = Create("Frame", {
 		Name = "Abilities",
 		Size = UDim2.fromOffset(230, 190),
-		Position = if touch then UDim2.new(1, -16, 1, -150) else UDim2.new(1, -22, 1, -22),
+		Position = if touch then UDim2.new(1, -16, 1, -TouchSafe.DefaultBottom) else UDim2.new(1, -22, 1, -22),
 		AnchorPoint = Vector2.new(1, 1),
 		BackgroundTransparency = 1,
 		Parent = parent,
@@ -1182,6 +1213,41 @@ function Hud.flashDanger(duration: number?)
 			vignette.Visible = false
 		end
 	end)
+end
+
+-- Boss arena (phase 6.5): the Seal button is hidden (nothing to seal
+-- there) so the Strike button has room; everything comes back outside.
+function Hud.setArenaMode(enabled: boolean)
+	for _, view in abilityViews do
+		if view.key == "seal" then
+			view.frame.Visible = not enabled
+		end
+	end
+end
+
+-- Layout of the ability cluster (phase 6.5 overlap tests): positions are
+-- relative to the cluster frame, buttons are centred on them.
+function Hud.abilityLayout(): { [string]: any }
+	local buttons = {}
+	for index, slot in SLOT_LAYOUT do
+		table.insert(buttons, { name = "slot" .. index, size = slot.size, position = slot.position })
+	end
+	table.insert(buttons, { name = "seal", size = 60, position = UDim2.new(1, -58, 1, -148) })
+	table.insert(buttons, { name = "loadout", size = 50, position = UDim2.new(1, -214, 1, -42) })
+	return {
+		size = Vector2.new(230, 190),
+		-- Touch: the Y offset becomes -TouchSafe.bottomOffset (Hud.setTouchBottom).
+		touch = UDim2.new(1, -16, 1, -TouchSafe.DefaultBottom),
+		pc = UDim2.new(1, -22, 1, -22),
+		buttons = buttons,
+	}
+end
+
+-- Touch only: lifts the ability cluster above Roblox's Jump button (tablets).
+function Hud.setTouchBottom(bottom: number)
+	if touch and abilityCluster then
+		abilityCluster.Position = UDim2.new(1, -16, 1, -bottom)
+	end
 end
 
 function Hud.menuButton(name: string): GuiObject?

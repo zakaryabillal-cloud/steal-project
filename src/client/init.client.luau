@@ -61,6 +61,7 @@ local CosmeticsScreen = require(Screens.Cosmetics)
 local BossHud = require(Screens.BossHud)
 local BossPortal = require(Screens.BossPortal)
 local BossCodex = require(Screens.BossCodex)
+local WeaponsScreen = require(Screens.Weapons)
 
 local localPlayer = Players.LocalPlayer
 
@@ -118,15 +119,35 @@ UI.registerModal("Loadout", Loadout.init(UI.modal, UI.close))
 UI.registerModal("Cosmetics", CosmeticsScreen.init(UI.modal, UI.close))
 UI.registerModal("BossPortal", BossPortal.init(UI.modal, UI.close))
 UI.registerModal("BossCodex", BossCodex.init(UI.modal, UI.close))
+UI.registerModal("Weapons", WeaponsScreen.init(UI.modal, UI.close))
 BossPortal.setCodexOpener(function()
 	UI.open("BossCodex")
 end)
+BossPortal.setWeaponsOpener(function()
+	UI.open("Weapons")
+end)
+-- In the boss arena the Seal button steps aside for the Strike button.
+localPlayer:GetAttributeChangedSignal("BossFight"):Connect(function()
+	Hud.setArenaMode(Boss.inFight())
+end)
 BossHud.init(UI.hud, UI.overlay, UI.touch, stack)
+-- Right-hand touch buttons stay above Roblox's Jump button (Kit/TouchSafe).
+local function placeTouchButtons()
+	if UI.touch then
+		local bottom = UI.touchBottom()
+		Hud.setTouchBottom(bottom)
+		BossHud.setTouchBottom(bottom)
+	end
+end
+placeTouchButtons()
+UI.scaleChanged:Connect(placeTouchButtons)
 Boss.menuRequested:Connect(function()
 	UI.open("BossPortal")
 end)
 
 -- Abilities screen: L (keyboard) / D-pad up (controller) / HUD button (touch).
+-- Style: C / D-pad down. Boss weapons (phase 6.5): V / D-pad right / the
+-- orange WEAPONS button next to the Boss bar.
 game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
 	if processed then
 		return
@@ -135,6 +156,8 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, processed
 		UI.toggle("Loadout")
 	elseif input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.DPadDown then
 		UI.toggle("Cosmetics")
+	elseif input.KeyCode == Enum.KeyCode.V or input.KeyCode == Enum.KeyCode.DPadRight then
+		UI.toggle("Weapons")
 	end
 end)
 
@@ -339,6 +362,11 @@ end)
 
 ClientNet.on("BossHit", BossFX.hit)
 ClientNet.on("BossKO", BossFX.ko)
+ClientNet.on("BossDodge", BossFX.dodge)
+ClientNet.on("BossBlock", BossFX.block)
+ClientNet.on("BossHeal", BossFX.heal)
+ClientNet.on("BossBuff", BossFX.buff)
+ClientNet.on("BossAbility", BossFX.ability)
 
 ClientNet.on("BossStart", function(payload)
 	local name = Locale.t("boss." .. tostring(payload.boss) .. ".name")
