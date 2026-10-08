@@ -1,6 +1,7 @@
 --!nocheck
--- Exports the generated world (terrain samples + part footprints) to JSON so
--- tools/render/render_map.py can draw a top-down overview image.
+-- Exports the generated world (terrain samples + part footprints + the art
+-- direction palette) to JSON so tools/render/render_map.py / render_view.py
+-- can draw overview and perspective previews.
 --   lune run tools/render/export_world.luau [tier]
 
 local fs = require("@lune/fs")
@@ -125,7 +126,24 @@ for _, part in Engine.workspace:GetDescendants() do
 	end
 end
 
+-- Art direction palette (Phase 5.5): terrain colours, water and sky for the renderer.
+local Palette = Loader.require("server", game:GetService("ReplicatedStorage"):FindFirstChild("Shared"):FindFirstChild("Config"):FindFirstChild("Palette"))
+local function rgb(c)
+	return { math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5) }
+end
+local terrainColors = {}
+for name, color in Palette.Terrain do
+	terrainColors[name] = rgb(color)
+end
+local palette = {
+	terrain = terrainColors,
+	water = rgb(Palette.Water.Color),
+	sky = rgb(Palette.Core.Sky),
+	horizon = rgb(Palette.Atmosphere.Color),
+	clock = Palette.Lighting.ClockTime,
+}
+
 local out = process.args[2] or (ROOT .. "/tools/.cache/world.json")
-fs.writeFile(out, serde.encode("json", { step = step, origin = -EXTENT, samples = samples, parts = parts, fills = fills }))
+fs.writeFile(out, serde.encode("json", { step = step, origin = -EXTENT, samples = samples, parts = parts, fills = fills, palette = palette }))
 print("exported", #parts, "parts")
 local _ = thread

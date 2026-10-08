@@ -1,5 +1,9 @@
 --!strict
 -- Tiny helpers for building static world geometry from code.
+-- Phase 5.5: realistic materials are drawn as clean toy plastic
+-- (Config/Palette.Stylize) so the whole island reads as a cartoon.
+
+local Palette = require(game:GetService("ReplicatedStorage").Shared.Config.Palette)
 
 local Parts = {}
 
@@ -22,7 +26,7 @@ local function apply(part: BasePart, spec: Spec)
 	part.Size = spec.size
 	part.CFrame = spec.cf
 	part.Color = spec.color or Color3.fromRGB(160, 150, 180)
-	part.Material = spec.material or Enum.Material.SmoothPlastic
+	part.Material = Palette.material(spec.material or Enum.Material.SmoothPlastic)
 	part.Transparency = spec.transparency or 0
 	part.Reflectance = spec.reflectance or 0
 	part.CanCollide = spec.collide ~= false

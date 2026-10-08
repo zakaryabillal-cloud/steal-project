@@ -110,6 +110,11 @@ local en: { [string]: string } = {
 	["status.slow"] = "SLOWED -{amount}%",
 	["fx.revealed"] = "REVEALED",
 	["fx.decoy"] = "DECOY",
+	["fx.bonk"] = "BONK!",
+	["fx.new"] = "NEW!",
+	["fx.unlocked"] = "UNLOCKED!",
+	["fx.levelUp"] = "LEVEL UP!",
+	["fx.burp"] = "BURP!",
 	["n.abilityUnlocked"] = "New ability: {ability}!",
 	["n.abilityEligible"] = "{ability} can be unlocked: open Abilities.",
 
@@ -496,6 +501,11 @@ local fr: { [string]: string } = {
 	["status.slow"] = "RALENTI -{amount} %",
 	["fx.revealed"] = "RÉVÉLÉ",
 	["fx.decoy"] = "LEURRE",
+	["fx.bonk"] = "BONK !",
+	["fx.new"] = "NOUVEAU !",
+	["fx.unlocked"] = "DÉBLOQUÉ !",
+	["fx.levelUp"] = "NIVEAU +1 !",
+	["fx.burp"] = "BURP !",
 	["n.abilityUnlocked"] = "Nouvelle capacité : {ability} !",
 	["n.abilityEligible"] = "{ability} peut être débloquée : ouvre Capacités.",
 

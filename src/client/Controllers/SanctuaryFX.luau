@@ -120,31 +120,25 @@ local function buildSign(view: PlotView, anchor: BasePart)
 		Adornee = anchor,
 		Parent = anchor,
 	})
+	-- The sign wears the Sanctuary's candy colour: "whose house is this" at a glance.
 	local card = Style.panel({
 		Name = "Card",
 		Size = UDim2.fromScale(1, 0.74),
-		BackgroundTransparency = 0.25,
+		BackgroundColor3 = Style.vivid(view.accent, 0.6, 0.88),
 		Parent = gui,
 	})
-	local accentBar = Create("Frame", {
-		Size = UDim2.fromScale(0.012, 0.6),
-		Position = UDim2.fromScale(0.03, 0.2),
-		BackgroundColor3 = view.accent,
-		BorderSizePixel = 0,
-		Parent = card,
-	})
-	Style.corner(accentBar, UDim.new(1, 0))
+	Style.gloss(card)
 	local avatar: ImageLabel = Create("ImageLabel", {
 		Size = UDim2.fromScale(0.2, 0.74),
-		Position = UDim2.fromScale(0.06, 0.5),
+		Position = UDim2.fromScale(0.05, 0.5),
 		AnchorPoint = Vector2.new(0, 0.5),
-		BackgroundColor3 = Style.Colors.PanelRaised,
+		BackgroundColor3 = Style.Colors.Cream,
 		Image = "",
 		Parent = card,
 	})
 	Create("UIAspectRatioConstraint", { AspectRatio = 1, DominantAxis = Enum.DominantAxis.Height, Parent = avatar })
 	Style.corner(avatar, UDim.new(1, 0))
-	Style.stroke(avatar, view.accent, 0.1, 2)
+	Style.stroke(avatar, Style.Colors.Ink, 0, 3)
 	view.signAvatar = avatar
 	view.signName = scaledText({
 		Name = "OwnerName",
@@ -154,25 +148,25 @@ local function buildSign(view: PlotView, anchor: BasePart)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = card,
 	}, 26)
+	Style.ink(view.signName, 2.5)
 	view.signSub = scaledText({
 		Name = "Details",
 		Size = UDim2.fromScale(0.68, 0.3),
 		Position = UDim2.fromScale(0.28, 0.58),
-		FontFace = Style.Fonts.BodyBold,
-		TextColor3 = Style.Colors.TextDim,
+		FontFace = Style.Fonts.Heavy,
 		Parent = card,
 	}, 16)
+	Style.ink(view.signSub, 1.5)
 	local badge: Frame = Create("Frame", {
 		Size = UDim2.fromScale(0.5, 0.24),
 		Position = UDim2.fromScale(0.5, 1),
 		AnchorPoint = Vector2.new(0.5, 1),
-		BackgroundColor3 = Style.Colors.Panel,
-		BackgroundTransparency = 0.15,
+		BackgroundColor3 = Style.Colors.Gold,
 		Visible = false,
 		Parent = gui,
 	})
 	Style.corner(badge, UDim.new(1, 0))
-	local badgeStroke = Style.stroke(badge, Style.Colors.Gold, 0.3, 1.5)
+	local badgeStroke = Style.stroke(badge, Style.Colors.Ink, 0, 2)
 	badgeStroke.Name = "BadgeStroke"
 	local iconHolder = Create("Frame", {
 		Size = UDim2.fromScale(0.1, 0.66),
@@ -186,9 +180,10 @@ local function buildSign(view: PlotView, anchor: BasePart)
 	view.badgeText = scaledText({
 		Size = UDim2.fromScale(0.8, 0.8),
 		Position = UDim2.fromScale(0.16, 0.1),
-		FontFace = Style.Fonts.BodyBold,
+		FontFace = Style.Fonts.Heavy,
 		Parent = badge,
 	}, 14)
+	Style.ink(view.badgeText, 1.5)
 	view.badge = badge
 	view.signCard = card
 	view.signGui = gui
@@ -241,16 +236,16 @@ local function buildCoreGui(view: PlotView, crystal: BasePart)
 		TextSize = 20,
 		Parent = gui,
 	})
-	Style.textStroke(view.coreAmount, 0.3, 2)
+	Style.ink(view.coreAmount, 2.5)
 	local back = Create("Frame", {
-		Size = UDim2.new(1, -8, 0, 8),
-		Position = UDim2.fromOffset(4, 34),
-		BackgroundColor3 = Color3.fromRGB(20, 16, 36),
-		BackgroundTransparency = 0.2,
+		Size = UDim2.new(1, -8, 0, 11),
+		Position = UDim2.fromOffset(4, 33),
+		BackgroundColor3 = Style.Colors.Ink,
+		BackgroundTransparency = 0.3,
 		Parent = gui,
 	})
 	Style.corner(back, UDim.new(1, 0))
-	Style.stroke(back, Color3.new(1, 1, 1), 0.7, 1)
+	Style.stroke(back, Style.Colors.Ink, 0, 2)
 	local bar = Create("Frame", {
 		Size = UDim2.fromScale(0, 1),
 		BackgroundColor3 = Color3.new(1, 1, 1),
@@ -258,6 +253,7 @@ local function buildCoreGui(view: PlotView, crystal: BasePart)
 	})
 	Style.corner(bar, UDim.new(1, 0))
 	Style.gradient(bar, Style.Colors.Essence, Style.Colors.EssenceDeep)
+	Style.gloss(bar)
 	view.coreBar = bar
 	view.coreRate = Style.text({
 		Size = UDim2.new(1, -8, 0, 18),
@@ -267,7 +263,7 @@ local function buildCoreGui(view: PlotView, crystal: BasePart)
 		TextColor3 = Style.Colors.Essence,
 		Parent = gui,
 	})
-	Style.textStroke(view.coreRate, 0.4, 1.5)
+	Style.ink(view.coreRate, 1.5)
 	view.coreGui = gui
 end
 
@@ -277,7 +273,7 @@ local function refreshSign(view: PlotView)
 	local tier = math.max(1, attrNumber(model, "Tier"))
 	if ownerId == 0 then
 		view.signName.Text = Locale.t("sign.free")
-		view.signName.TextColor3 = Style.Colors.TextMuted
+		view.signName.TextColor3 = Style.Colors.Text
 		view.signSub.Text = ""
 		view.signAvatar.Image = ""
 		view.badge.Visible = false
@@ -287,7 +283,7 @@ local function refreshSign(view: PlotView)
 	view.coreGui.Enabled = true
 	local name = attrString(model, "OwnerName")
 	view.signName.Text = Locale.t("sign.owner", { name = Style.escape(name) })
-	view.signName.TextColor3 = if ownerId == localPlayer.UserId then Style.Colors.Essence else Style.Colors.Text
+	view.signName.TextColor3 = if ownerId == localPlayer.UserId then Style.Colors.Gold else Style.Colors.Text
 	view.signSub.Text = string.format("%s  ·  %d ◆", Locale.t("tier." .. tier), attrNumber(model, "PlacedCount"))
 	if view.thumbFor ~= ownerId then
 		view.thumbFor = ownerId

@@ -115,7 +115,7 @@ function Icons.settings(parent: Instance, color: Color3): Frame
 	hub.BackgroundColor3 = color
 	local hole = ring(r, 0.22, 0, color)
 	hole.BackgroundTransparency = 0
-	hole.BackgroundColor3 = Color3.fromRGB(30, 26, 52)
+	hole.BackgroundColor3 = Color3.fromRGB(30, 27, 75)
 	return r
 end
 
@@ -170,7 +170,7 @@ function Icons.seal(parent: Instance, color: Color3): Frame
 		Size = UDim2.fromScale(0.16, 0.36),
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = Color3.fromRGB(30, 26, 52),
+		BackgroundColor3 = Color3.fromRGB(30, 27, 75),
 		BorderSizePixel = 0,
 		Parent = body,
 	})

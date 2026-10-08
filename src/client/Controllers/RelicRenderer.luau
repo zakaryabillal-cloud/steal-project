@@ -151,9 +151,9 @@ local function labelSubtitle(record: Record): string
 		if attrNumber(record.anchor, "OwnerId") == localPlayer.UserId then
 			rate *= Store.state.multiplier
 		end
-		return string.format("%s  ·  %s  ·  %s/s", rarityName, Format.stars(record.level, GameConfig.Economy.MaxRelicLevel), Format.abbrev(rate))
+		return string.format("%s  ·  %s  ·  +%s/s", string.upper(rarityName), Format.stars(record.level, GameConfig.Economy.MaxRelicLevel), Format.abbrev(rate))
 	end
-	return string.upper(rarityName)
+	return Style.stars(record.rarity.id) .. " " .. string.upper(rarityName)
 end
 
 local function ensureLabel(record: Record)
@@ -162,7 +162,7 @@ local function ensureLabel(record: Record)
 	end
 	local gui: BillboardGui = Create("BillboardGui", {
 		Name = "RelicLabel",
-		Size = UDim2.fromOffset(240, 52),
+		Size = UDim2.fromOffset(260, 60),
 		StudsOffsetWorldSpace = Vector3.new(0, 2.4 * record.visual.scale + 0.6, 0),
 		AlwaysOnTop = false,
 		LightInfluence = 0,
@@ -172,26 +172,38 @@ local function ensureLabel(record: Record)
 	})
 	local title = Style.text({
 		Name = "Title",
-		Size = UDim2.new(1, 0, 0, 26),
+		Size = UDim2.new(1, 0, 0, 28),
 		TextXAlignment = Enum.TextXAlignment.Center,
-		FontFace = Style.Fonts.Heavy,
-		TextSize = 20,
+		FontFace = Style.Fonts.Display,
+		TextSize = 22,
 		Text = labelTitle(record),
 		Parent = gui,
 	})
-	Style.textStroke(title, 0.35, 2)
-	local sub = Style.text({
-		Name = "Sub",
-		Size = UDim2.new(1, 0, 0, 20),
-		Position = UDim2.fromOffset(0, 26),
-		TextXAlignment = Enum.TextXAlignment.Center,
-		FontFace = Style.Fonts.BodyBold,
-		TextSize = 14,
-		TextColor3 = Style.Colors.TextDim,
-		Text = labelSubtitle(record),
+	Style.ink(title, 3)
+	-- Rarity pill: colour + stars, readable from afar and without colour.
+	local pill = Create("Frame", {
+		Name = "RarityPill",
+		Size = UDim2.fromOffset(40, 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Position = UDim2.new(0.5, 0, 0, 31),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = record.rarity.color,
 		Parent = gui,
 	})
-	Style.textStroke(sub, 0.4, 1.5)
+	Style.corner(pill, UDim.new(1, 0))
+	Style.stroke(pill, Style.Colors.Ink, 0, 2)
+	Style.padding(pill, 0, 8)
+	local sub = Style.text({
+		Name = "Sub",
+		Size = UDim2.fromScale(0, 1),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		FontFace = Style.Fonts.Heavy,
+		TextSize = 14,
+		Text = labelSubtitle(record),
+		Parent = pill,
+	})
+	Style.ink(sub, 1.5)
 	record.label = gui
 	record.labelText = title
 	record.labelSub = sub
@@ -292,13 +304,14 @@ function RelicRenderer.popText(position: Vector3, text: string, color: Color3)
 	})
 	local label = Style.text({
 		Text = text,
-		TextSize = 30,
-		FontFace = Style.Fonts.Display,
+		TextSize = 32,
+		FontFace = Style.burstFont(text),
 		TextColor3 = color,
 		TextXAlignment = Enum.TextXAlignment.Center,
+		Rotation = math.random(-8, 8),
 		Parent = gui,
 	})
-	Style.textStroke(label, 0.2, 2.5)
+	Style.ink(label, 3)
 	local scale: UIScale = Create("UIScale", { Scale = 0.4, Parent = label })
 	Tween.play(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 	Tween.play(anchor, 1.4, { CFrame = CFrame.new(position + Vector3.new(0, 5, 0)) }, Enum.EasingStyle.Quint)
@@ -585,15 +598,15 @@ function RelicRenderer.showSteal(uid: string, duration: number)
 		Parent = record.visual.model,
 	})
 	local back = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 10),
+		Size = UDim2.new(1, 0, 0, 14),
 		Position = UDim2.fromScale(0, 0.5),
 		AnchorPoint = Vector2.new(0, 0.5),
-		BackgroundColor3 = Color3.fromRGB(30, 10, 20),
+		BackgroundColor3 = Style.Colors.Ink,
 		BackgroundTransparency = 0.2,
 		Parent = gui,
 	})
 	Style.corner(back, UDim.new(1, 0))
-	Style.stroke(back, Style.Colors.Danger, 0.2, 1.5)
+	Style.stroke(back, Style.Colors.Ink, 0, 2.5)
 	local fill = Create("Frame", {
 		Size = UDim2.fromScale(0, 1),
 		BackgroundColor3 = Style.Colors.Danger,

@@ -25,7 +25,7 @@ local polar = WorldFeatures.polar
 local CAVE_GLOW = Color3.fromRGB(120, 220, 255)
 local SKY_GLOW = Color3.fromRGB(140, 240, 255)
 local GRAPPLE = Color3.fromRGB(170, 255, 240)
-local GRASS = Color3.fromRGB(86, 168, 134)
+local GRASS = Color3.fromRGB(98, 214, 92) -- Palette.World.Leaf
 
 local function groundAt(x: number, z: number): number
 	return TerrainBuilder.heightAt(x, z) or Layout.GroundY

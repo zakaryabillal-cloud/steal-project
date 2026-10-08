@@ -1180,6 +1180,12 @@ local function fillShape(cf, extent, materialName, inside)
 		end
 	end
 end
+-- Terrain material colours (SetMaterialColor / GetMaterialColor).
+Engine.terrainColors = {}
+METHODS["Terrain.GetMaterialColor"] = function(_, material)
+	assert(typeOf(material) == "EnumItem", "GetMaterialColor(material)")
+	return Engine.terrainColors[material.Name] or roblox.Color3.new(0.5, 0.5, 0.5)
+end
 for _, name in { "WriteVoxels", "FillBall", "FillCylinder", "FillBlock", "FillWedge", "Clear", "SetMaterialColor" } do
 	METHODS["Terrain." .. name] = function(_, ...)
 		terrainOps += 1
@@ -1206,6 +1212,9 @@ for _, name in { "WriteVoxels", "FillBall", "FillCylinder", "FillBlock", "FillWe
 			table.clear(Engine.terrainLog)
 			table.clear(voxelOcc)
 			table.clear(voxelWater)
+		elseif name == "SetMaterialColor" then
+			assert(typeOf(args[1]) == "EnumItem" and typeOf(args[2]) == "Color3", "SetMaterialColor(material, color)")
+			Engine.terrainColors[args[1].Name] = args[2]
 		end
 		if name == "WriteVoxels" then
 			local region, resolution, materials, occupancy = ...

@@ -13,6 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Layout = require(Shared.Layout)
 local Theme = require(Shared.Config.Theme)
+local Palette = require(Shared.Config.Palette)
 local Parts = require(script.Parent.Parts)
 
 local SanctuaryBuilder = {}
@@ -104,14 +105,16 @@ end
 
 local function buildBase(b: Builder)
 	local h = Layout.PlatformHeight
-	cylinder(b, Vector3.new(R * 2 + 4, h - 0.4, R * 2 + 4), CFrame.new(0, -(h + 0.4) / 2, 0), C.StoneDark, M.Slate, { name = "Foundation" })
+	-- Phase 5.5: the foundation wears a pastel of the Sanctuary's candy colour,
+	-- so every home is recognisable from across the island.
+	cylinder(b, Vector3.new(R * 2 + 4, h - 0.4, R * 2 + 4), CFrame.new(0, -(h + 0.4) / 2, 0), b.accent:Lerp(Color3.new(1, 1, 1), 0.3), M.Slate, { name = "Foundation" })
 	cylinder(b, Vector3.new(R * 2 + 5.2, 1.4, R * 2 + 5.2), CFrame.new(0, -1.3, 0), C.Trim, M.SmoothPlastic, { name = "Ledge" })
 	-- Stacked discs reveal thin glowing inlays; every layer is >= 0.15 studs
 	-- apart vertically so nothing z-fights at a distance.
 	cylinder(b, Vector3.new(R * 2 + 1, 0.5, R * 2 + 1), CFrame.new(0, -0.43, 0), b.accent, M.Neon, { name = "AccentRing", shadow = false })
 	cylinder(b, Vector3.new(R * 2, 0.6, R * 2), CFrame.new(0, -0.3, 0), C.StoneLight, M.Cobblestone, { name = "Floor" })
 	cylinder(b, Vector3.new(31, 0.4, 31), CFrame.new(0, -0.05, 0), b.accent, M.Neon, { name = "InnerRing", shadow = false })
-	cylinder(b, Vector3.new(30, 0.5, 30), CFrame.new(0, 0.05, 0), Color3.fromRGB(222, 216, 240), M.Marble, { name = "InnerFloor" })
+	cylinder(b, Vector3.new(30, 0.5, 30), CFrame.new(0, 0.05, 0), Palette.Core.Cream, M.Marble, { name = "InnerFloor" })
 
 	-- Ramp down to the ring road.
 	local len = Layout.RampLength
@@ -137,7 +140,7 @@ local function buildBase(b: Builder)
 		local cf = polar(phi, R - 6.5, 0)
 		block(b, Vector3.new(3, 1.2, 3), cf * CFrame.new(0, 0.6, 0), C.Stone, M.Slate, { name = "Planter" })
 		block(b, Vector3.new(3.2, 0.3, 3.2), cf * CFrame.new(0, 1.25, 0), C.Trim, M.SmoothPlastic)
-		ball(b, 2.8, cf * CFrame.new(0, 2, 0), Color3.fromRGB(96, 196, 160), M.SmoothPlastic, { name = "Shrub" })
+		ball(b, 2.8, cf * CFrame.new(0, 2, 0), Palette.World.Leaf, M.SmoothPlastic, { name = "Shrub" })
 		ball(b, 0.45, cf * CFrame.new(0.7, 2.9, 0.4), b.accent, M.Neon, { collide = false, shadow = false, name = "Bloom" })
 	end
 
@@ -148,6 +151,30 @@ local function buildBase(b: Builder)
 		block(b, Vector3.new(3.4, 0.8, 3.4), CFrame.new(x, 12.4, -R + 0.6), C.Trim, M.SmoothPlastic)
 		lantern(b, CFrame.new(x, 13.05, -R + 0.6), true)
 		block(b, Vector3.new(0.3, 7, 0.2), CFrame.new(x, 5.5, -R - 0.85), b.accent, M.Neon, { collide = false, shadow = false })
+		-- Pennant on top of each gate post.
+		cylinder(b, Vector3.new(0.3, 4, 0.3), CFrame.new(x, 15.5, -R + 0.6), C.Trim, M.SmoothPlastic, { collide = false, name = "FlagPole" })
+		local pennant = Parts.wedge({ size = Vector3.new(0.15, 1.6, 2.6), cf = at(b, CFrame.new(x, 16.6, -R + 0.6 - 1.3) * CFrame.Angles(0, 0, 0) * CFrame.Angles(math.rad(90), 0, 0)), color = b.accent, material = M.SmoothPlastic, collide = false, shadow = false, parent = b.folder })
+		pennant.Name = "Pennant"
+		tag(pennant, b.tier)
+	end
+	-- Party bunting strung between the gate posts.
+	local span = Layout.GateWidth + 3
+	block(b, Vector3.new(span, 0.18, 0.18), CFrame.new(0, 10.6, -R - 0.2), C.StoneLight, M.SmoothPlastic, { collide = false, shadow = false, name = "BuntingCord" })
+	local flags = 6
+	for k = 1, flags do
+		local x = -span / 2 + (k - 0.5) * span / flags
+		local sag = -math.sin((k - 0.5) / flags * math.pi) * 0.9
+		local flag = Parts.wedge({
+			size = Vector3.new(0.12, 1.5, 1.3),
+			cf = at(b, CFrame.new(x, 9.85 + sag, -R - 0.2) * CFrame.Angles(math.rad(180), math.rad(90), 0)),
+			color = if k % 2 == 0 then Palette.Core.Sunny else b.accent,
+			material = M.SmoothPlastic,
+			collide = false,
+			shadow = false,
+			parent = b.folder,
+		})
+		flag.Name = "Bunting"
+		tag(flag, b.tier)
 	end
 
 	-- Balustrade around the rim, open at the gate.

@@ -121,11 +121,12 @@ Shapes.RuneTablet = function(ctx: Ctx)
 	ctx:part({ kind = "Block", size = Vector3.new(1.9, 0.25, 0.55), cf = CFrame.new(0, -1.25, 0), color = def.secondary, material = M.Slate, role = "body" })
 
 	local runes = {}
+	-- Phase 5.5: glyphs frame the face (no cross: a tablet, not a tombstone).
 	local glyphs = {
-		{ size = Vector3.new(1.05, 0.1, 0.05), pos = Vector3.new(0, 0.55, 0) },
-		{ size = Vector3.new(0.1, 0.95, 0.05), pos = Vector3.new(0, 0, 0) },
-		{ size = Vector3.new(0.62, 0.1, 0.05), pos = Vector3.new(-0.22, -0.6, 0) },
-		{ size = Vector3.new(0.1, 0.4, 0.05), pos = Vector3.new(0.45, -0.38, 0) },
+		{ size = Vector3.new(0.9, 0.1, 0.05), pos = Vector3.new(0, -0.72, 0) },
+		{ size = Vector3.new(0.1, 0.32, 0.05), pos = Vector3.new(-0.62, -0.5, 0) },
+		{ size = Vector3.new(0.1, 0.32, 0.05), pos = Vector3.new(0.62, -0.5, 0) },
+		{ size = Vector3.new(0.5, 0.1, 0.05), pos = Vector3.new(0, 0.72, 0) },
 		{ size = Vector3.new(0.26, 0.26, 0.05), pos = Vector3.new(0, 1.08, 0), diamond = true },
 	}
 	for _, side in { 0.22, -0.22 } do
@@ -411,7 +412,7 @@ Shapes.VoidCube = function(ctx: Ctx)
 			end
 		end
 	end
-	ctx:part({ kind = "Ball", size = Vector3.one * 0.85, color = Color3.new(0, 0, 0), role = "fx", name = "Singularity" })
+	ctx:part({ kind = "Ball", size = Vector3.one * 0.85, color = Color3.fromRGB(40, 26, 92), role = "fx", name = "Singularity" })
 	ctx:part({ kind = "Ball", size = Vector3.one * 1.05, color = def.glow, material = M.ForceField, role = "fx" })
 	local disk = ctx:part({ kind = "VCylinder", size = Vector3.new(2.3, 0.05, 2.3), color = def.glow, material = M.Neon, transparency = 0.4, role = "glow" })
 	local diskCore = ctx:part({ kind = "VCylinder", size = Vector3.new(1.5, 0.06, 1.5), color = Color3.fromRGB(240, 220, 255), material = M.Neon, transparency = 0.15, role = "glow" })
@@ -537,7 +538,7 @@ Shapes.CosmicEye = function(ctx: Ctx)
 	local facing = CFrame.Angles(0, rad(90), 0)
 	ctx:part({ kind = "Cylinder", size = Vector3.new(0.1, 1.22, 1.22), cf = CFrame.new(0, 0, -0.985) * facing, color = Color3.fromRGB(60, 20, 120), role = "body" })
 	ctx:part({ kind = "Cylinder", size = Vector3.new(0.1, 1.04, 1.04), cf = CFrame.new(0, 0, -1.0) * facing, color = def.secondary, material = M.Neon, role = "glow" })
-	local pupil = ctx:part({ kind = "Cylinder", size = Vector3.new(0.1, 0.46, 0.46), cf = CFrame.new(0, 0, -1.03) * facing, color = Color3.new(0, 0, 0), role = "fx" })
+	local pupil = ctx:part({ kind = "Cylinder", size = Vector3.new(0.1, 0.46, 0.46), cf = CFrame.new(0, 0, -1.03) * facing, color = Color3.fromRGB(40, 26, 92), role = "fx" })
 	ctx:part({ kind = "Ball", size = Vector3.one * 0.17, cf = CFrame.new(0.22, 0.24, -1.03), color = Color3.new(1, 1, 1), material = M.Neon, role = "fx" })
 
 	local ringA = ctx:ring({ radius = 1.4, width = 0.08, color = def.glow, transparency = 0.1 })
@@ -729,7 +730,7 @@ end
 Shapes.RiftHeart = function(ctx: Ctx)
 	local def = ctx.def
 	local lens = ctx:part({ kind = "Ellipsoid", size = Vector3.new(0.85, 3, 0.3), color = def.glow, material = M.Neon, role = "glow" })
-	local dark = ctx:part({ kind = "Ellipsoid", size = Vector3.new(0.55, 2.55, 0.36), color = Color3.new(0, 0, 0), role = "fx" })
+	local dark = ctx:part({ kind = "Ellipsoid", size = Vector3.new(0.55, 2.55, 0.36), color = Color3.fromRGB(40, 26, 92), role = "fx" })
 	local outer = ctx:part({ kind = "Ellipsoid", size = Vector3.new(1.6, 3.8, 0.6), color = def.primary, material = M.ForceField, role = "fx" })
 	local ringA = ctx:ring({ radius = 1.5, width = 0.1, color = def.glow, transparency = 0 })
 	local ringB = ctx:ring({ radius = 1.95, width = 0.07, color = def.primary, transparency = 0.2 })
@@ -772,7 +773,7 @@ Shapes.EclipseSigil = function(ctx: Ctx)
 	local def = ctx.def
 	local visual = ctx.visual
 	visual.spin = false
-	ctx:part({ kind = "Ball", size = Vector3.one * 2, color = Color3.new(0, 0, 0), role = "fx", name = "BlackSun" })
+	ctx:part({ kind = "Ball", size = Vector3.one * 2, color = Color3.fromRGB(40, 26, 92), role = "fx", name = "BlackSun" })
 	ctx:part({ kind = "Ball", size = Vector3.one * 2.45, color = def.secondary, material = M.ForceField, role = "fx" })
 	ctx:ring({ radius = 1.03, width = 0.24, color = def.secondary, transparency = 0, cf = CFrame.identity })
 	ctx:ring({ radius = 1.28, width = 0.6, color = def.glow, transparency = 0.5, cf = CFrame.identity })

@@ -1,6 +1,7 @@
 --!strict
 -- Main heads-up display:
---   left   : Essence counter + Power Level, menu buttons (Upgrades / RiftDex / Settings), next goal
+--   left   : Essence bubble, Power bar, 2x2 grid of big emoji menu buttons
+--            (Upgrades / RiftDex / Style / Settings), next goal with a progress bar
 --   bottom : carry panel (what you hold, where home is, theft timers)
 --   right  : ability buttons with cooldown fills (one per equipped loadout slot + Seal)
 -- plus Essence collection orbs and the danger vignette.
@@ -13,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Theme = require(Shared.Config.Theme)
+local Emoji = require(Shared.Config.Emoji)
 local Upgrades = require(Shared.Config.Upgrades)
 local Relics = require(Shared.Config.Relics)
 local Mutations = require(Shared.Config.Mutations)
@@ -32,6 +34,7 @@ local Tween = require(Kit.Tween)
 local Icons = require(Kit.Icons)
 local Button = require(Kit.Button)
 local RelicViewport = require(Kit.RelicViewport)
+local Juice = require(Kit.Juice)
 
 local Controllers = UIRoot.Parent.Controllers
 local Store = require(Controllers.Store)
@@ -70,6 +73,7 @@ local goalName: TextLabel
 local goalCost: TextLabel
 local goalBar: Frame
 local goalStroke: UIStroke
+local goalReady = false
 
 -- Abilities
 type AbilityView = {
@@ -163,89 +167,131 @@ end
 ----------------------------------------------------------------------------
 
 local function buildEssence(parent: Instance)
+	-- Big currency bubble: the gem pokes out of the left edge, huge number,
+	-- green "+x/s" chip underneath.
 	essenceCard = Style.panel({
 		Name = "Essence",
-		Size = UDim2.fromOffset(250, 102),
+		Size = UDim2.fromOffset(270, 80),
 		LayoutOrder = 1,
+		CornerRadius = Theme.Radius.Pill,
 		Parent = parent,
 	})
 	local stroke = essenceCard:FindFirstChildOfClass("UIStroke") :: UIStroke
 	stroke.Name = "Stroke"
-	essenceIcon = Create("Frame", {
-		Size = UDim2.fromOffset(48, 48),
-		Position = UDim2.new(0, 12, 0, 38),
+	local gemBack = Create("Frame", {
+		Name = "GemBack",
+		Size = UDim2.fromOffset(66, 66),
+		Position = UDim2.new(0, 7, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
-		BackgroundTransparency = 1,
+		BackgroundColor3 = Theme.Colors.PanelLight,
 		Parent = essenceCard,
+	})
+	Style.corner(gemBack, Theme.Radius.Pill)
+	Style.stroke(gemBack, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+	essenceIcon = Create("Frame", {
+		Size = UDim2.fromOffset(58, 58),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		Parent = gemBack,
 	})
 	Icons.essence(essenceIcon)
 	Create("UIScale", { Parent = essenceIcon })
 	essenceLabel = Style.text({
-		Size = UDim2.new(1, -78, 0, 38),
-		Position = UDim2.fromOffset(68, 6),
+		Name = "Amount",
+		Size = UDim2.new(1, -90, 0, 42),
+		Position = UDim2.fromOffset(80, 3),
 		FontFace = Theme.Fonts.Display,
-		TextSize = 34,
+		TextSize = 38,
+		TextScaled = true,
 		Text = "0",
 		Parent = essenceCard,
 	})
-	Style.textStroke(essenceLabel, 0.6, 1.5)
-	rateLabel = Style.text({
-		Size = UDim2.new(1, -78, 0, 20),
-		Position = UDim2.fromOffset(69, 46),
-		FontFace = Theme.Fonts.BodyBold,
-		TextSize = 15,
-		TextColor3 = Theme.Colors.Essence,
-		Text = "+0/s",
-		Parent = essenceCard,
+	Create("UITextSizeConstraint", { MaxTextSize = 38, MinTextSize = 20, Parent = essenceLabel })
+	Style.ink(essenceLabel, Theme.Outline.Regular)
+	local ratePill
+	ratePill, rateLabel = Style.pill({
+		name = "Rate",
+		text = "+0/s",
+		color = Theme.Buttons.green.face,
+		size = UDim2.fromOffset(104, 24),
+		position = UDim2.fromOffset(80, 48),
+		textSize = 15,
+		parent = essenceCard,
 	})
+	ratePill.AutomaticSize = Enum.AutomaticSize.X
+	Style.padding(ratePill, 0, 10)
+	rateLabel.AutomaticSize = Enum.AutomaticSize.X
+	rateLabel.Size = UDim2.fromScale(0, 1)
 
-	-- Power Level row (progression summary, never spent).
-	Create("Frame", {
-		Name = "Divider",
-		Size = UDim2.new(1, -24, 0, 1),
-		Position = UDim2.fromOffset(12, 74),
-		BackgroundColor3 = Theme.Colors.Stroke,
-		BackgroundTransparency = 0.88,
-		BorderSizePixel = 0,
-		Parent = essenceCard,
+	-- Power Level bar (progression summary, never spent).
+	local powerBar = Create("Frame", {
+		Name = "PowerBar",
+		Size = UDim2.fromOffset(270, 42),
+		BackgroundColor3 = Theme.Buttons.orange.face,
+		LayoutOrder = 2,
+		Parent = parent,
 	})
+	Style.corner(powerBar, Theme.Radius.Pill)
+	Style.stroke(powerBar, Theme.Colors.Ink, 0, Theme.Outline.Regular)
+	Style.shade(powerBar, 0.2)
+	Style.gloss(powerBar)
+	local powerIconBack = Create("Frame", {
+		Size = UDim2.fromOffset(32, 32),
+		Position = UDim2.new(0, 6, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		BackgroundColor3 = Theme.Buttons.orange.lip,
+		Parent = powerBar,
+	})
+	Style.corner(powerIconBack, Theme.Radius.Pill)
 	local powerIcon = Create("Frame", {
 		Name = "PowerIcon",
-		Size = UDim2.fromOffset(16, 16),
-		Position = UDim2.fromOffset(14, 80),
+		Size = UDim2.fromScale(0.62, 0.62),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundTransparency = 1,
-		Parent = essenceCard,
+		Parent = powerIconBack,
 	})
-	Icons.power(powerIcon, Theme.Colors.Power)
+	Icons.power(powerIcon, Theme.Colors.Text)
 	powerLabel = Style.text({
 		Name = "Power",
-		Size = UDim2.new(0.6, -36, 0, 20),
-		Position = UDim2.fromOffset(36, 78),
-		FontFace = Theme.Fonts.BodyBold,
-		TextSize = 15,
-		TextColor3 = Theme.Colors.Power,
+		Size = UDim2.new(0.62, -44, 1, 0),
+		Position = UDim2.fromOffset(46, 0),
+		FontFace = Theme.Fonts.Display,
+		TextSize = 21,
+		TextScaled = true,
 		Text = Locale.t("hud.power") .. " 0",
-		Parent = essenceCard,
+		Parent = powerBar,
 	})
+	Create("UITextSizeConstraint", { MaxTextSize = 21, MinTextSize = 12, Parent = powerLabel })
+	Style.ink(powerLabel, Theme.Outline.Text)
 	powerPeakLabel = Style.text({
 		Name = "PowerPeak",
-		Size = UDim2.new(0.4, -12, 0, 20),
-		Position = UDim2.new(0.6, 0, 0, 78),
+		Size = UDim2.new(0.38, -14, 1, 0),
+		Position = UDim2.new(0.62, 0, 0, 0),
 		TextXAlignment = Enum.TextXAlignment.Right,
-		FontFace = Theme.Fonts.Body,
-		TextSize = 13,
-		TextColor3 = Theme.Colors.TextDim,
+		FontFace = Theme.Fonts.Heavy,
+		TextSize = 14,
 		Text = "",
-		Parent = essenceCard,
+		Parent = powerBar,
 	})
+	Style.ink(powerPeakLabel, 1.5)
 end
 
-local function menuButton(parent: Instance, name: string, order: number, label: string, icon: (Instance, Color3) -> Frame): Button.Button
+-- Menu button colours + emoji (Config/Emoji).
+local MENU_STYLE: { [string]: { kind: string, emoji: string } } = {
+	Shop = { kind = "green", emoji = Emoji.get("upgrades") },
+	Dex = { kind = "blue", emoji = Emoji.get("dex") },
+	Cosmetics = { kind = "pink", emoji = Emoji.get("style") },
+	Settings = { kind = "purple", emoji = Emoji.get("settings") },
+}
+
+local function menuButton(parent: Instance, name: string, order: number, label: string): Button.Button
+	local style = MENU_STYLE[name]
 	local button = Button.new({
 		name = name,
-		size = UDim2.fromOffset(57, 64),
-		color = Theme.Colors.Panel,
-		transparency = Theme.Transparency.Panel,
+		size = UDim2.fromOffset(131, 62),
+		kind = style.kind,
 		corner = Theme.Radius.Large,
 		layoutOrder = order,
 		parent = parent,
@@ -253,28 +299,34 @@ local function menuButton(parent: Instance, name: string, order: number, label: 
 			openModal(name)
 		end,
 	})
-	local holder = Create("Frame", {
-		Size = UDim2.fromOffset(30, 30),
-		Position = UDim2.new(0.5, 0, 0, 8),
-		AnchorPoint = Vector2.new(0.5, 0),
-		BackgroundTransparency = 1,
-		Parent = button.instance,
+	local emoji = Style.text({
+		Name = "Emoji",
+		Size = UDim2.fromOffset(40, 40),
+		Position = UDim2.new(0, 6, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextSize = 30,
+		FontFace = Theme.Fonts.Display,
+		Text = style.emoji,
+		ZIndex = 3,
+		Parent = button.content,
 	})
-	icon(holder, Theme.Colors.Text)
+	emoji:SetAttribute("Emoji", true)
 	local caption = Style.text({
 		Name = "Caption",
-		Size = UDim2.new(1, -4, 0, 16),
-		Position = UDim2.new(0.5, 0, 1, -6),
-		AnchorPoint = Vector2.new(0.5, 1),
+		Size = UDim2.new(1, -52, 1, -10),
+		Position = UDim2.new(0, 46, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextSize = 12,
+		TextSize = 17,
 		TextScaled = true,
-		FontFace = Theme.Fonts.BodyBold,
-		TextColor3 = Theme.Colors.TextDim,
+		FontFace = Theme.Fonts.Display,
 		Text = label,
-		Parent = button.instance,
+		ZIndex = 3,
+		Parent = button.content,
 	})
-	Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 8, Parent = caption })
+	Create("UITextSizeConstraint", { MaxTextSize = 17, MinTextSize = 10, Parent = caption })
+	Style.ink(caption, Theme.Outline.Text)
 	caption:SetAttribute("Key", label)
 	menuButtons[name] = button
 	return button
@@ -283,48 +335,45 @@ end
 local function buildMenu(parent: Instance)
 	local row = Create("Frame", {
 		Name = "Menu",
-		Size = UDim2.fromOffset(250, 64),
+		Size = UDim2.fromOffset(270, 140),
 		BackgroundTransparency = 1,
-		LayoutOrder = 2,
+		LayoutOrder = 3,
 		Parent = parent,
 	})
-	Style.list(row, 6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Left)
-	local upgrades = menuButton(row, "Shop", 1, Locale.t("hud.upgrades"), Icons.upgrades)
-	local dex = menuButton(row, "Dex", 2, Locale.t("hud.dex"), Icons.dex)
-	menuButton(row, "Cosmetics", 3, Locale.t("hud.cosmetics"), Icons.style)
-	menuButton(row, "Settings", 4, Locale.t("hud.settings"), Icons.settings)
-
-	upgradesBadge = Create("Frame", {
-		Size = UDim2.fromOffset(18, 18),
-		Position = UDim2.new(1, -4, 0, 4),
-		AnchorPoint = Vector2.new(1, 0),
-		BackgroundColor3 = Theme.Colors.Success,
-		Visible = false,
-		ZIndex = 3,
-		Parent = upgrades.instance,
+	Create("UIGridLayout", {
+		CellSize = UDim2.fromOffset(131, 64),
+		CellPadding = UDim2.fromOffset(8, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = row,
 	})
-	Style.corner(upgradesBadge, UDim.new(1, 0))
-	Style.stroke(upgradesBadge, Theme.Colors.Panel, 0, 2)
-	Style.text({ Text = "!", TextXAlignment = Enum.TextXAlignment.Center, TextSize = 13, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, ZIndex = 4, Parent = upgradesBadge })
+	local upgrades = menuButton(row, "Shop", 1, Locale.t("hud.upgrades"))
+	local dex = menuButton(row, "Dex", 2, Locale.t("hud.dex"))
+	menuButton(row, "Cosmetics", 3, Locale.t("hud.cosmetics"))
+	menuButton(row, "Settings", 4, Locale.t("hud.settings"))
 
-	local chip = Create("Frame", {
-		Size = UDim2.fromOffset(40, 18),
-		Position = UDim2.new(1, -2, 0, 2),
-		AnchorPoint = Vector2.new(1, 0),
-		BackgroundColor3 = Theme.Colors.PanelRaised,
-		ZIndex = 3,
-		Parent = dex.instance,
+	upgradesBadge = Style.badge(upgrades.instance, "!", Theme.Colors.Danger, 24)
+	upgradesBadge.Visible = false
+
+	local chip
+	chip, dexChip = Style.pill({
+		name = "DexChip",
+		text = "0/0",
+		color = Theme.Colors.Gold,
+		size = UDim2.fromOffset(46, 20),
+		position = UDim2.new(1, 6, 0, -8),
+		anchor = Vector2.new(1, 0),
+		textSize = 12,
+		zIndex = 8,
+		parent = dex.instance,
 	})
-	Style.corner(chip, UDim.new(1, 0))
-	dexChip = Style.text({ Text = "0/0", TextXAlignment = Enum.TextXAlignment.Center, TextSize = 11, FontFace = Theme.Fonts.Heavy, ZIndex = 4, Parent = chip })
+	local _ = chip
 end
 
 local function buildGoal(parent: Instance, order: number)
 	local button = Button.new({
 		name = "NextGoal",
-		size = UDim2.fromOffset(250, 62),
+		size = UDim2.fromOffset(270, 76),
 		color = Theme.Colors.Panel,
-		transparency = Theme.Transparency.Panel,
 		corner = Theme.Radius.Large,
 		layoutOrder = order,
 		parent = parent,
@@ -334,118 +383,132 @@ local function buildGoal(parent: Instance, order: number)
 		end,
 	})
 	goalFrame = button.instance :: any
-	goalStroke = goalFrame:FindFirstChildOfClass("UIStroke") :: UIStroke
-	Style.text({
+	goalStroke = button.stroke
+	local face = button.content
+	local caption = Style.text({
 		Name = "Caption",
-		Size = UDim2.new(1, -24, 0, 14),
-		Position = UDim2.fromOffset(14, 8),
-		TextSize = 11,
+		Size = UDim2.new(1, -24, 0, 16),
+		Position = UDim2.fromOffset(14, 7),
+		TextSize = 13,
 		FontFace = Theme.Fonts.Heavy,
-		TextColor3 = Theme.Colors.TextMuted,
-		Text = Locale.t("hud.nextGoal"),
-		Parent = goalFrame,
+		TextColor3 = Theme.Colors.Gold,
+		Text = Emoji.label("goal", Locale.t("hud.nextGoal")),
+		ZIndex = 3,
+		Parent = face,
 	})
+	Style.ink(caption, 1.5)
 	goalName = Style.text({
 		Size = UDim2.new(1, -110, 0, 22),
-		Position = UDim2.fromOffset(14, 22),
-		TextSize = 17,
-		FontFace = Theme.Fonts.Heavy,
-		Parent = goalFrame,
+		Position = UDim2.fromOffset(14, 24),
+		TextSize = 18,
+		FontFace = Theme.Fonts.Display,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = 3,
+		Parent = face,
 	})
+	Style.ink(goalName, 1.5)
 	local costHolder = Create("Frame", {
-		Size = UDim2.fromOffset(16, 16),
+		Size = UDim2.fromOffset(20, 20),
 		Position = UDim2.new(1, -96, 0, 25),
 		BackgroundTransparency = 1,
-		Parent = goalFrame,
+		ZIndex = 3,
+		Parent = face,
 	})
 	Icons.essence(costHolder)
 	goalCost = Style.text({
-		Size = UDim2.fromOffset(74, 22),
-		Position = UDim2.new(1, -78, 0, 22),
-		TextSize = 16,
+		Size = UDim2.fromOffset(72, 22),
+		Position = UDim2.new(1, -74, 0, 24),
+		TextSize = 18,
 		FontFace = Theme.Fonts.Display,
-		Parent = goalFrame,
+		ZIndex = 3,
+		Parent = face,
 	})
+	Style.ink(goalCost, 1.5)
 	local back = Create("Frame", {
-		Size = UDim2.new(1, -28, 0, 5),
-		Position = UDim2.new(0, 14, 1, -11),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.85,
-		Parent = goalFrame,
+		Name = "Track",
+		Size = UDim2.new(1, -28, 0, 12),
+		Position = UDim2.new(0, 14, 1, -18),
+		BackgroundColor3 = Theme.Colors.Ink,
+		BackgroundTransparency = 0.35,
+		ZIndex = 3,
+		Parent = face,
 	})
-	Style.corner(back, UDim.new(1, 0))
-	goalBar = Create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = back })
-	Style.corner(goalBar, UDim.new(1, 0))
-	Style.gradient(goalBar, Theme.Colors.Essence, Theme.Colors.EssenceDeep)
+	Style.corner(back, Theme.Radius.Pill)
+	Style.stroke(back, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+	goalBar = Create("Frame", { Name = "Fill", Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 4, Parent = back })
+	Style.corner(goalBar, Theme.Radius.Pill)
+	Style.gradient(goalBar, Theme.Colors.Gold, Theme.Colors.Power)
+	Style.gloss(goalBar, 5)
 end
 
 local function abilityButton(parent: Instance, key: string, size: number, position: UDim2, keyLabel: string, icon: (Instance, Color3) -> Frame, color: Color3, action: () -> ()): AbilityView
+	local face = Style.vivid(color)
 	local button = Button.new({
 		name = key,
-		size = UDim2.fromOffset(size, size),
+		size = UDim2.fromOffset(size, size + Theme.Lip),
 		position = position,
 		anchor = Vector2.new(0.5, 0.5),
-		color = Theme.Colors.Panel,
-		transparency = 0.1,
-		corner = UDim.new(1, 0),
-		strokeColor = color,
+		color = face,
+		corner = Theme.Radius.Pill,
 		parent = parent,
 		silent = true,
 		onClick = action,
 	})
 	local frame = button.instance
-	local stroke = frame:FindFirstChildOfClass("UIStroke") :: UIStroke
-	stroke.Thickness = 2.5
+	local stroke = button.stroke
+	stroke.Thickness = Theme.Outline.Regular
 	local holder = Create("Frame", {
-		Size = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.52, 0.52),
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundTransparency = 1,
-		ZIndex = 2,
-		Parent = frame,
+		ZIndex = 3,
+		Parent = button.content,
 	})
-	icon(holder, color)
+	icon(holder, Theme.Colors.Text)
 	local overlay = Create("Frame", {
 		Name = "Cooldown",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(8, 6, 16),
-		BackgroundTransparency = 0.25,
-		ZIndex = 3,
+		BackgroundColor3 = Theme.Colors.Ink,
+		BackgroundTransparency = 0.2,
+		ZIndex = 4,
 		Visible = false,
-		Parent = frame,
+		Parent = button.content,
 	})
 	Style.corner(overlay, UDim.new(1, 0))
 	local dim = Create("Frame", {
 		Name = "Unavailable",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(8, 6, 16),
+		BackgroundColor3 = Theme.Colors.Ink,
 		BackgroundTransparency = 0.45,
-		ZIndex = 3,
+		ZIndex = 4,
 		Visible = false,
-		Parent = frame,
+		Parent = button.content,
 	})
 	Style.corner(dim, UDim.new(1, 0))
 	local gradient = Create("UIGradient", { Rotation = 90, Parent = overlay })
 	local countdown = Style.text({
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextSize = math.floor(size * 0.3),
+		TextSize = math.floor(size * 0.34),
 		FontFace = Theme.Fonts.Display,
-		ZIndex = 4,
+		ZIndex = 5,
 		Text = "",
-		Parent = frame,
+		Parent = button.content,
 	})
-	Style.textStroke(countdown, 0.3, 2)
+	Style.ink(countdown, Theme.Outline.Regular)
 	if not touch then
 		local chip = Create("Frame", {
-			Size = UDim2.fromOffset(22, 20),
-			Position = UDim2.new(0.5, 0, 1, 4),
+			Name = "Key",
+			Size = UDim2.fromOffset(26, 22),
+			Position = UDim2.new(0.5, 0, 1, 8),
 			AnchorPoint = Vector2.new(0.5, 1),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			ZIndex = 5,
+			BackgroundColor3 = Theme.Colors.Cream,
+			ZIndex = 6,
 			Parent = frame,
 		})
-		Style.corner(chip, UDim.new(0, 6))
-		Style.text({ Text = keyLabel, TextXAlignment = Enum.TextXAlignment.Center, TextSize = 13, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, ZIndex = 6, Parent = chip })
+		Style.corner(chip, UDim.new(0, 8))
+		Style.stroke(chip, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+		Style.text({ Text = keyLabel, TextXAlignment = Enum.TextXAlignment.Center, TextSize = 14, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Ink, ZIndex = 7, Parent = chip })
 	end
 	return { key = key, frame = frame, overlay = overlay, gradient = gradient, countdown = countdown, stroke = stroke, wasReady = true, dim = dim, color = color }
 end
@@ -504,60 +567,54 @@ local function buildAbilities(parent: Instance)
 		BackgroundTransparency = 1,
 		Parent = parent,
 	})
-	table.insert(abilityViews, abilityButton(abilityCluster, "seal", 60, UDim2.new(1, -58, 1, -148), if isGamepad() then "Y" else "G", Icons.seal, Color3.fromRGB(255, 205, 100), Abilities.seal))
+	table.insert(abilityViews, abilityButton(abilityCluster, "seal", 60, UDim2.new(1, -58, 1, -148), if isGamepad() then "Y" else "G", Icons.seal, Theme.Colors.Gold, Abilities.seal))
 	refreshAbilitySlots()
 
-	-- Loadout screen: small round button left of the ability buttons.
+	-- Loadout screen: round backpack button left of the ability buttons.
 	loadoutButton = Button.new({
 		name = "LoadoutButton",
-		size = UDim2.fromOffset(46, 46),
+		size = UDim2.fromOffset(50, 50 + Theme.Lip),
 		position = UDim2.new(1, -214, 1, -42),
 		anchor = Vector2.new(0.5, 0.5),
-		color = Theme.Colors.Panel,
-		transparency = 0.1,
+		kind = "purple",
 		corner = UDim.new(1, 0),
 		parent = abilityCluster,
 		onClick = function()
 			openModal("Loadout")
 		end,
 	})
-	local holder = Create("Frame", {
-		Size = UDim2.fromScale(0.52, 0.52),
-		Position = UDim2.fromScale(0.5, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundTransparency = 1,
-		Parent = loadoutButton.instance,
-	})
-	Icons.loadout(holder, Theme.Colors.Text)
-	loadoutBadge = Create("Frame", {
-		Size = UDim2.fromOffset(16, 16),
-		Position = UDim2.new(1, 2, 0, -2),
-		AnchorPoint = Vector2.new(1, 0),
-		BackgroundColor3 = Theme.Colors.Success,
-		Visible = false,
+	local backpack = Style.text({
+		Name = "Emoji",
+		Text = Emoji.get("loadout"),
+		TextSize = 26,
+		FontFace = Theme.Fonts.Display,
+		TextXAlignment = Enum.TextXAlignment.Center,
 		ZIndex = 3,
-		Parent = loadoutButton.instance,
+		Parent = loadoutButton.content,
 	})
-	Style.corner(loadoutBadge, UDim.new(1, 0))
-	Style.text({ Text = "!", TextXAlignment = Enum.TextXAlignment.Center, TextSize = 12, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, ZIndex = 4, Parent = loadoutBadge })
+	backpack:SetAttribute("Emoji", true)
+	loadoutBadge = Style.badge(loadoutButton.instance, "!", Theme.Colors.Danger, 20)
+	loadoutBadge.Visible = false
 	if not touch then
 		local chip = Create("Frame", {
-			Size = UDim2.fromOffset(22, 18),
-			Position = UDim2.new(0.5, 0, 1, 4),
+			Name = "Key",
+			Size = UDim2.fromOffset(24, 20),
+			Position = UDim2.new(0.5, 0, 1, 8),
 			AnchorPoint = Vector2.new(0.5, 1),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			ZIndex = 5,
+			BackgroundColor3 = Theme.Colors.Cream,
+			ZIndex = 6,
 			Parent = loadoutButton.instance,
 		})
-		Style.corner(chip, UDim.new(0, 6))
-		Style.text({ Text = if isGamepad() then "↑" else "L", TextXAlignment = Enum.TextXAlignment.Center, TextSize = 12, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, ZIndex = 6, Parent = chip })
+		Style.corner(chip, UDim.new(0, 8))
+		Style.stroke(chip, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+		Style.text({ Text = if isGamepad() then "↑" else "L", TextXAlignment = Enum.TextXAlignment.Center, TextSize = 13, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Ink, ZIndex = 7, Parent = chip })
 	end
 
 	-- Status chips above the buttons (only while something is active).
 	statusRow = Create("Frame", {
 		Name = "StatusRow",
-		Size = UDim2.fromOffset(230, 24),
-		Position = UDim2.new(1, 0, 1, -196),
+		Size = UDim2.fromOffset(230, 26),
+		Position = UDim2.new(1, 0, 1, -200),
 		AnchorPoint = Vector2.new(1, 1),
 		BackgroundTransparency = 1,
 		Parent = abilityCluster,
@@ -567,11 +624,19 @@ end
 
 local STATUS_ORDER = { "shield", "phase", "stun", "root", "slow" }
 local STATUS_COLOR: { [string]: Color3 } = {
-	shield = Color3.fromRGB(255, 215, 120),
-	phase = Color3.fromRGB(120, 255, 220),
-	stun = Color3.fromRGB(255, 230, 140),
-	root = Color3.fromRGB(255, 160, 120),
-	slow = Color3.fromRGB(140, 210, 255),
+	shield = Theme.Buttons.yellow.face,
+	phase = Theme.Buttons.mint.face,
+	stun = Theme.Buttons.orange.face,
+	root = Theme.Buttons.red.face,
+	slow = Theme.Buttons.blue.face,
+}
+-- A goofy emoji in front of each status (Config/Emoji).
+local STATUS_EMOJI: { [string]: string } = {
+	shield = Emoji.get("strong"),
+	phase = Emoji.get("ghost"),
+	stun = Emoji.get("dizzy"),
+	root = Emoji.get("sprout"),
+	slow = Emoji.get("snail"),
 }
 
 local function statusChip(kind: string): StatusChip
@@ -581,27 +646,28 @@ local function statusChip(kind: string): StatusChip
 	end
 	local frame = Create("Frame", {
 		Name = "Status_" .. kind,
-		Size = UDim2.fromOffset(84, 22),
+		Size = UDim2.fromOffset(84, 26),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = Theme.Colors.Panel,
-		BackgroundTransparency = 0.15,
+		BackgroundColor3 = STATUS_COLOR[kind],
 		LayoutOrder = table.find(STATUS_ORDER, kind) or 9,
 		Visible = false,
 		Parent = statusRow,
 	})
 	Style.corner(frame, UDim.new(1, 0))
-	Style.stroke(frame, STATUS_COLOR[kind], 0.2, 1.5)
-	Style.padding(frame, 0, 8)
+	Style.stroke(frame, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+	Style.shade(frame, 0.15)
+	Style.padding(frame, 0, 9)
 	local label = Style.text({
 		Size = UDim2.fromScale(0, 1),
 		AutomaticSize = Enum.AutomaticSize.X,
-		TextSize = 13,
+		TextSize = 14,
 		FontFace = Theme.Fonts.Heavy,
-		TextColor3 = STATUS_COLOR[kind],
 		Parent = frame,
 	})
+	Style.ink(label, 1.5)
 	local created = { frame = frame, label = label }
 	statusChips[kind] = created
+	Tween.popIn(frame, 0.4)
 	return created
 end
 
@@ -629,7 +695,10 @@ local function updateStatus()
 		local chip = statusChips[kind]
 		if text then
 			chip = statusChip(kind)
-			chip.label.Text = text
+			if not chip.frame.Visible then
+				Tween.popIn(chip.frame, 0.5)
+			end
+			chip.label.Text = STATUS_EMOJI[kind] .. " " .. text
 			chip.frame.Visible = true
 		elseif chip then
 			chip.frame.Visible = false
@@ -669,7 +738,7 @@ end
 local function buildCarry(parent: Instance)
 	carryPanel = Style.panel({
 		Name = "Carry",
-		Size = UDim2.fromOffset(400, 0),
+		Size = UDim2.fromOffset(420, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Position = if touch then UDim2.new(0.5, 0, 1, -12) else UDim2.new(0.5, 0, 1, -22),
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -680,21 +749,24 @@ local function buildCarry(parent: Instance)
 	Style.padding(carryPanel, 12, 14)
 	Style.list(carryPanel, 6)
 	Create("UIScale", { Parent = carryPanel })
-	local header = Create("Frame", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, LayoutOrder = 1, Parent = carryPanel })
-	carryHeader = Style.text({ Size = UDim2.new(1, -80, 1, 0), TextSize = 13, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.TextDim, Parent = header })
-	carryDistance = Style.text({ Size = UDim2.new(0, 80, 1, 0), Position = UDim2.new(1, -80, 0, 0), TextXAlignment = Enum.TextXAlignment.Right, TextSize = 15, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Essence, Parent = header })
+	local header = Create("Frame", { Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 1, Parent = carryPanel })
+	carryHeader = Style.text({ Size = UDim2.new(1, -100, 1, 0), TextSize = 16, FontFace = Theme.Fonts.Heavy, Parent = header })
+	Style.ink(carryHeader, 1.5)
+	carryDistance = Style.text({ Size = UDim2.new(0, 100, 1, 0), Position = UDim2.new(1, -100, 0, 0), TextXAlignment = Enum.TextXAlignment.Right, TextSize = 18, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, Parent = header })
+	Style.ink(carryDistance, 1.5)
 	carryRows = Create("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 2, Parent = carryPanel })
 	Style.list(carryRows, 4)
-	local footer = Create("Frame", { Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, LayoutOrder = 3, Parent = carryPanel })
-	carryHint = Style.text({ Size = UDim2.new(1, -120, 1, 0), TextSize = 15, TextWrapped = true, Parent = footer })
+	local footer = Create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = 3, Parent = carryPanel })
+	carryHint = Style.text({ Size = UDim2.new(1, -130, 1, 0), TextSize = 16, TextWrapped = true, FontFace = Theme.Fonts.Heavy, Parent = footer })
+	Style.ink(carryHint, 1.5)
 	dissolveButton = Button.new({
 		name = "Dissolve",
-		size = UDim2.fromOffset(110, 30),
+		size = UDim2.fromOffset(122, 40),
 		position = UDim2.new(1, 0, 0.5, 0),
 		anchor = Vector2.new(1, 0.5),
-		color = Theme.Colors.PanelRaised,
+		kind = "orange",
 		text = Locale.t("hud.dissolve"),
-		textSize = 14,
+		textSize = 15,
 		corner = UDim.new(1, 0),
 		parent = footer,
 		onClick = function()
@@ -740,15 +812,15 @@ end
 
 local function refreshMenuText()
 	for name, button in menuButtons do
-		local caption = button.instance:FindFirstChild("Caption") :: TextLabel?
+		local caption = button.content:FindFirstChild("Caption") :: TextLabel?
 		if caption then
 			caption.Text = if name == "Shop" then Locale.t("hud.upgrades") elseif name == "Dex" then Locale.t("hud.dex") elseif name == "Cosmetics" then Locale.t("hud.cosmetics") else Locale.t("hud.settings")
 		end
 	end
 	if goalFrame then
-		local caption = goalFrame:FindFirstChild("Caption") :: TextLabel?
+		local caption = goalFrame:FindFirstChild("Caption", true) :: TextLabel?
 		if caption then
-			caption.Text = Locale.t("hud.nextGoal")
+			caption.Text = Emoji.label("goal", Locale.t("hud.nextGoal"))
 		end
 	end
 	dissolveButton:setText(Locale.t("hud.dissolve"))
@@ -773,9 +845,13 @@ local function refreshStatic()
 			local fraction = math.clamp(state.essence / cost, 0, 1)
 			Tween.play(goalBar, 0.4, { Size = UDim2.fromScale(fraction, 1) })
 			local ready = fraction >= 1
-			goalStroke.Color = if ready then Theme.Colors.Success else Theme.Colors.Stroke
-			goalStroke.Transparency = if ready then 0.2 else Theme.Transparency.Stroke
+			goalStroke.Color = if ready then Theme.Colors.Success else Theme.Colors.Ink
+			goalStroke.Thickness = if ready then Theme.Outline.Thick else Theme.Outline.Thin + 0.5
 			goalCost.TextColor3 = if ready then Theme.Colors.Success else Theme.Colors.Text
+			if ready and not goalReady then
+				Tween.wiggle(goalFrame, 5)
+			end
+			goalReady = ready
 		else
 			goalFrame.Visible = false
 		end
@@ -831,24 +907,36 @@ local function rebuildCarry()
 		table.insert(carryViewports, viewport)
 		local mutation = Mutations.get(record.mutation)
 		local color = if mutation then mutation.color:Lerp(record.rarity.color, 0.3) else record.rarity.color
-		Style.text({
+		local title = Style.text({
 			Size = UDim2.new(1, -66, 0, 26),
-			Position = UDim2.fromOffset(64, 4),
-			TextSize = 19,
-			FontFace = Theme.Fonts.Heavy,
+			Position = UDim2.fromOffset(64, 2),
+			TextSize = 20,
+			FontFace = Theme.Fonts.Display,
 			Text = Style.colored(Locale.relicTitle(record.relicId, record.mutation), color),
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			Parent = row,
 		})
+		Style.ink(title, 1.5)
 		local rate = Economy.relicBaseRate(record.relicId, record.level, record.mutation) * Store.state.multiplier
-		Style.text({
-			Size = UDim2.new(1, -66, 0, 20),
-			Position = UDim2.fromOffset(64, 30),
-			TextSize = 14,
-			TextColor3 = Theme.Colors.TextDim,
-			Text = string.format("%s  ·  %s/s", Locale.rarity(record.rarity.id), Format.abbrev(rate)),
+		Style.pill({
+			name = "Rarity",
+			text = Style.stars(record.rarity.id) .. " " .. string.upper(Locale.rarity(record.rarity.id)),
+			color = record.rarity.color,
+			size = UDim2.fromOffset(150, 20),
+			position = UDim2.fromOffset(64, 31),
+			textSize = 12,
+			parent = row,
+		})
+		local rateText = Style.text({
+			Size = UDim2.new(1, -226, 0, 20),
+			Position = UDim2.fromOffset(222, 31),
+			TextSize = 15,
+			FontFace = Theme.Fonts.Heavy,
+			TextColor3 = Theme.Colors.Essence,
+			Text = string.format("+%s/s", Format.abbrev(rate)),
 			Parent = row,
 		})
+		Style.ink(rateText, 1.5)
 	end
 	if not carryPanel.Visible then
 		carryPanel.Visible = true
@@ -883,7 +971,7 @@ local function updateCarry()
 	if plot ~= 0 and root and root:IsA("BasePart") then
 		local gate = Layout.plotCFrame(plot).Position
 		local distance = (Vector3.new(gate.X, 0, gate.Z) - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude
-		carryDistance.Text = if distance < Layout.PlatformRadius then "✓" else string.format("%dm", math.floor(distance - Layout.PlatformRadius))
+		carryDistance.Text = if distance < Layout.PlatformRadius then Emoji.get("home") .. " ✓" else string.format("%s %dm", Emoji.get("home"), math.floor(distance - Layout.PlatformRadius))
 	else
 		carryDistance.Text = ""
 	end
@@ -891,18 +979,20 @@ local function updateCarry()
 	local placed = if myPlot then (myPlot:GetAttribute("PlacedCount") :: number? or 0) else 0
 	local full = placed >= Economy.unlockedPedestals(Store.state.upgrades)
 	if anyStolen then
-		carryHeader.Text = Locale.t("hud.stolen")
-		carryHeader.TextColor3 = Theme.Colors.Danger
+		carryHeader.Text = Emoji.label("alarm", Locale.t("hud.stolen"))
+		carryHeader.TextColor3 = Theme.Colors.Warning
 		carryStroke.Color = Theme.Colors.Danger
-		carryStroke.Transparency = 0.2 + (math.sin(os.clock() * 6) + 1) * 0.2
+		carryStroke.Thickness = Theme.Outline.Thick + (math.sin(os.clock() * 8) + 1) * 1.5
+		carryPanel.BackgroundColor3 = Theme.Colors.Panel:Lerp(Theme.Colors.Danger, 0.35 + (math.sin(os.clock() * 8) + 1) * 0.1)
 		carryHint.Text = Locale.t("hud.autoReturn", { time = Format.clock(stolenUntil - workspace:GetServerTimeNow()) })
 		carryHint.TextColor3 = Theme.Colors.Warning
 		dissolveButton.instance.Visible = false
 	else
-		carryHeader.Text = Locale.t("hud.carrying")
-		carryHeader.TextColor3 = Theme.Colors.TextDim
-		carryStroke.Color = Theme.Colors.Stroke
-		carryStroke.Transparency = Theme.Transparency.Stroke
+		carryHeader.Text = Emoji.label("carry", Locale.t("hud.carrying"))
+		carryHeader.TextColor3 = Theme.Colors.Text
+		carryStroke.Color = Theme.Colors.Ink
+		carryStroke.Thickness = Theme.Outline.Regular
+		carryPanel.BackgroundColor3 = Theme.Colors.Panel
 		carryHint.Text = if full then Locale.t("hud.pedestalsFull") else Locale.t("hud.returnHome")
 		carryHint.TextColor3 = if full then Theme.Colors.Warning else Theme.Colors.Text
 		dissolveButton.instance.Visible = full
@@ -918,10 +1008,11 @@ local function updateAbilities()
 		-- Shield / Spectral Phase: glowing ring while the effect is on.
 		local activeUntil = if view.key == "shield" then status.shieldUntil elseif view.key == "phase" then status.phaseUntil else 0
 		if activeUntil > t then
-			view.stroke.Thickness = 4.5
-			view.stroke.Transparency = 0
-		elseif view.stroke.Thickness > 2.6 then
-			view.stroke.Thickness = 2.5
+			view.stroke.Thickness = Theme.Outline.Thick + 1.5
+			view.stroke.Color = Theme.Colors.Gold
+		elseif view.stroke.Thickness > Theme.Outline.Regular + 0.1 then
+			view.stroke.Thickness = Theme.Outline.Regular
+			view.stroke.Color = Theme.Colors.Ink
 		end
 		-- Grapple: dimmed when no anchor is in reach.
 		view.dim.Visible = view.key == "grapple" and remaining <= 0.05 and GrappleTargeting.current() == nil
@@ -950,9 +1041,10 @@ local function updateAbilities()
 			view.countdown.Text = ""
 			if not view.wasReady then
 				view.wasReady = true
-				Tween.pop(view.frame, 0.15)
-				view.stroke.Transparency = 0
-				Tween.play(view.stroke, 0.6, { Transparency = 0.4 })
+				Tween.pop(view.frame, 0.2)
+				-- "Ready!" flash: white outline that settles back to ink.
+				view.stroke.Color = Color3.new(1, 1, 1)
+				Tween.play(view.stroke, 0.5, { Color = Theme.Colors.Ink })
 			end
 		end
 	end
@@ -971,8 +1063,7 @@ function Hud.pulseEssence()
 	local stroke = essenceCard:FindFirstChild("Stroke") :: UIStroke?
 	if stroke then
 		stroke.Color = Theme.Colors.Essence
-		stroke.Transparency = 0.1
-		Tween.play(stroke, 0.6, { Transparency = Theme.Transparency.Stroke, Color = Theme.Colors.Stroke })
+		Tween.play(stroke, 0.6, { Color = Theme.Colors.Ink })
 	end
 end
 
@@ -989,6 +1080,11 @@ function Hud.collect(amount: number)
 	local target = essenceIcon.AbsolutePosition + essenceIcon.AbsoluteSize / 2 + inset
 	local start = if onScreen then Vector2.new(screen.X, screen.Y) else Vector2.new(target.X + 300, target.Y + 200)
 	local count = math.clamp(math.floor(math.log10(math.max(amount, 1)) * 4) + 4, 5, 18)
+	-- "+250!" pops next to the counter when the orbs land.
+	task.delay(0.75, function()
+		local at = essenceLabel.AbsolutePosition + Vector2.new(essenceLabel.AbsoluteSize.X * 0.5, -6) + inset
+		Juice.floatText(fullscreen, "+" .. Format.abbrev(amount), at, Theme.Colors.Essence, 30)
+	end)
 	for i = 1, count do
 		local orb = Create("Frame", {
 			Size = UDim2.fromOffset(20, 20),
@@ -1054,7 +1150,7 @@ function Hud.init(parent: Instance, fullscreenLayer: Frame, options: Options)
 
 	local column = Create("Frame", {
 		Name = "LeftColumn",
-		Size = UDim2.fromOffset(250, 256),
+		Size = UDim2.fromOffset(270, 360),
 		Position = if touch then UDim2.new(0, 12, 0.36, 0) else UDim2.new(0, 16, 0.5, -20),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundTransparency = 1,
@@ -1064,7 +1160,7 @@ function Hud.init(parent: Instance, fullscreenLayer: Frame, options: Options)
 	buildEssence(column)
 	buildMenu(column)
 	if not touch then
-		buildGoal(column, 3)
+		buildGoal(column, 4)
 	end
 	buildAbilities(parent)
 	buildCarry(parent)

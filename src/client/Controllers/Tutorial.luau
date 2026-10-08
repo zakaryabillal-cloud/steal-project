@@ -18,6 +18,7 @@ local Layout = require(Shared.Layout)
 local Locale = require(Shared.Locale)
 local Net = require(Shared.Net)
 local Theme = require(Shared.Config.Theme)
+local Emoji = require(Shared.Config.Emoji)
 
 local UIRoot = script.Parent.Parent.UI
 local Kit = UIRoot.Kit
@@ -81,17 +82,18 @@ local function buildObjective(stack: Instance)
 		Parent = stack,
 	})
 	Style.corner(objective, UDim.new(1, 0))
-	local stroke = objective:FindFirstChildOfClass("UIStroke") :: UIStroke
-	stroke.Color = Theme.Colors.Essence
-	stroke.Transparency = 0.45
+	objective.BackgroundColor3 = Theme.Buttons.yellow.face
 	objectiveScale = Create("UIScale", { Parent = objective })
 	Style.padding(objective, 0, 18)
 	Style.list(objective, 10, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
-	local tag = Create("Frame", { Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = Theme.Colors.Essence, LayoutOrder = 1, Parent = objective })
+	local tag = Create("Frame", { Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = Theme.Buttons.orange.face, LayoutOrder = 1, Parent = objective })
 	Style.corner(tag, UDim.new(1, 0))
+	Style.stroke(tag, Theme.Colors.Ink, 0, 2)
 	Style.padding(tag, 0, 10)
-	Style.text({ Name = "Tag", Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, Text = Locale.t("tut.objective"), TextSize = 12, FontFace = Theme.Fonts.Heavy, TextColor3 = Theme.Colors.Panel, Parent = tag })
-	objectiveText = Style.text({ Size = UDim2.fromOffset(0, 46), AutomaticSize = Enum.AutomaticSize.X, TextSize = 18, FontFace = Theme.Fonts.Heavy, LayoutOrder = 2, Parent = objective })
+	local tagLabel = Style.text({ Name = "Tag", Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, Text = Emoji.label("goal", Locale.t("tut.objective")), TextSize = 13, FontFace = Theme.Fonts.Heavy, Parent = tag })
+	Style.ink(tagLabel, 1.5)
+	objectiveText = Style.text({ Size = UDim2.fromOffset(0, 46), AutomaticSize = Enum.AutomaticSize.X, TextSize = 20, FontFace = Theme.Fonts.Display, LayoutOrder = 2, Parent = objective })
+	Style.ink(objectiveText, 2)
 end
 
 local function buildWaypoint()
@@ -115,7 +117,7 @@ local function buildWaypoint()
 	beam.Attachment1 = top
 	beam.Width0 = 2.4
 	beam.Width1 = 0.4
-	beam.Color = ColorSequence.new(Theme.Colors.Essence)
+	beam.Color = ColorSequence.new(Theme.Colors.Gold)
 	beam.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.3),
 		NumberSequenceKeypoint.new(1, 1),
@@ -145,21 +147,21 @@ local function buildWaypoint()
 	})
 	Icons.essence(diamond)
 	markerDistance = Style.text({ Size = UDim2.new(1, 0, 0, 22), Position = UDim2.fromOffset(0, 40), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 16, FontFace = Theme.Fonts.Heavy, Parent = marker })
-	Style.textStroke(markerDistance, 0.2, 2)
+	Style.ink(markerDistance, 2.5)
+	markerDistance.FontFace = Theme.Fonts.Display
 
 	edgeArrow = Create("Frame", {
 		Name = "EdgeArrow",
 		Size = UDim2.fromOffset(46, 46),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = Theme.Colors.Panel,
-		BackgroundTransparency = 0.15,
+		BackgroundColor3 = Theme.Buttons.yellow.face,
 		Visible = false,
 		Parent = fullscreen,
 	})
 	Style.corner(edgeArrow, UDim.new(1, 0))
-	Style.stroke(edgeArrow, Theme.Colors.Essence, 0.2, 2)
+	Style.stroke(edgeArrow, Theme.Colors.Ink, 0, 3)
 	local arrowHolder = Create("Frame", { Name = "Arrow", Size = UDim2.fromScale(0.6, 0.6), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Parent = edgeArrow })
-	Icons.arrow(arrowHolder, Theme.Colors.Essence)
+	Icons.arrow(arrowHolder, Theme.Colors.Ink)
 end
 
 local function buildPointer()
@@ -172,7 +174,7 @@ local function buildPointer()
 		Parent = fullscreen,
 	})
 	local holder = Create("Frame", { Size = UDim2.fromScale(1, 1), Rotation = 90, BackgroundTransparency = 1, Parent = pointer })
-	Icons.arrow(holder, Theme.Colors.Essence)
+	Icons.arrow(holder, Theme.Colors.Gold)
 end
 
 local function setObjective(text: string?)
@@ -194,8 +196,9 @@ local function setObjective(text: string?)
 	currentText = text
 	objectiveText.Text = text
 	objective.Visible = true
-	objectiveScale.Scale = 0.7
-	Tween.play(objectiveScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+	objectiveScale.Scale = 0.5
+	Tween.play(objectiveScale, 0.45, { Scale = 1 }, Enum.EasingStyle.Back)
+	Tween.wiggle(objective, 5)
 	Audio.play("Notify", { pitch = 1.2 })
 end
 

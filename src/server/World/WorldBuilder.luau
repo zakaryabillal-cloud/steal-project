@@ -13,6 +13,7 @@ local Props = require(script.Parent.Props)
 local SanctuaryBuilder = require(script.Parent.SanctuaryBuilder)
 local Landmarks = require(script.Parent.Landmarks)
 local Outskirts = require(script.Parent.Outskirts)
+local Ambience = require(script.Parent.Ambience)
 
 local WorldBuilder = {}
 
@@ -72,11 +73,8 @@ function WorldBuilder.build()
 	Landmarks.build(world)
 	Outskirts.build(world)
 
-	local clouds = Instance.new("Clouds")
-	clouds.Cover = 0.42
-	clouds.Density = 0.22
-	clouds.Color = Color3.fromRGB(180, 160, 230)
-	clouds.Parent = workspace.Terrain
+	-- Sunny cartoon ambience: lighting, sky, puffy white clouds (Config/Palette).
+	Ambience.apply()
 
 	local sanctuaries = Parts.folder("Sanctuaries", workspace)
 	for i = 1, Layout.PlotCount do

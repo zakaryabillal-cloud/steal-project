@@ -38,16 +38,18 @@ function Announcer.show(mainText: string, subText: string?, options: Options?)
 		ColorSequenceKeypoint.new(0.5, color),
 		ColorSequenceKeypoint.new(1, secondary),
 	})
-	glow.Color = color
+	-- Cartoon shout: thick ink outline, overshooting pop and a wiggle.
+	glow.Color = Theme.Colors.Ink
 	root.Visible = true
 	title.TextTransparency = 1
 	subtitle.TextTransparency = 1
 	glow.Transparency = 1
-	scale.Scale = 1.35
+	scale.Scale = 0.3
 	gradient.Offset = Vector2.new(-0.6, 0)
-	Tween.play(scale, 0.55, { Scale = 1 }, Enum.EasingStyle.Back)
-	Tween.play(title, 0.25, { TextTransparency = 0 })
-	Tween.play(glow, 0.4, { Transparency = 0.35 })
+	Tween.play(scale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
+	Tween.wiggle(root, 7)
+	Tween.play(title, 0.2, { TextTransparency = 0 })
+	Tween.play(glow, 0.2, { Transparency = 0 })
 	Tween.play(subtitle, 0.35, { TextTransparency = 0 }, nil, nil, 0.15)
 	Tween.play(gradient, 1.6, { Offset = Vector2.new(0.6, 0) }, Enum.EasingStyle.Sine)
 	local duration = (options and options.duration) or 2.6
@@ -87,7 +89,7 @@ function Announcer.init(parent: Instance)
 	})
 	gradient = Create("UIGradient", { Parent = title })
 	glow = Create("UIStroke", {
-		Thickness = 4,
+		Thickness = 6,
 		Transparency = 1,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
 		Parent = title,
@@ -96,11 +98,11 @@ function Announcer.init(parent: Instance)
 		Size = UDim2.new(1, 0, 0, 36),
 		Position = UDim2.fromOffset(0, 86),
 		TextXAlignment = Enum.TextXAlignment.Center,
-		FontFace = Theme.Fonts.Heavy,
-		TextSize = 26,
+		FontFace = Theme.Fonts.Display,
+		TextSize = 28,
 		Parent = root,
 	})
-	Style.textStroke(subtitle, 0.3, 2.5)
+	Style.ink(subtitle, Theme.Outline.Regular)
 end
 
 return Announcer

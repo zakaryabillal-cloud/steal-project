@@ -113,14 +113,7 @@ for _, island in Layout.FloatingIslands do
 end
 Layout.Spots = spots
 
-Layout.Colors = {
-	Stone = Color3.fromRGB(150, 140, 176),
-	StoneDark = Color3.fromRGB(86, 78, 116),
-	StoneLight = Color3.fromRGB(205, 198, 226),
-	Trim = Color3.fromRGB(226, 214, 180),
-	Wood = Color3.fromRGB(110, 78, 74),
-	Rift = Color3.fromRGB(196, 140, 255),
-	RiftCore = Color3.fromRGB(245, 230, 255),
-}
+-- World structure colours: the cartoon palette (Config/Palette.World).
+Layout.Colors = require(script.Parent.Config.Palette).World
 
 return Layout

@@ -21,9 +21,10 @@ local M = Enum.Material
 local C = Layout.Colors
 local polar = WorldFeatures.polar
 
-local BOSS_RED = Color3.fromRGB(255, 86, 72)
-local BOSS_EMBER = Color3.fromRGB(255, 160, 90)
-local BASALT = Color3.fromRGB(58, 50, 78)
+local BOSS_RED = Color3.fromRGB(255, 96, 120)
+local BOSS_EMBER = Color3.fromRGB(255, 186, 90)
+-- Phase 5.5: candy grape stone instead of dark basalt (no gloomy boss lair).
+local BASALT = Color3.fromRGB(124, 110, 210)
 local LENS = Color3.fromRGB(140, 230, 255)
 
 local function groundAt(position: Vector3): number
@@ -115,7 +116,7 @@ local function buildObservatory(folder: Instance)
 	local deckR = spec.roofDeckRadius
 	Parts.cylinder({ size = Vector3.new(deckR * 2, 1, deckR * 2), cf = CFrame.new(base.X, spec.roofDeckY - 0.5, base.Z), color = C.Stone, material = M.Slate, parent = model, name = "RoofDeck" })
 	Parts.cylinder({ size = Vector3.new(deckR * 2 + 0.6, 0.4, deckR * 2 + 0.6), cf = CFrame.new(base.X, spec.roofDeckY - 0.9, base.Z), color = C.Rift, material = M.Neon, collide = false, shadow = false, parent = model, name = "RoofDeckRing" })
-	local dome = Parts.ball({ size = Vector3.one * 12.5, cf = CFrame.new(base.X, domeY + 0.6, base.Z), color = Color3.fromRGB(120, 108, 170), material = M.Glass, transparency = 0.15, parent = model, name = "Dome" })
+	local dome = Parts.ball({ size = Vector3.one * 12.5, cf = CFrame.new(base.X, domeY + 0.6, base.Z), color = Color3.fromRGB(150, 214, 255), material = M.Glass, transparency = 0.15, parent = model, name = "Dome" })
 	dome.Reflectance = 0.2
 	local scope = CFrame.new(base.X, domeY + 4, base.Z) * CFrame.Angles(0, math.rad(-112.5 + 180), 0) * CFrame.Angles(math.rad(55), 0, 0)
 	Parts.cylinder({ size = Vector3.new(3, 18, 3), cf = scope * CFrame.new(0, 6, 0), color = C.Trim, material = M.Metal, parent = model, name = "Telescope" })
@@ -271,7 +272,7 @@ local function buildBossPlateau(folder: Instance)
 		local length = 2 * ringRadius * math.sin(math.pi / ringSegments) + 0.4
 		-- Local Y becomes the ring tangent, local X points outward.
 		local cf = p * CFrame.Angles(0, 0, mid)
-		Parts.block({ size = Vector3.new(3.2, length, 4.2), cf = cf, color = if i % 3 == 0 then Color3.fromRGB(86, 74, 110) else BASALT, material = M.Basalt, parent = model, name = "PortalStone" })
+		Parts.block({ size = Vector3.new(3.2, length, 4.2), cf = cf, color = if i % 3 == 0 then Color3.fromRGB(160, 146, 236) else BASALT, material = M.Basalt, parent = model, name = "PortalStone" })
 		if i % 3 == 0 then
 			Parts.block({ size = Vector3.new(1.1, 1.1, 4.6), cf = cf * CFrame.new(-1.9, 0, 0) * CFrame.Angles(0, 0, math.rad(45)), color = BOSS_EMBER, material = M.Neon, collide = false, shadow = false, parent = model, name = "PortalRune" })
 		end
@@ -283,7 +284,7 @@ local function buildBossPlateau(folder: Instance)
 	local membrane = Parts.cylinder({
 		size = Vector3.new((ringRadius - 2) * 2, 0.4, (ringRadius - 2) * 2),
 		cf = facing * CFrame.Angles(math.rad(90), 0, 0),
-		color = Color3.fromRGB(120, 30, 60),
+		color = Color3.fromRGB(150, 70, 200),
 		material = M.ForceField,
 		transparency = 0.35,
 		collide = false,
@@ -297,7 +298,7 @@ local function buildBossPlateau(folder: Instance)
 	for _, side in { -1, 1 } do
 		local foot = facing * CFrame.new(side * (ringRadius - 1), -ringRadius - 1, 0)
 		Parts.wedge({ size = Vector3.new(5, 9, 8), cf = foot * CFrame.new(0, 2.5, 0) * CFrame.Angles(0, if side == 1 then math.rad(90) else math.rad(-90), 0), color = BASALT, material = M.Basalt, parent = model, name = "PortalClaw" })
-		Parts.block({ size = Vector3.new(6, 3, 9), cf = foot * CFrame.new(0, -1.5, 0), color = Color3.fromRGB(86, 74, 110), material = M.Basalt, parent = model, name = "PortalFoot" })
+		Parts.block({ size = Vector3.new(6, 3, 9), cf = foot * CFrame.new(0, -1.5, 0), color = Color3.fromRGB(160, 146, 236), material = M.Basalt, parent = model, name = "PortalFoot" })
 	end
 	-- Gate pillars where the neck meets the plaza.
 	local gateR = spec.neckTo + 2
@@ -306,7 +307,7 @@ local function buildBossPlateau(folder: Instance)
 		local ground = groundAt(cf.Position)
 		local h = 16
 		local pillar = Parts.block({ size = Vector3.new(4, h, 4), cf = CFrame.new(cf.Position.X, ground + h / 2 - 0.5, cf.Position.Z) * cf.Rotation, color = BASALT, material = M.Basalt, parent = model, name = "GatePillar" })
-		Parts.block({ size = Vector3.new(4.8, 1.2, 4.8), cf = pillar.CFrame * CFrame.new(0, h / 2 + 0.6, 0), color = Color3.fromRGB(86, 74, 110), material = M.Basalt, parent = model, name = "GateCap" })
+		Parts.block({ size = Vector3.new(4.8, 1.2, 4.8), cf = pillar.CFrame * CFrame.new(0, h / 2 + 0.6, 0), color = Color3.fromRGB(160, 146, 236), material = M.Basalt, parent = model, name = "GateCap" })
 		local brazier = Parts.block({ size = Vector3.new(1.8, 1.8, 1.8), cf = pillar.CFrame * CFrame.new(0, h / 2 + 2.4, 0) * CFrame.Angles(math.rad(45), 0, math.rad(45)), color = BOSS_EMBER, material = M.Neon, collide = false, shadow = false, parent = model, name = "Brazier" })
 		if side == 1 then
 			Parts.light(brazier, BOSS_EMBER, 24, 1.3)

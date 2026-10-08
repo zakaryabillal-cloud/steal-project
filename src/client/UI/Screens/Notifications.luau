@@ -3,6 +3,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
+local Emoji = require(ReplicatedStorage.Shared.Config.Emoji)
 
 local Kit = script.Parent.Parent.Kit
 local Create = require(Kit.Create)
@@ -13,12 +14,20 @@ local TopStack = require(script.Parent.TopStack)
 
 local Notifications = {}
 
+-- Candy toast colours (Theme.Buttons faces) + an emoji per style.
 local STYLE_COLORS: { [string]: Color3 } = {
-	info = Theme.Colors.Accent,
-	success = Theme.Colors.Success,
-	warning = Theme.Colors.Warning,
-	danger = Theme.Colors.Danger,
-	rare = Theme.Colors.Gold,
+	info = Theme.Buttons.blue.face,
+	success = Theme.Buttons.green.face,
+	warning = Theme.Buttons.orange.face,
+	danger = Theme.Buttons.red.face,
+	rare = Theme.Buttons.yellow.face,
+}
+local STYLE_EMOJI: { [string]: string } = {
+	info = Emoji.get("idea"),
+	success = Emoji.get("ready"),
+	warning = Emoji.get("time"),
+	danger = Emoji.get("alarm"),
+	rare = Emoji.get("star"),
 }
 
 type Toast = { frame: Frame, text: string, expires: number, label: TextLabel }
@@ -38,11 +47,20 @@ local function remove(toast: Toast)
 		table.remove(toasts, index)
 	end
 	local frame = toast.frame
+	local scale = frame:FindFirstChildOfClass("UIScale")
+	if scale then
+		Tween.play(scale, 0.22, { Scale = 0.6 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+	end
 	Tween.play(frame, 0.25, { BackgroundTransparency = 1 })
 	Tween.play(toast.label, 0.2, { TextTransparency = 1 })
-	local stroke = frame:FindFirstChildOfClass("UIStroke")
-	if stroke then
-		Tween.play(stroke, 0.2, { Transparency = 1 })
+	for _, d in frame:GetDescendants() do
+		if d:IsA("UIStroke") then
+			Tween.play(d, 0.2, { Transparency = 1 })
+		elseif d:IsA("TextLabel") and d ~= toast.label then
+			Tween.play(d, 0.2, { TextTransparency = 1 })
+		elseif d:IsA("Frame") then
+			Tween.play(d, 0.2, { BackgroundTransparency = 1 })
+		end
 	end
 	task.delay(0.26, function()
 		frame:Destroy()
@@ -62,34 +80,50 @@ function Notifications.push(text: string, style: string?, duration: number?)
 	order -= 1
 	local frame: Frame = Create("Frame", {
 		Name = "Toast",
-		Size = UDim2.fromOffset(440, 44),
+		Size = UDim2.fromOffset(460, 52),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = Theme.Colors.Panel,
-		BackgroundTransparency = 0.12,
+		BackgroundColor3 = color,
 		LayoutOrder = order,
 		Parent = holder,
 	})
-	Style.corner(frame, Theme.Radius.Medium)
-	Style.stroke(frame, color, 0.55, 1.5)
-	local dot = Create("Frame", {
-		Size = UDim2.fromOffset(8, 8),
-		Position = UDim2.new(0, 16, 0, 18),
-		BackgroundColor3 = color,
+	Style.corner(frame, Theme.Radius.Large)
+	Style.stroke(frame, Theme.Colors.Ink, 0, Theme.Outline.Regular)
+	Style.shade(frame, 0.2)
+	local bubble = Create("Frame", {
+		Name = "Bubble",
+		Size = UDim2.fromOffset(38, 38),
+		Position = UDim2.new(0, 8, 0, 7),
+		BackgroundColor3 = Theme.Colors.Cream,
 		Parent = frame,
 	})
-	Style.corner(dot, UDim.new(1, 0))
+	Style.corner(bubble, UDim.new(1, 0))
+	Style.stroke(bubble, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+	local emoji = Style.text({
+		Name = "Emoji",
+		Text = STYLE_EMOJI[style or "info"] or STYLE_EMOJI.info,
+		TextSize = 22,
+		FontFace = Theme.Fonts.Display,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = bubble,
+	})
+	emoji:SetAttribute("Emoji", true)
 	local label = Style.text({
-		Size = UDim2.new(1, -46, 0, 0),
-		Position = UDim2.fromOffset(34, 0),
+		Size = UDim2.new(1, -66, 0, 0),
+		Position = UDim2.fromOffset(54, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		TextWrapped = true,
-		TextSize = 17,
+		TextSize = 18,
+		FontFace = Theme.Fonts.Heavy,
 		Text = text,
 		Parent = frame,
 	})
-	Style.padding(label, 12, 0)
-	local scale: UIScale = Create("UIScale", { Scale = 0.85, Parent = frame })
-	Tween.play(scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+	Style.ink(label, 2)
+	Style.padding(label, 14, 0)
+	local scale: UIScale = Create("UIScale", { Scale = 0.5, Parent = frame })
+	Tween.play(scale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+	if style == "rare" or style == "danger" then
+		Tween.wiggle(frame, 6)
+	end
 
 	local toast: Toast = { frame = frame, text = text, expires = now + (duration or 3.6), label = label }
 	table.insert(toasts, 1, toast)
@@ -109,7 +143,7 @@ function Notifications.init(parent: Instance)
 	local stack = TopStack.get(parent)
 	holder = Create("Frame", {
 		Name = "Toasts",
-		Size = UDim2.fromOffset(440, 0),
+		Size = UDim2.fromOffset(460, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		LayoutOrder = 30,

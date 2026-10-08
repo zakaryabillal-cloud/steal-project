@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Locale = require(Shared.Locale)
+local Emoji = require(Shared.Config.Emoji)
 local Factory = require(Shared.Relics.RelicFactory)
 
 local Kit = script.Parent.Parent.UI.Kit
@@ -399,7 +400,7 @@ local function refreshBuffs()
 						Adornee = head,
 						Parent = guiFolder,
 					})
-					local text = Style.text({ Size = UDim2.fromScale(1, 1), Text = "👁 " .. Locale.t("fx.revealed"), TextSize = 15, FontFace = Style.Fonts.Heavy, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = COLORS.Reveal, Parent = gui })
+					local text = Style.text({ Size = UDim2.fromScale(1, 1), Text = Emoji.get("eyes") .. " " .. Locale.t("fx.revealed"), TextSize = 15, FontFace = Style.Fonts.Heavy, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = COLORS.Reveal, Parent = gui })
 					Style.textStroke(text, 0.2, 2)
 					current.label = gui
 				end
@@ -527,7 +528,7 @@ local function markRevealed(view: DecoyView)
 			Adornee = head,
 			Parent = guiFolder,
 		})
-		local text = Style.text({ Size = UDim2.fromScale(1, 1), Text = "👁 " .. Locale.t("fx.decoy"), TextSize = 15, FontFace = Style.Fonts.Heavy, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = COLORS.Reveal, Parent = gui })
+		local text = Style.text({ Size = UDim2.fromScale(1, 1), Text = Emoji.get("eyes") .. " " .. Locale.t("fx.decoy"), TextSize = 15, FontFace = Style.Fonts.Heavy, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = COLORS.Reveal, Parent = gui })
 		Style.textStroke(text, 0.2, 2)
 		view.label = gui
 	end

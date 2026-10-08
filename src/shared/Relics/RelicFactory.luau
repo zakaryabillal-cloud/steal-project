@@ -10,6 +10,7 @@ local Shared = script.Parent.Parent
 local Rarities = require(Shared.Config.Rarities)
 local Relics = require(Shared.Config.Relics)
 local Mutations = require(Shared.Config.Mutations)
+local Palette = require(Shared.Config.Palette)
 
 export type Env = {
 	time: number,
@@ -209,7 +210,8 @@ function Ctx.part(self: Ctx, spec: PartSpec): BasePart
 	basePart.Name = spec.name or kind
 	basePart.Size = size
 	basePart.Color = spec.color
-	basePart.Material = spec.material or Enum.Material.SmoothPlastic
+	-- Phase 5.5: realistic materials read as toy plastic (Config/Palette).
+	basePart.Material = Palette.material(spec.material or Enum.Material.SmoothPlastic)
 	basePart.Transparency = spec.transparency or 0
 	basePart.Reflectance = spec.reflectance or 0
 	basePart.Anchored = false
@@ -900,6 +902,7 @@ end
 ----------------------------------------------------------------------------
 
 local shapes: { [string]: (Ctx) -> () }? = nil
+local faces: { attach: (Ctx) -> () }? = nil
 
 function Factory.build(relicId: string, mutation: string?, options: BuildOptions?): Visual?
 	local def = Relics.get(relicId)
@@ -920,6 +923,12 @@ function Factory.build(relicId: string, mutation: string?, options: BuildOptions
 	if mutation and mutation ~= "" then
 		applyMutation(ctx, mutation)
 	end
+	-- Phase 5.5: cartoon face + "look at the player" behaviour (last, so it
+	-- composes with what shapes and mutations do to the body).
+	if faces == nil then
+		faces = require(script.Parent.RelicFaces) :: any
+	end
+	(faces :: { attach: (Ctx) -> () }).attach(ctx)
 	return ctx.visual
 end
 

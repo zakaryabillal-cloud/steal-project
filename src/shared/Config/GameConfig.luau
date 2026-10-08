@@ -3,7 +3,7 @@
 -- Config/Rarities and Config/Mutations; formulas live in Shared/Economy.
 
 local GameConfig = {
-	Version = "2.0.0-phase5",
+	Version = "2.0.0-phase5.5",
 
 	Player = {
 		BaseWalkSpeed = 20,

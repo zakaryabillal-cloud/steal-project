@@ -7,19 +7,28 @@ Jeu Roblox multijoueur (6 à 8 joueurs par serveur) écrit en **Luau strict**, g
 Tout le monde — terrain, Faille, sanctuaires, reliques, interface, effets — est généré par le code :
 le projet ne dépend d'**aucun asset externe** et se lance tel quel.
 
-| Vue aérienne (V2) | Depuis la Faille | Corniche + Observatoire |
+| Vue aérienne | La Faille (elle a des yeux !) | Un Sanctuaire |
 |---|---|---|
-| ![air](docs/previews/v2_air.png) | ![rift](docs/previews/v2_rift.png) | ![ledge](docs/previews/v2_ledge.png) |
-| **Passage en ruines** | **Grotte sous la rivière** | **Plateau du boss** |
-| ![ruins](docs/previews/v2_ruins.png) | ![cave](docs/previews/v2_cave.png) | ![boss](docs/previews/v2_boss.png) |
+| ![air](docs/previews/cartoon_air.png) | ![rift](docs/previews/cartoon_rift.png) | ![sanctuary](docs/previews/cartoon_sanctuary.png) |
+| **Prairie, champignons, route céleste** | **Les reliques et leurs têtes** | **Avant / après** |
+| ![meadow](docs/previews/cartoon_meadow.png) | ![relics](docs/previews/cartoon_relics.png) | ![compare](docs/previews/compare_night_day.png) |
 
 <sub>Aperçus produits par le moteur de rendu logiciel du dépôt (`tools/render`) à partir du monde réellement
-généré par le code du jeu. Le rendu dans Roblox Studio (éclairage Future, bloom, particules, beams) est plus riche.
-Carte V2 : [`docs/previews/map.png`](docs/previews/map.png) · comparaison V1 → V2 :
-[`docs/previews/compare_v1_v2.png`](docs/previews/compare_v1_v2.png). Ce que ce rendu ne montre pas
-(beams, particules, lumières…) : voir [`docs/V2_PLAN.md`](docs/V2_PLAN.md) §7.</sub>
+généré par le code du jeu (Phase 5.5, direction « Cartoon & Goofy »). Le rendu dans Roblox Studio (éclairage
+Future, ombres douces, nuages volumétriques, particules, beams, interface) est plus riche ; l'interface n'apparaît
+pas sur ces images. Anciens aperçus V2 (nuit) : `docs/previews/v2_*.png`. Direction artistique complète :
+[`docs/ART_DIRECTION.md`](docs/ART_DIRECTION.md).</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités » et 5 « Cosmétiques » terminées).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités », 5 « Cosmétiques » et 5.5 « Direction artistique cartoon » terminées).
+
+### Direction artistique (Phase 5.5)
+
+Rift Heist est un jeu **cartoon, goofy et très coloré** pour un jeune public : île-bonbon en plein après-midi,
+Faille rose avec de **gros yeux globuleux** qui suivent le joueur et « rote » les reliques (« BURP! »), reliques
+avec une **tête et une personnalité** (grognon, endormie, timide, farceuse, à lunettes de soleil…), interface en
+**gros boutons ronds colorés** avec contours encre, emojis, gros nombres et récompenses qui explosent en confettis.
+Les règles pour toutes les phases suivantes : [`docs/ART_DIRECTION.md`](docs/ART_DIRECTION.md). Les valeurs
+vivent dans `Config/Theme` (UI), `Config/Palette` (monde, éclairage) et `Config/Emoji` (emojis autorisés).
 
 ### La carte V2 en bref
 
@@ -234,9 +243,12 @@ src/
 │   │   ├── Power.luau        coefficients du Power Level (V2)
 │   │   ├── Events.luau       4 événements : durée, effets, ambiance (lumière/atmosphère/météo)
 │   │   ├── Sounds.luau       registre audio (id / fallback / note de design)
-│   │   └── Theme.luau        couleurs, polices, rayons, couleurs des 8 sanctuaires
+│   │   ├── Theme.luau        jetons UI cartoon : couleurs, boutons, contours, polices, couleurs des sanctuaires
+│   │   ├── Palette.luau      palette du monde, terrain, matériaux « jouet », éclairage de jour (Phase 5.5)
+│   │   └── Emoji.luau        emojis autorisés (fiables sur tous les appareils) (Phase 5.5)
 │   ├── Locale/               textes EN/FR (choix auto selon la langue Roblox, modifiable en jeu)
 │   ├── Relics/               RelicFactory (assemblage visuel, habillage, mutations, LOD) + RelicShapes
+│   │                         + RelicFaces (visages cartoon, regard vers le joueur, clignements)
 │   ├── Util/                 Signal, Trove, Format, RateLimiter, MathUtil
 │   ├── Economy.luau          formules pures (production, coûts, capacités) — partagées client/serveur
 │   ├── Power.luau            formule pure du Power Level (V2)
@@ -265,8 +277,9 @@ src/
 │   │   ├── MovementGuard     détection de téléportation / vitesse anormale
 │   │   ├── TutorialService   progression du tutoriel
 │   │   └── DevCommands       commandes /rh (Studio uniquement)
-│   └── World/                génération procédurale : TerrainBuilder, RiftBuilder, SanctuaryBuilder,
-│                             Props (ponts, gués, lampadaires, arbres, cristaux, ruines, ciel), Parts
+│   └── World/                génération procédurale : TerrainBuilder, RiftBuilder (+ visage de la Faille),
+│                             SanctuaryBuilder, Props (ponts, gués, lampadaires, arbres, fleurs géantes,
+│                             champignons, cristaux, ruines, ciel), Ambience (éclairage de jour), Parts
 └── client/                   → StarterPlayerScripts.Client
     ├── init.client.luau      bootstrap client + routage des effets serveur
     ├── ClientNet.luau
@@ -274,7 +287,8 @@ src/
     ├── Controllers/          Store (état), Settings, Audio, CameraFX, LightingFX, RelicRenderer,
     │                         RiftFX, SanctuaryFX, CharacterFX, Abilities, Prompts, WorldFX, Tutorial
     └── UI/                   couches HUD / modales / overlay, mise à l'échelle par résolution
-        ├── Kit/              Create, Style, Tween, Button, Icons, RelicViewport, Text, Modal
+        ├── Kit/              Create, Style, Tween, Button (bouton « chunky »), Icons, RelicViewport, Text,
+        │                     Modal (ruban de titre), Juice (confettis, « +250! », étoiles, rayons)
         └── Screens/          TopStack, Hud, Shop, Dex, Inspect, SettingsMenu, Discovery,
                               Notifications, Announcer, EventBanner, Loading
 tests/                        harnais headless (Lune) + scénarios
@@ -436,7 +450,10 @@ et `Music.Settings`. Le volume suit le réglage « Musique » du joueur.
 
 ### Textures / polices
 - Particules : textures intégrées `rbxasset://textures/particles/...` (toujours disponibles).
-- Polices : familles intégrées Builder Sans, Fredoka One, Michroma (`Config/Theme.luau` → `Fonts`).
+- Polices : familles intégrées Builder Sans, Fredoka One, Luckiest Guy (`Config/Theme.luau` → `Fonts`).
+- Emojis : uniquement ceux de `Config/Emoji.luau` (un test refuse tout autre emoji dans `src/`).
+- Ce qui mériterait de **vrais assets** (modèles 3D, illustrations, animations, SFX cartoon) :
+  `docs/ART_DIRECTION.md` §14.
 - Avatars sur les panneaux des sanctuaires : `rbxthumb://` (miniatures Roblox officielles).
 - Icônes d'interface : dessinées en primitives UI (`UI/Kit/Icons.luau`) — remplaçables par des images.
 
@@ -477,10 +494,11 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **856 vérifications, 0 échec, 0 erreur d'exécution**
+serveur et un vrai client tournent dedans. Résultat actuel : **1094 vérifications, 0 échec, 0 erreur d'exécution**
 (148 V1 + 135 V2 phase 1 dans `tests/scenarios/V2Foundations.luau` + 68 V2 phase 2 dans
 `tests/scenarios/V2World.luau` + 101 V2 phase 3 dans `tests/scenarios/V2Audio.luau` + 289 V2 phase 4 dans
-`tests/scenarios/V2Abilities.luau` + 115 V2 phase 5 dans `tests/scenarios/V2Cosmetics.luau`). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
+`tests/scenarios/V2Abilities.luau` + 115 V2 phase 5 dans `tests/scenarios/V2Cosmetics.luau` + 238 phase 5.5 dans
+`tests/scenarios/V2ArtDirection.luau`). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
 groupes de collision, terrain en voxels) pour valider Blink, Grappin, lignes de vue et pièges.
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
@@ -517,15 +535,30 @@ illisible, inventaire client falsifié, spam et changements rapides, déblocage 
 déblocages automatiques, aucun effet de jeu avec un cosmétique dans chaque catégorie, rendu client (chaque
 catégorie, transport, dépôt, réapparition, aperçu), 8 joueurs équipés (LOD, plafonds d'auras / lumières, aucune
 boucle ajoutée, nettoyage au départ), écran Style.
+Phase 5.5 (direction artistique) : contrastes du texte blanc sur les panneaux (≥ 4,5:1), lèvres de boutons plus
+sombres, polices intégrées uniquement, étoiles de rareté, **politique emoji** (analyse de tout `src/` : seulement
+les emojis fiables de `Config/Emoji`, aucun sélecteur de variante, aucun emoji à présentation texte), aucun ID
+d'asset ajouté, éclairage de jour appliqué par le serveur **identique** à `default.project.json`, plus aucun
+matériau réaliste sur les ~4 200 pièces du monde, couleurs du terrain, décorations jamais solides ni « raycastables »,
+couleurs des Sanctuaires toutes différentes + fanions, visage de la Faille (yeux tournés vers la caméra de chaque
+client, « BURP! » et bouche qui s'ouvre à l'apparition d'une relique), visages des reliques (qui en a un, regard
+vers le joueur le plus proche, clignement, mutations sans effet sur les yeux, chaque relique × mutation), HUD
+(grille 2×2 de gros boutons emoji ≥ 44 px, compteur d'Essence), bouton « chunky » (familles, désactivé, setKind),
+rubans des 5 modales, plafond des confettis, pastilles de rareté au-dessus des reliques, et aucune lecture des
+nouveaux modules visuels par le code de gameplay.
 
-### Aperçus du monde (direction artistique)
+### Aperçus du monde et des reliques (direction artistique)
 ```bash
 lune run tools/render/export_world.luau 0                         # 0 = paliers mixtes
 python3 tools/render/render_map.py tools/.cache/world.json map.png # vue de dessus (grottes en surbrillance)
 python3 tools/render/render_view.py tools/.cache/world.json view.png "0,41,-150" "0,24,0" 800 450
 FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard réduit (vues aériennes)
+NIGHT=1 python3 tools/render/render_view.py ...                    # ancien rendu de nuit (comparaisons)
+lune run tools/render/export_relics.luau                          # les 19 reliques alignées (visages compris)
+python3 tools/render/render_view.py tools/.cache/relics.json relics.png "-18.2,8.4,-8.5" "-18.2,8,0" 1000 330
 ```
-(`render_view.py` : rastériseur logiciel avec brouillard, néon émissif et bloom ; nécessite numpy + Pillow.)
+(`render_view.py` : rastériseur logiciel avec brouillard, néon émissif et bloom, ciel de jour et couleurs du terrain
+lus dans la palette exportée ; nécessite numpy + Pillow. Ce n'est pas le moteur de Roblox : composition seulement.)
 
 ## 13. Sécurité / anti-exploit
 
@@ -558,7 +591,11 @@ FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard 
   désactivation des particules et lumières lointaines.
 - Orbites et animations via `BulkMoveTo`, pas de physique sur le décor (tout est ancré, `CanTouch` désactivé,
   `CanQuery` désactivé sur le décor non collidable).
-- Terrain écrit en blocs (`WriteVoxels`) ; ≈ 3 000 parts au total pour toute l'île.
+- Terrain écrit en blocs (`WriteVoxels`) ; ≈ 4 200 parts au total pour toute l'île (budget testé : 4 500).
+- Phase 5.5 : le style cartoon coûte **moins** que l'ancien : matériaux SmoothPlastic, **58 lumières au lieu de 79**
+  (le plein jour n'en a pas besoin), fleurs et champignons non collidables et non « raycastables », visage de la
+  Faille animé dans la boucle `RiftFX` existante (aucune connexion ajoutée), visages des reliques dans les
+  animateurs existants (LOD : seulement de près), confettis plafonnés (60 vivants, 4 explosions / s).
 - Interface mise à l'échelle par résolution (`UIScale`), boutons tactiles dédiés sur mobile.
 - Cosmétiques : **une seule** boucle (Heartbeat, 4 fois par seconde) pour tous les joueurs ; traînées et particules
   natives ; effets des autres coupés au-delà d'une distance (traînée 160, aura 90, transport 120, thème 220,
@@ -589,6 +626,9 @@ FOG=0.0012 python3 tools/render/render_view.py ...                 # brouillard 
 | Changer de loadout hors de son Sanctuaire | boutons « Au Sanctuaire » désactivés, refus serveur |
 | Équiper un cosmétique verrouillé | bouton « Équiper » grisé ; une requête forcée est refusée par le serveur |
 | Porter une relique avec un titre équipé | le titre se masque, l'effet de transport s'allume ; le marqueur de transport reste lisible |
+| Approcher une relique au sol | elle se tourne vers toi, cligne des yeux ; étiquette avec pastille de rareté et ★ |
+| Une relique sort de la Faille | la Faille lève les sourcils pendant la charge, ouvre la bouche, « BURP! » |
+| Acheter une amélioration | confettis + « NIVEAU +1 ! » au-dessus du bouton |
 
 ---
 

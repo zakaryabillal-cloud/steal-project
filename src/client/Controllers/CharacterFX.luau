@@ -13,6 +13,7 @@ local Shared = ReplicatedStorage.Shared
 local Rarities = require(Shared.Config.Rarities)
 local GameConfig = require(Shared.Config.GameConfig)
 local Locale = require(Shared.Locale)
+local Emoji = require(Shared.Config.Emoji)
 
 local Kit = script.Parent.Parent.UI.Kit
 local Create = require(Kit.Create)
@@ -24,6 +25,11 @@ local CameraFX = require(script.Parent.CameraFX)
 local RelicRenderer = require(script.Parent.RelicRenderer)
 
 local CharacterFX = {}
+
+-- Carry marker text: stars + rarity (same on real carriers and decoys).
+function CharacterFX.markerText(rarityId: string): string
+	return Style.stars(rarityId) .. " " .. string.upper(Locale.rarity(rarityId))
+end
 
 local localPlayer = Players.LocalPlayer
 local fxFolder: Folder
@@ -65,14 +71,14 @@ local function ensureMarker(player: Player, head: BasePart): Marker
 		Parent = fxFolder,
 	})
 	local chip: Frame = Create("Frame", {
-		Size = UDim2.fromOffset(120, 22),
+		Size = UDim2.fromOffset(136, 24),
 		Position = UDim2.new(0.5, 0, 0, 0),
 		AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundColor3 = Style.Colors.Panel,
-		BackgroundTransparency = 0.15,
 		Parent = gui,
 	})
 	Style.corner(chip, UDim.new(1, 0))
+	Style.stroke(chip, Style.Colors.Ink, 0, 2)
 	local label = Style.text({
 		Size = UDim2.fromScale(1, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -80,17 +86,18 @@ local function ensureMarker(player: Player, head: BasePart): Marker
 		TextSize = 13,
 		Parent = chip,
 	})
+	Style.ink(label, 1.5)
 	local stolen = Style.text({
 		Size = UDim2.new(1, 0, 0, 20),
-		Position = UDim2.fromOffset(0, 24),
+		Position = UDim2.fromOffset(0, 26),
 		TextXAlignment = Enum.TextXAlignment.Center,
-		FontFace = Style.Fonts.Heavy,
-		TextSize = 15,
+		FontFace = Style.Fonts.Display,
+		TextSize = 16,
 		TextColor3 = Style.Colors.Danger,
 		Text = "",
 		Parent = gui,
 	})
-	Style.textStroke(stolen, 0.2, 2)
+	Style.ink(stolen, 2)
 	local created: Marker = { gui = gui, chip = chip, label = label, stolen = stolen }
 	markers[player] = created
 	return created
@@ -163,10 +170,10 @@ local function refreshCarriers()
 		if info and head and head:IsA("BasePart") then
 			local marker = ensureMarker(player, head)
 			local rarity = info.rarity
-			marker.label.Text = string.upper(Locale.rarity(rarity.id))
-			marker.label.TextColor3 = rarity.color
-			marker.chip.BackgroundColor3 = Style.Colors.Panel:Lerp(rarity.color, 0.18)
-			marker.stolen.Text = if info.stolen then "⚠ " .. Locale.t("tag.stolen") else ""
+			marker.label.Text = CharacterFX.markerText(rarity.id)
+			marker.label.TextColor3 = Style.Colors.Text
+			marker.chip.BackgroundColor3 = rarity.color
+			marker.stolen.Text = if info.stolen then Emoji.label("alarm", Locale.t("tag.stolen")) else ""
 			marker.gui.AlwaysOnTop = rarity.order >= 5 or info.stolenFromMe
 			marker.gui.Enabled = player ~= localPlayer or info.stolen
 		else
@@ -194,36 +201,38 @@ function CharacterFX.decoyMarker(model: Model, head: BasePart, rarityId: string,
 		Parent = fxFolder,
 	})
 	table.insert(created, gui)
+	-- Must look exactly like the real carry marker (ensureMarker + update).
 	local chip: Frame = Create("Frame", {
-		Size = UDim2.fromOffset(120, 22),
+		Size = UDim2.fromOffset(136, 24),
 		Position = UDim2.new(0.5, 0, 0, 0),
 		AnchorPoint = Vector2.new(0.5, 0),
-		BackgroundColor3 = Style.Colors.Panel:Lerp(rarity.color, 0.18),
-		BackgroundTransparency = 0.15,
+		BackgroundColor3 = rarity.color,
 		Parent = gui,
 	})
 	Style.corner(chip, UDim.new(1, 0))
-	Style.text({
+	Style.stroke(chip, Style.Colors.Ink, 0, 2)
+	local label = Style.text({
 		Size = UDim2.fromScale(1, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		FontFace = Style.Fonts.Heavy,
 		TextSize = 13,
-		Text = string.upper(Locale.rarity(rarity.id)),
-		TextColor3 = rarity.color,
+		Text = CharacterFX.markerText(rarity.id),
+		TextColor3 = Style.Colors.Text,
 		Parent = chip,
 	})
+	Style.ink(label, 1.5)
 	if stolenFrom ~= 0 then
 		local stolen = Style.text({
 			Size = UDim2.new(1, 0, 0, 20),
-			Position = UDim2.fromOffset(0, 24),
+			Position = UDim2.fromOffset(0, 26),
 			TextXAlignment = Enum.TextXAlignment.Center,
-			FontFace = Style.Fonts.Heavy,
-			TextSize = 15,
+			FontFace = Style.Fonts.Display,
+			TextSize = 16,
 			TextColor3 = Style.Colors.Danger,
-			Text = "⚠ " .. Locale.t("tag.stolen"),
+			Text = Emoji.label("alarm", Locale.t("tag.stolen")),
 			Parent = gui,
 		})
-		Style.textStroke(stolen, 0.2, 2)
+		Style.ink(stolen, 2)
 	end
 	if stolenFrom == localPlayer.UserId then
 		table.insert(created, Create("Highlight", {
@@ -353,17 +362,21 @@ function CharacterFX.hit(userId: number)
 		Adornee = head,
 		Parent = fxFolder,
 	})
+	-- Cartoon "BONK!" + dizzy stars circling the head.
+	RelicRenderer.popText(head.Position + Vector3.new(0, 2.5, 0), Locale.t("fx.bonk"), Style.Colors.Gold)
 	local stars = {}
 	for _ = 1, 3 do
-		table.insert(stars, Style.text({
-			Size = UDim2.fromOffset(20, 20),
+		local star = Style.text({
+			Size = UDim2.fromOffset(24, 24),
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Text = "✦",
-			TextSize = 18,
+			Text = "★",
+			TextSize = 22,
 			TextXAlignment = Enum.TextXAlignment.Center,
-			TextColor3 = Color3.fromRGB(255, 230, 140),
+			TextColor3 = Style.Colors.Gold,
 			Parent = gui,
-		}))
+		})
+		Style.ink(star, 2)
+		table.insert(stars, star)
 	end
 	local start = os.clock()
 	local connection: RBXScriptConnection

@@ -43,103 +43,115 @@
         "$className": "Terrain",
         "$properties": {
           "Decoration": true
+        },
+        "Clouds": {
+          "$className": "Clouds",
+          "$properties": {
+            "Cover": 0.58,
+            "Density": 0.42,
+            "Color": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
         }
       }
     },
     "Lighting": {
       "$properties": {
         "Technology": "Future",
-        "ClockTime": 20.6,
+        "ClockTime": 14.3,
         "GeographicLatitude": 23,
-        "Brightness": 2.6,
+        "Brightness": 3,
         "Ambient": [
-          0.16,
-          0.14,
-          0.27
+          0.4706,
+          0.4627,
+          0.5882
         ],
         "OutdoorAmbient": [
-          0.43,
-          0.39,
-          0.62
+          0.6118,
+          0.6275,
+          0.7451
         ],
         "ColorShift_Top": [
-          0.55,
-          0.45,
-          0.85
+          1.0,
+          0.949,
+          0.8392
         ],
         "ColorShift_Bottom": [
-          0.1,
-          0.05,
-          0.2
+          0.3529,
+          0.4314,
+          0.6275
         ],
-        "EnvironmentDiffuseScale": 0.6,
-        "EnvironmentSpecularScale": 0.7,
-        "ExposureCompensation": 0.35,
+        "EnvironmentDiffuseScale": 0.8,
+        "EnvironmentSpecularScale": 0.25,
+        "ExposureCompensation": 0.1,
         "GlobalShadows": true,
-        "ShadowSoftness": 0.25
+        "ShadowSoftness": 0.55
       },
       "Atmosphere": {
         "$className": "Atmosphere",
         "$properties": {
-          "Density": 0.28,
-          "Offset": 0.18,
+          "Density": 0.24,
+          "Offset": 0.12,
           "Color": [
-            0.62,
-            0.5,
-            0.86
+            0.7686,
+            0.8863,
+            1.0
           ],
           "Decay": [
-            0.3,
-            0.2,
-            0.55
+            0.549,
+            0.7451,
+            1.0
           ],
-          "Glare": 0.35,
-          "Haze": 1.7
+          "Glare": 0.18,
+          "Haze": 0.7
         }
       },
       "Sky": {
         "$className": "Sky",
         "$properties": {
-          "StarCount": 5000,
+          "StarCount": 0,
           "CelestialBodiesShown": true,
-          "MoonAngularSize": 16,
-          "SunAngularSize": 12
+          "MoonAngularSize": 11,
+          "SunAngularSize": 21
         }
       },
       "Bloom": {
         "$className": "BloomEffect",
         "$properties": {
-          "Intensity": 0.9,
-          "Size": 30,
-          "Threshold": 1.55
+          "Intensity": 0.55,
+          "Size": 24,
+          "Threshold": 1.9
         }
       },
       "ColorCorrection": {
         "$className": "ColorCorrectionEffect",
         "$properties": {
-          "Brightness": 0.03,
-          "Contrast": 0.12,
-          "Saturation": 0.18,
+          "Brightness": 0.04,
+          "Contrast": 0.08,
+          "Saturation": 0.28,
           "TintColor": [
-            0.97,
-            0.95,
-            1
+            1.0,
+            0.9843,
+            0.9569
           ]
         }
       },
       "SunRays": {
         "$className": "SunRaysEffect",
         "$properties": {
-          "Intensity": 0.04,
-          "Spread": 0.6
+          "Intensity": 0.05,
+          "Spread": 0.55
         }
       },
       "DepthOfField": {
         "$className": "DepthOfFieldEffect",
         "$properties": {
-          "FarIntensity": 0.12,
-          "FocusDistance": 90,
-          "InFocusRadius": 150,
+          "FarIntensity": 0.05,
+          "FocusDistance": 120,
+          "InFocusRadius": 200,
           "NearIntensity": 0
         }
       }

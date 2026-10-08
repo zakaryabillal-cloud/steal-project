@@ -3,10 +3,15 @@
 -- orbiting gimbal rings and debris, with a light pillar visible from the whole
 -- island. Moving pieces are welded to anchored roots that clients rotate
 -- locally (zero network cost).
+-- Phase 5.5: the Rift is a goofy candy portal with a face. Big googly eyes,
+-- brows and a mouth float in the tear; every client turns them toward its
+-- camera, makes the pupils follow its character and opens the mouth when the
+-- Rift "burps" a relic (Controllers/RiftFX). Purely visual.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Layout = require(Shared.Layout)
+local Palette = require(Shared.Config.Palette)
 local Parts = require(script.Parent.Parts)
 local TerrainBuilder = require(script.Parent.TerrainBuilder)
 
@@ -17,6 +22,8 @@ local C = Layout.Colors
 
 local PARTICLE_SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
 local PARTICLE_VORTEX = "rbxasset://textures/particles/forcefield_vortex_main.dds"
+local INK = Color3.fromRGB(30, 27, 75)
+local PORTAL = Color3.fromRGB(96, 52, 196)
 
 local function root(name: string, cf: CFrame, parent: Instance): Part
 	return Parts.block({
@@ -75,9 +82,10 @@ local function buildTear(model: Model)
 	local tearRoot = root("TearRoot", CFrame.new(core), model)
 
 	local tear = Parts.ellipsoid({ size = Vector3.new(13, Layout.RiftHeight - 4, 2.2), cf = CFrame.new(core), color = C.RiftCore, material = M.Neon, collide = false, shadow = false, parent = model, name = "Tear" })
-	local dark = Parts.ellipsoid({ size = Vector3.new(8.5, Layout.RiftHeight - 10, 2.7), cf = CFrame.new(core), color = Color3.fromRGB(8, 4, 18), collide = false, shadow = false, parent = model, name = "TearDark" })
+	-- The inside of the portal: a deep candy purple (not black), the face lives here.
+	local dark = Parts.ellipsoid({ size = Vector3.new(8.5, Layout.RiftHeight - 10, 2.7), cf = CFrame.new(core), color = PORTAL, collide = false, shadow = false, parent = model, name = "TearDark" })
 	local glow = Parts.ellipsoid({ size = Vector3.new(24, Layout.RiftHeight + 10, 6), cf = CFrame.new(core), color = C.Rift, material = M.ForceField, collide = false, shadow = false, parent = model, name = "TearGlow" })
-	local halo = Parts.ellipsoid({ size = Vector3.new(36, Layout.RiftHeight + 22, 10), cf = CFrame.new(core), color = Color3.fromRGB(150, 90, 255), material = M.ForceField, transparency = 0.5, collide = false, shadow = false, parent = model, name = "TearHalo" })
+	local halo = Parts.ellipsoid({ size = Vector3.new(36, Layout.RiftHeight + 22, 10), cf = CFrame.new(core), color = Color3.fromRGB(255, 200, 90), material = M.ForceField, transparency = 0.5, collide = false, shadow = false, parent = model, name = "TearHalo" })
 	for _, part in { tear, dark, glow, halo } do
 		Parts.weldTo(tearRoot, part)
 	end
@@ -91,7 +99,7 @@ local function buildTear(model: Model)
 	local inflow = Instance.new("ParticleEmitter")
 	inflow.Name = "Inflow"
 	inflow.Texture = PARTICLE_SPARKLE
-	inflow.Color = ColorSequence.new(Color3.fromRGB(240, 220, 255), C.Rift)
+	inflow.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), C.Rift)
 	inflow.Size = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0),
 		NumberSequenceKeypoint.new(0.2, 0.9),
@@ -115,7 +123,7 @@ local function buildTear(model: Model)
 	local wisps = Instance.new("ParticleEmitter")
 	wisps.Name = "Wisps"
 	wisps.Texture = PARTICLE_VORTEX
-	wisps.Color = ColorSequence.new(C.Rift, Color3.fromRGB(110, 200, 255))
+	wisps.Color = ColorSequence.new(C.Rift, Color3.fromRGB(255, 220, 110))
 	wisps.Size = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 6),
 		NumberSequenceKeypoint.new(1, 14),
@@ -180,9 +188,9 @@ end
 local function buildRings(model: Model)
 	local core = Layout.RiftCore
 	local specs = {
-		{ radius = 19, width = 1.1, color = Color3.fromRGB(205, 160, 255), tilt = CFrame.Angles(math.rad(72), 0, math.rad(8)) },
-		{ radius = 25, width = 0.8, color = Color3.fromRGB(120, 210, 255), tilt = CFrame.Angles(math.rad(-58), math.rad(30), 0) },
-		{ radius = 31, width = 0.6, color = Color3.fromRGB(255, 150, 220), tilt = CFrame.Angles(math.rad(14), 0, math.rad(-20)) },
+		{ radius = 19, width = 1.3, color = Color3.fromRGB(255, 214, 70), tilt = CFrame.Angles(math.rad(72), 0, math.rad(8)) },
+		{ radius = 25, width = 1, color = Color3.fromRGB(90, 220, 255), tilt = CFrame.Angles(math.rad(-58), math.rad(30), 0) },
+		{ radius = 31, width = 0.8, color = Color3.fromRGB(255, 120, 200), tilt = CFrame.Angles(math.rad(14), 0, math.rad(-20)) },
 	}
 	for i, spec in specs do
 		local ringRoot = root("Ring" .. i, CFrame.new(core) * spec.tilt, model)
@@ -204,6 +212,49 @@ local function buildRings(model: Model)
 			Parts.weldTo(ringRoot, node)
 		end
 	end
+end
+
+-- The Rift's face (positions are refreshed by every client, see RiftFX: the
+-- layout numbers travel as attributes on EyesRoot).
+local FACE = {
+	center = Vector3.new(0, 50, 0),
+	eyeOffset = 3.9,
+	eyeSize = 6.6,
+	pupilSize = 3,
+	pupilDepth = 2.3,
+	shineDepth = 3.4,
+	browHeight = 4.3,
+	mouthY = -7,
+}
+RiftBuilder.Face = FACE
+
+local function facePart(model: Model, name: string, shape: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): BasePart
+	local spec = { size = size, cf = cf, color = color, material = material, collide = false, shadow = false, parent = model, name = name }
+	local part = if shape == "Ball" then Parts.ball(spec) elseif shape == "Ellipsoid" then Parts.ellipsoid(spec) else Parts.block(spec)
+	part.CanQuery = false
+	return part
+end
+
+local function buildFace(model: Model)
+	local base = CFrame.new(Layout.RiftCore.X + FACE.center.X, FACE.center.Y, Layout.RiftCore.Z + FACE.center.Z)
+	local eyesRoot = root("EyesRoot", base, model)
+	eyesRoot.CanQuery = false
+	for key, value in FACE do
+		if type(value) == "number" then
+			eyesRoot:SetAttribute(key :: string, value)
+		end
+	end
+	for _, x in { -1, 1 } do
+		local key = if x < 0 then "L" else "R"
+		local eye = base * CFrame.new(x * FACE.eyeOffset, 0, -1.6)
+		facePart(model, "EyeWhite" .. key, "Ball", Vector3.one * FACE.eyeSize, eye, Color3.new(1, 1, 1))
+		facePart(model, "Pupil" .. key, "Ball", Vector3.one * FACE.pupilSize, eye * CFrame.new(0, -0.3, -FACE.pupilDepth), INK)
+		facePart(model, "Shine" .. key, "Ball", Vector3.one * 1.1, eye * CFrame.new(0.65, 0.5, -FACE.shineDepth), Color3.new(1, 1, 1), M.Neon)
+		facePart(model, "Brow" .. key, "Ellipsoid", Vector3.new(3.8, 0.8, 0.7), eye * CFrame.new(0, FACE.browHeight, -0.6) * CFrame.Angles(0, 0, math.rad(-x * 8)), INK)
+	end
+	-- Mouth: a big happy dark oval with a pink tongue; it opens wide to "burp" relics.
+	facePart(model, "Mouth", "Ellipsoid", Vector3.new(7, 2.6, 0.8), base * CFrame.new(0, FACE.mouthY, -1.2), Color3.fromRGB(60, 20, 90))
+	facePart(model, "Tongue", "Ellipsoid", Vector3.new(3.4, 1.3, 0.5), base * CFrame.new(0, FACE.mouthY - 0.6, -1.45), Color3.fromRGB(255, 120, 170))
 end
 
 local function buildDebris(model: Model)
@@ -254,7 +305,7 @@ local function buildSpots(model: Model)
 	-- Floating islands with bounce pads below them.
 	local bounce = Parts.folder("BouncePads", model)
 	for i, island in Layout.FloatingIslands do
-		Parts.cylinder({ size = Vector3.new(14, 2, 14), cf = CFrame.new(island), color = Color3.fromRGB(86, 168, 134), material = M.Grass, parent = folder, name = "Island" })
+		Parts.cylinder({ size = Vector3.new(14, 2, 14), cf = CFrame.new(island), color = Palette.World.Leaf, material = M.Grass, parent = folder, name = "Island" })
 		Parts.cylinder({ size = Vector3.new(14.6, 1.2, 14.6), cf = CFrame.new(island - Vector3.new(0, 0.6, 0)), color = C.Rift, material = M.Neon, parent = folder, name = "IslandRim" })
 		Parts.ellipsoid({ size = Vector3.new(13, 8, 13), cf = CFrame.new(island - Vector3.new(0, 4.5, 0)), color = C.StoneDark, material = M.Slate, parent = folder, name = "IslandRock" })
 		Parts.ellipsoid({ size = Vector3.new(6, 7, 6), cf = CFrame.new(island - Vector3.new(0, 9.5, 0)), color = C.StoneDark, material = M.Slate, parent = folder, name = "IslandRock" })
@@ -277,8 +328,10 @@ local function buildMonoliths(model: Model)
 		local height = 13 + (i % 2) * 4
 		local cf = CFrame.lookAt(Vector3.new(x, ground + height / 2 - 1, z), Vector3.new(0, ground + height / 2 - 1, 0)) * CFrame.Angles(0, 0, math.rad((i % 3 - 1) * 4))
 		Parts.block({ size = Vector3.new(4, height, 2.4), cf = cf, color = C.StoneDark, material = M.Slate, parent = folder, name = "Monolith" })
-		Parts.block({ size = Vector3.new(0.6, height * 0.7, 0.2), cf = cf * CFrame.new(0, 0, -1.25), color = C.Rift, material = M.Neon, collide = false, parent = folder, name = "Rune" })
-		Parts.block({ size = Vector3.new(1.6, 0.6, 0.2), cf = cf * CFrame.new(0, height * 0.2, -1.25), color = C.Rift, material = M.Neon, collide = false, parent = folder, name = "Rune" })
+		-- Phase 5.5: a goofy "!" (bar + dot) instead of a cross, so the ring of
+		-- monoliths never reads as a graveyard.
+		Parts.block({ size = Vector3.new(0.7, height * 0.45, 0.2), cf = cf * CFrame.new(0, height * 0.12, -1.25), color = C.Rift, material = M.Neon, collide = false, parent = folder, name = "Rune" })
+		Parts.ball({ size = Vector3.one * 1.1, cf = cf * CFrame.new(0, -height * 0.24, -1.2), color = C.Rift, material = M.Neon, collide = false, parent = folder, name = "Rune" })
 		Parts.block({ size = Vector3.new(4.6, 1, 3), cf = cf * CFrame.new(0, height / 2 + 0.3, 0), color = C.Stone, material = M.Slate, parent = folder, name = "Cap" })
 	end
 end
@@ -339,6 +392,7 @@ function RiftBuilder.build(parent: Instance): Model
 	local model = Parts.model("Rift", parent)
 	buildDais(model)
 	buildTear(model)
+	buildFace(model)
 	buildRings(model)
 	buildDebris(model)
 	buildSpots(model)

@@ -19,6 +19,8 @@ local Create = require(Kit.Create)
 local Style = require(Kit.Style)
 local Tween = require(Kit.Tween)
 local RelicViewport = require(Kit.RelicViewport)
+local Juice = require(Kit.Juice)
+local Emoji = require(Shared.Config.Emoji)
 
 local Audio = require(UIRoot.Parent.Controllers.Audio)
 
@@ -43,33 +45,17 @@ local progressLabel: TextLabel
 local loreLabel: TextLabel
 local burst: Frame
 local flash: Frame
+local plate: Frame
+local rarityPill: Frame
+local sticker: TextLabel
 local viewport: RelicViewport.Viewport
 local queue: { Entry } = {}
 local showing = false
 local dismissToken = 0
 
 local function confetti(color: Color3)
-	for i = 1, 22 do
-		local piece = Create("Frame", {
-			Size = UDim2.fromOffset(math.random(6, 12), math.random(6, 12)),
-			Position = UDim2.fromScale(0.5, 0.36),
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Rotation = math.random(0, 90),
-			BackgroundColor3 = if i % 3 == 0 then Color3.new(1, 1, 1) elseif i % 3 == 1 then color else Theme.Colors.Gold,
-			ZIndex = 20,
-			Parent = card,
-		})
-		local angle = math.random() * math.pi * 2
-		local distance = math.random(160, 300)
-		Tween.play(piece, 1.1, {
-			Position = UDim2.new(0.5, math.cos(angle) * distance, 0.36, math.sin(angle) * distance * 0.7 + 80),
-			Rotation = piece.Rotation + math.random(-360, 360),
-			BackgroundTransparency = 1,
-		}, Enum.EasingStyle.Quint)
-		task.delay(1.15, function()
-			piece:Destroy()
-		end)
-	end
+	Juice.burstFrom(viewport.frame, 36, { color, Theme.Colors.Gold, Color3.new(1, 1, 1), Theme.Colors.Accent, Theme.Colors.Essence })
+	Juice.stars(plate, 8, Theme.Colors.Gold)
 end
 
 local function hide()
@@ -104,11 +90,15 @@ function Discovery.show(entry: Entry)
 	local mutation = Mutations.get(entry.mutation)
 	local color = if mutation and not entry.isNew then mutation.color else rarity.color
 
-	caption.Text = if entry.isNew then Locale.t("dex.newDiscovery") else Locale.t("dex.newMutation")
+	caption.Text = Emoji.get("party") .. " " .. (if entry.isNew then Locale.t("dex.newDiscovery") else Locale.t("dex.newMutation")) .. " " .. Emoji.get("party")
 	nameLabel.Text = Locale.relicTitle(entry.relicId, entry.mutation)
-	nameLabel.TextColor3 = color
-	rarityLabel.Text = string.upper(Locale.rarity(rarity.id)) .. (if mutation then "  ·  " .. string.upper(Locale.mutation(mutation.id)) else "")
-	rarityLabel.TextColor3 = rarity.color
+	nameLabel.TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.2)
+	rarityLabel.Text = Style.stars(rarity.id) .. "  " .. string.upper(Locale.rarity(rarity.id)) .. (if mutation then "  ·  " .. string.upper(Locale.mutation(mutation.id)) else "")
+	rarityPill.BackgroundColor3 = rarity.color
+	plate.BackgroundColor3 = color
+	sticker.Text = Locale.t("fx.new")
+	sticker.FontFace = Style.burstFont(sticker.Text)
+	sticker.Visible = false
 	progressLabel.Text = Locale.t("dex.progress", { found = entry.found, total = entry.total })
 	loreLabel.Text = Locale.relicLore(entry.relicId)
 	burst.BackgroundColor3 = color
@@ -116,7 +106,7 @@ function Discovery.show(entry: Entry)
 	viewport:set(entry.relicId, entry.mutation, entry.isNew)
 	backdrop.Visible = true
 	backdrop.BackgroundTransparency = 1
-	Tween.play(backdrop, 0.3, { BackgroundTransparency = 0.35 })
+	Tween.play(backdrop, 0.3, { BackgroundTransparency = 0.3 })
 	card.Visible = true
 	cardScale.Scale = 0.6
 	Tween.play(cardScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
@@ -133,6 +123,9 @@ function Discovery.show(entry: Entry)
 		Tween.play(flash, 0.6, { BackgroundTransparency = 1 })
 		viewport:set(entry.relicId, entry.mutation, false)
 		confetti(color)
+		sticker.Visible = true
+		Tween.popIn(sticker, 0.2)
+		Tween.wiggle(plate, 10)
 		Audio.play("Fuse", { pitch = 1.2 })
 		if rarity.order >= 5 then
 			Audio.play("RareEmerge", { volume = 0.6 })
@@ -152,7 +145,7 @@ function Discovery.init(parent: Instance, fullscreen: Instance)
 	backdrop = Create("TextButton", {
 		Name = "DiscoveryBackdrop",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(4, 2, 12),
+		BackgroundColor3 = Theme.Colors.Shadow,
 		BackgroundTransparency = 1,
 		Text = "",
 		AutoButtonColor = false,
@@ -200,29 +193,53 @@ function Discovery.init(parent: Instance, fullscreen: Instance)
 			Parent = ray,
 		})
 	end
-	local glow = Create("Frame", {
-		Size = UDim2.fromOffset(260, 260),
-		Position = UDim2.fromScale(0.5, 0.5),
+	-- Big round rarity-coloured "plate" behind the relic.
+	plate = Create("Frame", {
+		Name = "Plate",
+		Size = UDim2.fromOffset(250, 250),
+		Position = UDim2.new(0.5, 0, 0.36, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.82,
-		Parent = burst,
+		BackgroundColor3 = Theme.Colors.Gold,
+		ZIndex = 2,
+		Parent = card,
 	})
-	Style.corner(glow, UDim.new(1, 0))
+	Style.corner(plate, UDim.new(1, 0))
+	Style.stroke(plate, Theme.Colors.Ink, 0, Theme.Outline.Thick)
+	Style.shade(plate, 0.3)
+	Style.gloss(plate)
 
-	viewport = RelicViewport.new({ size = UDim2.fromOffset(300, 280), position = UDim2.new(0.5, 0, 0.36, 0), anchor = Vector2.new(0.5, 0.5), parent = card })
+	viewport = RelicViewport.new({ size = UDim2.fromOffset(300, 280), position = UDim2.new(0.5, 0, 0.36, 0), anchor = Vector2.new(0.5, 0.5), zIndex = 3, parent = card })
 	flash = Create("Frame", {
 		Size = UDim2.fromOffset(300, 280),
 		Position = UDim2.new(0.5, 0, 0.36, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = 1,
+		ZIndex = 4,
 		Parent = card,
 	})
 	Style.corner(flash, UDim.new(1, 0))
 
-	caption = Style.text({ Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 0), TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Heavy, TextSize = 22, TextColor3 = Theme.Colors.Gold, Parent = card })
-	Style.textStroke(caption, 0.3, 2)
+	-- "NEW!" sticker slapped on the plate when the colour reveals.
+	sticker = Style.text({
+		Name = "Sticker",
+		Size = UDim2.fromOffset(130, 46),
+		Position = UDim2.new(0.5, 110, 0.36, -110),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Rotation = 14,
+		Text = "",
+		TextSize = 30,
+		FontFace = Theme.Fonts.Burst,
+		TextColor3 = Theme.Colors.Gold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Visible = false,
+		ZIndex = 5,
+		Parent = card,
+	})
+	Style.ink(sticker, 3)
+
+	caption = Style.text({ Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, -6), TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Display, TextSize = 26, TextColor3 = Theme.Colors.Gold, Parent = card })
+	Style.ink(caption, Theme.Outline.Regular)
 	Create("UIGradient", {
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Theme.Colors.Gold),
@@ -231,14 +248,22 @@ function Discovery.init(parent: Instance, fullscreen: Instance)
 		}),
 		Parent = caption,
 	})
-	nameLabel = Style.text({ Size = UDim2.new(1, 0, 0, 44), Position = UDim2.new(0, 0, 0.66, 0), TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Display, TextSize = 38, Parent = card })
-	Style.textStroke(nameLabel, 0.2, 2.5)
-	rarityLabel = Style.text({ Size = UDim2.new(1, 0, 0, 22), Position = UDim2.new(0, 0, 0.66, 46), TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Heavy, TextSize = 16, Parent = card })
-	Style.textStroke(rarityLabel, 0.3, 1.5)
-	loreLabel = Style.text({ Size = UDim2.new(1, -40, 0, 40), Position = UDim2.new(0, 20, 0.66, 72), TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, FontFace = Theme.Fonts.Body, TextSize = 15, TextColor3 = Theme.Colors.TextDim, Parent = card })
-	Style.textStroke(loreLabel, 0.5, 1.5)
-	progressLabel = Style.text({ Size = UDim2.new(1, 0, 0, 22), Position = UDim2.new(0, 0, 1, -22), TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Heavy, TextSize = 16, TextColor3 = Theme.Colors.Essence, Parent = card })
-	Style.textStroke(progressLabel, 0.3, 1.5)
+	nameLabel = Style.text({ Size = UDim2.new(1, 0, 0, 46), Position = UDim2.new(0, 0, 0.66, 0), TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Display, TextSize = 40, Parent = card })
+	Style.ink(nameLabel, Theme.Outline.Thick)
+	rarityPill, rarityLabel = Style.pill({
+		name = "Rarity",
+		text = "",
+		color = Theme.Colors.Gold,
+		size = UDim2.fromOffset(300, 28),
+		position = UDim2.new(0.5, 0, 0.66, 48),
+		anchor = Vector2.new(0.5, 0),
+		textSize = 16,
+		parent = card,
+	})
+	loreLabel = Style.text({ Size = UDim2.new(1, -40, 0, 40), Position = UDim2.new(0, 20, 0.66, 82), TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, FontFace = Theme.Fonts.BodyBold, TextSize = 16, TextColor3 = Theme.Colors.Text, Parent = card })
+	Style.ink(loreLabel, 1.5)
+	progressLabel = Style.text({ Size = UDim2.new(1, 0, 0, 24), Position = UDim2.new(0, 0, 1, -18), TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Display, TextSize = 19, TextColor3 = Theme.Colors.Essence, Parent = card })
+	Style.ink(progressLabel, 2)
 
 	RunService.RenderStepped:Connect(function(dt: number)
 		if card.Visible then

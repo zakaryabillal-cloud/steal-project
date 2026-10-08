@@ -93,7 +93,7 @@ end
 local backdrop: TextButton = Create("TextButton", {
 	Name = "Backdrop",
 	Size = UDim2.fromScale(1, 1),
-	BackgroundColor3 = Color3.fromRGB(6, 4, 14),
+	BackgroundColor3 = Color3.fromRGB(16, 20, 64),
 	BackgroundTransparency = 1,
 	Text = "",
 	AutoButtonColor = false,
@@ -139,7 +139,7 @@ function UI.open(name: string)
 	end
 	current = name
 	backdrop.Visible = true
-	Tween.play(backdrop, 0.25, { BackgroundTransparency = 0.45 })
+	Tween.play(backdrop, 0.25, { BackgroundTransparency = 0.5 })
 	modals[name].open()
 end
 

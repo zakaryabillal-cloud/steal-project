@@ -33,6 +33,11 @@ MATERIAL = {
 VOID = (14, 10, 30)
 WATER = (70, 130, 210)
 WATER_Y = 16.5
+# Phase 5.5 palette exported with the world (bright cartoon terrain, sky void).
+if data.get("palette"):
+    MATERIAL.update({k: tuple(v) for k, v in data["palette"]["terrain"].items()})
+    WATER = tuple(data["palette"]["water"])
+    VOID = tuple(int(c * 0.85) for c in data["palette"]["sky"])
 
 heights = np.full((n, n), np.nan)
 colors = np.zeros((n, n, 3))

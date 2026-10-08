@@ -43,12 +43,13 @@ type Card = {
 }
 local cards: { [ProximityPrompt]: Card } = {}
 
+-- Prompt card colour per action (Theme.Buttons families: one meaning each).
 local ACTION_COLORS = {
-	Claim = Color3.fromRGB(120, 235, 255),
-	Grab = Color3.fromRGB(255, 205, 90),
-	Recover = Color3.fromRGB(110, 240, 160),
-	Steal = Color3.fromRGB(255, 78, 104),
-	Inspect = Color3.fromRGB(230, 225, 255),
+	Claim = Color3.fromRGB(76, 217, 100),
+	Grab = Color3.fromRGB(255, 205, 50),
+	Recover = Color3.fromRGB(80, 225, 190),
+	Steal = Color3.fromRGB(255, 84, 96),
+	Inspect = Color3.fromRGB(70, 170, 255),
 }
 
 local PROTECTION_KEYS = {
@@ -188,79 +189,75 @@ local function buildCard(prompt: ProximityPrompt, inputType: Enum.ProximityPromp
 		Parent = gui,
 	})
 	local scale: UIScale = Create("UIScale", { Scale = 0.6, Parent = root })
-	local panel = Style.panel({ Size = UDim2.fromScale(1, 1), Parent = root })
+	-- The whole card takes the action's colour (green claim, red steal...).
+	local panel = Style.panel({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = color, Parent = root })
 	panel.ZIndex = 1
-	local accent = Create("Frame", {
-		Size = UDim2.new(0, 4, 0.62, 0),
-		Position = UDim2.new(0, 0, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
-		BackgroundColor3 = color,
-		BorderSizePixel = 0,
-		Parent = panel,
-	})
-	Style.corner(accent, UDim.new(1, 0))
+	Style.gloss(panel)
 
 	local key = Create("Frame", {
-		Size = UDim2.fromOffset(if touch then 64 else 48, 48),
-		Position = UDim2.new(0, 14, 0.5, 0),
+		Size = UDim2.fromOffset(if touch then 64 else 50, 50),
+		Position = UDim2.new(0, 12, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.05,
+		BackgroundColor3 = Style.Colors.Cream,
 		Parent = panel,
 	})
-	Style.corner(key, UDim.new(0, 12))
+	Style.corner(key, UDim.new(0, 14))
+	Style.stroke(key, Style.Colors.Ink, 0, 2.5)
 	Style.text({
 		Text = keyText(prompt, inputType),
-		TextColor3 = Style.Colors.Panel,
-		FontFace = Style.Fonts.Heavy,
-		TextSize = if touch then 14 else 24,
+		TextColor3 = Style.Colors.Ink,
+		FontFace = Style.Fonts.Display,
+		TextSize = if touch then 15 else 26,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = key,
 	})
 
 	local textX = if touch then 90 else 74
 	local actionKey = "prompt." .. string.lower(action)
-	Style.text({
-		Size = UDim2.new(1, -textX - 10, 0, 26),
-		Position = UDim2.fromOffset(textX, 9),
+	local actionLabel = Style.text({
+		Size = UDim2.new(1, -textX - 10, 0, 28),
+		Position = UDim2.fromOffset(textX, 7),
 		Text = Locale.t(actionKey),
-		TextColor3 = color,
-		FontFace = Style.Fonts.Heavy,
-		TextSize = 22,
+		FontFace = Style.Fonts.Display,
+		TextSize = 24,
 		Parent = panel,
 	})
+	Style.ink(actionLabel, 2.5)
 	local title = Locale.relicTitle(relicId, if mutationId == "" then nil else mutationId)
 	local mutation = Mutations.get(mutationId)
 	local titleColor = if mutation then mutation.color:Lerp(rarity.color, 0.3) else rarity.color
 	local detail: string
 	if action == "Steal" or action == "Inspect" then
 		local rate = Economy.relicBaseRate(relicId, level, if mutationId == "" then nil else mutationId)
-		detail = string.format("%s  %s  %s/s", Style.colored(title, titleColor), Style.colored(string.rep("★", level), Style.Colors.Gold), Format.abbrev(rate))
+		detail = string.format("%s  %s  +%s/s", title, Style.colored(string.rep("★", level), Style.Colors.Gold), Format.abbrev(rate))
 	else
-		detail = string.format("%s  %s", Style.colored(title, titleColor), Style.colored("· " .. Locale.rarity(rarity.id), Style.Colors.TextDim))
+		detail = string.format("%s  %s", title, Style.colored(Style.stars(rarity.id), titleColor:Lerp(Color3.new(1, 1, 1), 0.2)))
 	end
-	Style.text({
+	local detailLabel = Style.text({
 		Size = UDim2.new(1, -textX - 10, 0, 20),
 		Position = UDim2.fromOffset(textX, 37),
 		Text = detail,
 		TextSize = 15,
+		FontFace = Style.Fonts.Heavy,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = panel,
 	})
+	Style.ink(detailLabel, 1.5)
 
 	local fill: Frame? = nil
 	if prompt.HoldDuration > 0 then
 		local back = Create("Frame", {
-			Size = UDim2.new(1, -textX - 14, 0, 5),
-			Position = UDim2.fromOffset(textX, 62),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 0.85,
+			Size = UDim2.new(1, -textX - 14, 0, 9),
+			Position = UDim2.fromOffset(textX, 60),
+			BackgroundColor3 = Style.Colors.Ink,
+			BackgroundTransparency = 0.35,
 			Parent = panel,
 		})
 		Style.corner(back, UDim.new(1, 0))
+		Style.stroke(back, Style.Colors.Ink, 0, 1.5)
 		local bar = Create("Frame", {
 			Size = UDim2.fromScale(0, 1),
-			BackgroundColor3 = color,
+			BackgroundColor3 = Style.Colors.Gold,
 			Parent = back,
 		})
 		Style.corner(bar, UDim.new(1, 0))
@@ -324,9 +321,11 @@ local function buildHint()
 		Position = UDim2.fromOffset(8, 0),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextSize = 15,
-		TextColor3 = Style.Colors.Warning,
+		FontFace = Style.Fonts.Heavy,
+		TextColor3 = Style.Colors.Gold,
 		Parent = pill,
 	})
+	Style.ink(hintText, 1.5)
 end
 
 local function refresh()

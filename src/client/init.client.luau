@@ -41,6 +41,7 @@ local UI = require(script.UI)
 local Kit = script.UI.Kit
 local Button = require(Kit.Button)
 local Text = require(Kit.Text)
+local Juice = require(Kit.Juice)
 local Screens = script.UI.Screens
 local Loading = require(Screens.Loading)
 local TopStack = require(Screens.TopStack)
@@ -64,6 +65,8 @@ end)
 
 -- 1. Loading screen -------------------------------------------------------------
 UI.init()
+-- Reward confetti / floating text draw on the unscaled full-screen layer.
+Juice.setLayer(UI.fullscreen)
 ClientNet.init()
 Store.init()
 Settings.init()

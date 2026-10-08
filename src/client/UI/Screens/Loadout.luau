@@ -32,6 +32,8 @@ local Tween = require(Kit.Tween)
 local Icons = require(Kit.Icons)
 local Button = require(Kit.Button)
 local Modal = require(Kit.Modal)
+local Juice = require(Kit.Juice)
+local Emoji = require(Shared.Config.Emoji)
 
 local Controllers = UIRoot.Parent.Controllers
 local Store = require(Controllers.Store)
@@ -157,6 +159,12 @@ local function request(card: Card, fn: string, ...: any)
 		if ok then
 			Audio.play(if fn == Net.Functions.UnlockAbility then "Purchase" else "UiClick")
 			Tween.pop(card.frame, 0.04)
+			if fn == Net.Functions.UnlockAbility then
+				Juice.burstFrom(card.action.instance, 20)
+				Juice.floatFrom(card.action.instance, Locale.t("fx.unlocked"), Theme.Colors.Gold, 26)
+			else
+				Juice.stars(card.action.instance, 5)
+			end
 		else
 			Audio.play("UiError")
 			shake(card.frame)
@@ -175,30 +183,34 @@ local function refreshCard(card: Card, home: boolean, active: { [string]: boolea
 	card.desc.Text = Locale.t("ability." .. def.id .. ".desc")
 	card.stats.Text = Loadout.statsText(def, active)
 	local relics = AbilityConfig.harmoniesFor(def, active)
-	card.badge.Text = if #relics > 0 then Locale.t("harmony.badge", { relic = Locale.relicName(relics[1]) }) else ""
-	card.stroke.Color = if equipped then def.color else Theme.Colors.Stroke
-	card.stroke.Transparency = if equipped then 0.1 else Theme.Transparency.Stroke
+	card.badge.Text = if #relics > 0 then Emoji.label("rainbow", Locale.t("harmony.badge", { relic = Locale.relicName(relics[1]) })) else ""
+	card.stroke.Color = if equipped then Theme.Colors.Gold else Theme.Colors.Ink
+	card.stroke.Thickness = if equipped then Theme.Outline.Thick else Theme.Outline.Thin
 	card.requirement.Text = ""
 	if not unlocked then
 		local requirement = def.unlock
 		local powerOk = requirement ~= nil and state.powerPeak >= requirement.power
 		local essenceOk = requirement ~= nil and state.essence >= requirement.essence
 		if requirement then
-			card.requirement.Text = Locale.t("loadout.needPower", { power = Format.commas(requirement.power) }) .. "  ·  " .. Format.abbrev(requirement.essence) .. " " .. Locale.t("common.essence")
+			card.requirement.Text = Emoji.get("locked") .. " " .. Locale.t("loadout.needPower", { power = Format.commas(requirement.power) }) .. "  ·  " .. Format.abbrev(requirement.essence) .. " " .. Locale.t("common.essence")
 			card.requirement.TextColor3 = if powerOk and essenceOk then Theme.Colors.Success elseif powerOk then Theme.Colors.Warning else Theme.Colors.TextMuted
 		end
+		card.action:setKind("yellow")
 		card.action:setText(Locale.t("loadout.unlock"))
 		card.action:setEnabled(powerOk and essenceOk and not card.busy)
 	elseif equipped then
 		local slot = AbilityConfig.Slots[card.slotIndex]
 		if slot.optional then
+			card.action:setKind("red")
 			card.action:setText(Locale.t("loadout.remove"))
 			card.action:setEnabled(home and not card.busy)
 		else
+			card.action:setKind("gray")
 			card.action:setText(Locale.t("loadout.equipped"))
 			card.action:setEnabled(false)
 		end
 	else
+		card.action:setKind(if home then "green" else "neutral")
 		card.action:setText(if home then Locale.t("loadout.equip") else Locale.t("loadout.goHome"))
 		card.action:setEnabled(home and not card.busy)
 	end
@@ -217,9 +229,10 @@ local function refreshRow(row: HarmonyRow, home: boolean)
 		row.state.Text = Locale.t("harmony.off")
 		row.state.TextColor3 = Theme.Colors.Warning
 	else
-		row.state.Text = Locale.t("harmony.active")
+		row.state.Text = Emoji.label("ready", Locale.t("harmony.active"))
 		row.state.TextColor3 = Theme.Colors.Success
 	end
+	row.toggle:setKind(if off then "green" else "red")
 	row.toggle:setText(if off then Locale.t("harmony.turnOn") else Locale.t("harmony.turnOff"))
 	row.toggle:setEnabled(home and not row.busy)
 end
@@ -231,6 +244,7 @@ refreshAll = function()
 	local home = Loadout.atHome()
 	local active = harmonies()
 	modal.title.Text = Locale.t("loadout.title")
+	modal.emoji.Text = Emoji.get("loadout")
 	modal.subtitle.Text = if home then Locale.t("loadout.home") else Locale.t("loadout.away")
 	powerLabel.Text = Format.commas(math.floor(Store.state.powerPeak))
 	essenceLabel.Text = Format.abbrev(Store.state.essence)
@@ -251,37 +265,38 @@ refreshAll = function()
 end
 
 local function sectionHeader(parent: Instance, order: number): TextLabel
-	return Style.text({
-		Size = UDim2.new(1, -8, 0, 28),
+	local label = Style.text({
+		Size = UDim2.new(1, -8, 0, 30),
 		LayoutOrder = order,
-		FontFace = Theme.Fonts.Heavy,
-		TextSize = 15,
-		TextColor3 = Theme.Colors.TextDim,
+		FontFace = Theme.Fonts.Display,
+		TextSize = 19,
+		TextColor3 = Theme.Colors.Gold,
 		Parent = parent,
 	})
+	Style.ink(label, 2)
+	return label
 end
 
 local function buildCard(parent: Instance, def: AbilityConfig.AbilityDef, slotIndex: number, order: number)
-	local frame: Frame = Create("Frame", {
+	local frame: Frame = Style.card({
 		Name = def.id,
-		Size = UDim2.new(1, -8, 0, 112),
-		BackgroundColor3 = Theme.Colors.PanelLight,
-		BackgroundTransparency = 0.2,
+		Size = UDim2.new(1, -8, 0, 116),
 		LayoutOrder = order,
+		CornerRadius = Theme.Radius.Large,
 		Parent = parent,
 	})
-	Style.corner(frame, Theme.Radius.Large)
-	local stroke = Style.stroke(frame)
-	stroke.Thickness = 2
+	local stroke = frame:FindFirstChildOfClass("UIStroke") :: UIStroke
 	local tile = Create("Frame", {
-		Size = UDim2.fromOffset(64, 64),
+		Size = UDim2.fromOffset(68, 68),
 		Position = UDim2.new(0, 14, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
-		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundColor3 = Style.vivid(def.color),
 		Parent = frame,
 	})
 	Style.corner(tile, UDim.new(1, 0))
-	Style.stroke(tile, def.color, 0, 2.5)
+	Style.stroke(tile, Theme.Colors.Ink, 0, Theme.Outline.Regular)
+	Style.shade(tile, 0.2)
+	Style.gloss(tile)
 	local iconHolder = Create("Frame", {
 		Size = UDim2.fromScale(0.55, 0.55),
 		Position = UDim2.fromScale(0.5, 0.5),
@@ -290,21 +305,23 @@ local function buildCard(parent: Instance, def: AbilityConfig.AbilityDef, slotIn
 		Parent = tile,
 	})
 	local icon = (Icons :: any)[def.icon] or Icons.pulse
-	icon(iconHolder, def.color)
-	local name = Style.text({ Size = UDim2.new(1, -250, 0, 24), Position = UDim2.fromOffset(92, 8), FontFace = Theme.Fonts.Heavy, TextSize = 19, Parent = frame })
-	local badge = Style.text({ Size = UDim2.new(0, 150, 0, 18), Position = UDim2.new(1, -168, 0, 10), FontFace = Theme.Fonts.Heavy, TextSize = 12, TextColor3 = Theme.Colors.Gold, TextXAlignment = Enum.TextXAlignment.Right, Parent = frame })
-	local desc = Style.text({ Size = UDim2.new(1, -250, 0, 36), Position = UDim2.fromOffset(92, 32), FontFace = Theme.Fonts.Body, TextSize = 14, TextColor3 = Theme.Colors.TextDim, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Parent = frame })
-	local stats = Style.text({ Size = UDim2.new(1, -250, 0, 18), Position = UDim2.fromOffset(92, 70), FontFace = Theme.Fonts.BodyBold, TextSize = 13, TextColor3 = def.color, TextTruncate = Enum.TextTruncate.AtEnd, Parent = frame })
-	local requirement = Style.text({ Size = UDim2.new(1, -110, 0, 16), Position = UDim2.fromOffset(92, 90), FontFace = Theme.Fonts.BodyBold, TextSize = 12, TextColor3 = Theme.Colors.TextMuted, Parent = frame })
+	icon(iconHolder, Theme.Colors.Text)
+	local name = Style.text({ Size = UDim2.new(1, -250, 0, 26), Position = UDim2.fromOffset(96, 8), FontFace = Theme.Fonts.Display, TextSize = 21, Parent = frame })
+	Style.ink(name, 2)
+	local badge = Style.text({ Size = UDim2.new(0, 170, 0, 18), Position = UDim2.new(1, -184, 0, 10), FontFace = Theme.Fonts.Heavy, TextSize = 13, TextColor3 = Theme.Colors.Gold, TextXAlignment = Enum.TextXAlignment.Right, Parent = frame })
+	Style.ink(badge, 1.5)
+	local desc = Style.text({ Size = UDim2.new(1, -250, 0, 36), Position = UDim2.fromOffset(96, 34), FontFace = Theme.Fonts.Body, TextSize = 14, TextColor3 = Theme.Colors.TextDim, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Parent = frame })
+	local stats = Style.text({ Size = UDim2.new(1, -250, 0, 18), Position = UDim2.fromOffset(96, 72), FontFace = Theme.Fonts.Heavy, TextSize = 14, TextColor3 = def.color:Lerp(Color3.new(1, 1, 1), 0.35), TextTruncate = Enum.TextTruncate.AtEnd, Parent = frame })
+	Style.ink(stats, 1.5)
+	local requirement = Style.text({ Size = UDim2.new(1, -110, 0, 16), Position = UDim2.fromOffset(96, 93), FontFace = Theme.Fonts.Heavy, TextSize = 13, TextColor3 = Theme.Colors.TextMuted, Parent = frame })
 	local card: Card
 	local action = Button.new({
 		name = "Action",
-		size = UDim2.fromOffset(136, 48),
+		size = UDim2.fromOffset(140, 54),
 		position = UDim2.new(1, -14, 0.5, 6),
 		anchor = Vector2.new(1, 0.5),
-		color = Color3.new(1, 1, 1),
-		gradient = { def.color, Theme.Colors.EssenceDeep },
-		corner = Theme.Radius.Medium,
+		kind = "green",
+		corner = Theme.Radius.Large,
 		text = "",
 		textSize = 17,
 		parent = frame,
@@ -324,29 +341,28 @@ local function buildCard(parent: Instance, def: AbilityConfig.AbilityDef, slotIn
 end
 
 local function buildHarmonyRow(parent: Instance, harmony: AbilityConfig.HarmonyDef, order: number)
-	local frame: Frame = Create("Frame", {
+	local frame: Frame = Style.card({
 		Name = "Harmony_" .. harmony.relic,
-		Size = UDim2.new(1, -8, 0, 78),
-		BackgroundColor3 = Theme.Colors.PanelLight,
-		BackgroundTransparency = 0.35,
+		Size = UDim2.new(1, -8, 0, 82),
 		LayoutOrder = order,
 		Parent = parent,
 	})
-	Style.corner(frame, Theme.Radius.Medium)
 	local iconHolder = Create("Frame", { Size = UDim2.fromOffset(30, 30), Position = UDim2.new(0, 14, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Parent = frame })
 	local icon = (Icons :: any)[harmony.icon] or Icons.eye
 	icon(iconHolder, Theme.Colors.Gold)
-	local title = Style.text({ Size = UDim2.new(1, -230, 0, 22), Position = UDim2.fromOffset(56, 8), FontFace = Theme.Fonts.Heavy, TextSize = 16, Parent = frame })
-	local state = Style.text({ Size = UDim2.new(0, 120, 0, 18), Position = UDim2.new(1, -150, 0, 6), FontFace = Theme.Fonts.Heavy, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, Parent = frame })
+	local title = Style.text({ Size = UDim2.new(1, -230, 0, 22), Position = UDim2.fromOffset(56, 8), FontFace = Theme.Fonts.Display, TextSize = 18, Parent = frame })
+	Style.ink(title, 1.5)
+	local state = Style.text({ Size = UDim2.new(0, 130, 0, 18), Position = UDim2.new(1, -150, 0, 6), FontFace = Theme.Fonts.Heavy, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right, Parent = frame })
+	Style.ink(state, 1.5)
 	local desc = Style.text({ Size = UDim2.new(1, -200, 0, 40), Position = UDim2.fromOffset(56, 32), FontFace = Theme.Fonts.Body, TextSize = 13, TextColor3 = Theme.Colors.TextDim, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Parent = frame })
 	local row: HarmonyRow
 	local toggle = Button.new({
 		name = "Toggle",
-		size = UDim2.fromOffset(120, 44),
+		size = UDim2.fromOffset(126, 48),
 		position = UDim2.new(1, -12, 0.5, 8),
 		anchor = Vector2.new(1, 0.5),
-		color = Theme.Colors.PanelRaised,
-		corner = Theme.Radius.Medium,
+		kind = "green",
+		corner = Theme.Radius.Large,
 		text = "",
 		textSize = 15,
 		parent = frame,
@@ -369,27 +385,33 @@ local function buildHarmonyRow(parent: Instance, harmony: AbilityConfig.HarmonyD
 end
 
 function Loadout.init(parent: Instance, close: () -> ()): Modal.Modal
-	modal = Modal.new({ name = "Loadout", size = UDim2.fromOffset(680, 700), parent = parent, onClose = close, accent = Color3.fromRGB(170, 120, 255) })
-	-- Power record + Essence pills in the header.
+	modal = Modal.new({ name = "Loadout", size = UDim2.fromOffset(700, 710), parent = parent, onClose = close, accent = Theme.Buttons.purple.face, emoji = Emoji.get("loadout") })
+	-- Power record + Essence pills on the subtitle row.
+	modal.subtitle.Size = UDim2.new(1, -290, 0, 22)
 	local pills = Create("Frame", {
-		Size = UDim2.fromOffset(250, 40),
-		Position = UDim2.new(1, -54, 0, 2),
+		Size = UDim2.fromOffset(260, 40),
+		Position = UDim2.new(1, -4, 0, 48),
 		AnchorPoint = Vector2.new(1, 0),
 		BackgroundTransparency = 1,
+		ZIndex = 6,
 		Parent = modal.header,
 	})
 	Style.list(pills, 8, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right)
-	local function pill(order: number, icon: (Instance) -> ()): TextLabel
-		local frame = Create("Frame", { Size = UDim2.fromOffset(118, 40), BackgroundColor3 = Theme.Colors.PanelRaised, LayoutOrder = order, Parent = pills })
+	local function pill(order: number, color: Color3, icon: (Instance) -> ()): TextLabel
+		local frame = Create("Frame", { Size = UDim2.fromOffset(124, 40), BackgroundColor3 = color, LayoutOrder = order, ZIndex = 6, Parent = pills })
 		Style.corner(frame, UDim.new(1, 0))
-		local holder = Create("Frame", { Size = UDim2.fromOffset(22, 22), Position = UDim2.new(0, 10, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Parent = frame })
+		Style.stroke(frame, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+		Style.shade(frame, 0.15)
+		local holder = Create("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.new(0, 10, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, ZIndex = 7, Parent = frame })
 		icon(holder)
-		return Style.text({ Size = UDim2.new(1, -42, 1, 0), Position = UDim2.fromOffset(38, 0), FontFace = Theme.Fonts.Display, TextSize = 18, Parent = frame })
+		local label = Style.text({ Size = UDim2.new(1, -44, 1, 0), Position = UDim2.fromOffset(40, 0), FontFace = Theme.Fonts.Display, TextSize = 19, ZIndex = 7, Parent = frame })
+		Style.ink(label, 2)
+		return label
 	end
-	powerLabel = pill(1, function(holder)
-		Icons.power(holder, Theme.Colors.Gold)
+	powerLabel = pill(1, Theme.Buttons.orange.face, function(holder)
+		Icons.power(holder, Theme.Colors.Text)
 	end)
-	essenceLabel = pill(2, function(holder)
+	essenceLabel = pill(2, Theme.Colors.PanelLight, function(holder)
 		Icons.essence(holder)
 	end)
 
@@ -397,8 +419,8 @@ function Loadout.init(parent: Instance, close: () -> ()): Modal.Modal
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 5,
-		ScrollBarImageColor3 = Theme.Colors.TextMuted,
+		ScrollBarThickness = 8,
+		ScrollBarImageColor3 = Theme.Colors.Cream,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,

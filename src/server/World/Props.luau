@@ -1,12 +1,15 @@
 --!strict
 -- Dresses the island: bridges and fords over the river, lamp-lit ring road,
--- stylised cosmic trees, crystal clusters, ruins, rocks and "starfalls"
--- pouring off the island edge. Placement is deterministic (seeded) and avoids
--- paths, the river and Sanctuary footprints.
+-- candy "cotton-ball" trees, giant flowers and spotted mushrooms (Phase 5.5),
+-- crystal clusters, ruins, rocks and rainbow "starfalls" pouring off the
+-- island edge. Placement is deterministic (seeded) and avoids paths, the
+-- river, Sanctuary footprints and every V2 route. Flowers and mushrooms are
+-- soft decoration (non-colliding, not raycast).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Layout = require(Shared.Layout)
+local Palette = require(Shared.Config.Palette)
 local WorldFeatures = require(Shared.WorldFeatures)
 local Parts = require(script.Parent.Parts)
 local TerrainBuilder = require(script.Parent.TerrainBuilder)
@@ -17,18 +20,9 @@ local M = Enum.Material
 local C = Layout.Colors
 local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
 
-local TREE_STYLES = {
-	{ canopy = Color3.fromRGB(240, 156, 206), fruit = Color3.fromRGB(255, 220, 240) },
-	{ canopy = Color3.fromRGB(176, 150, 250), fruit = Color3.fromRGB(150, 230, 255) },
-	{ canopy = Color3.fromRGB(96, 206, 182), fruit = Color3.fromRGB(255, 236, 150) },
-	{ canopy = Color3.fromRGB(130, 186, 255), fruit = Color3.fromRGB(255, 180, 230) },
-}
-
-local CRYSTAL_COLORS = {
-	Color3.fromRGB(190, 130, 255),
-	Color3.fromRGB(110, 220, 255),
-	Color3.fromRGB(255, 130, 210),
-}
+local TREE_STYLES = Palette.Canopies
+local CRYSTAL_COLORS = Palette.Crystals
+local W = Palette.World
 
 local PLOT_CENTERS: { Vector3 } = {}
 for i = 1, Layout.PlotCount do
@@ -168,10 +162,7 @@ local function buildBridges(folder: Folder)
 			for _, side in { -1, 1 } do
 				local base = center * CFrame.new(side * 5.3, 3.7, z)
 				Parts.cylinder({ size = Vector3.new(0.5, 3, 0.5), cf = base * CFrame.new(0, 1.5, 0), color = C.Trim, material = M.Metal, parent = model })
-				local glow = Parts.ball({ size = Vector3.one * 1.4, cf = base * CFrame.new(0, 3.4, 0), color = Color3.fromRGB(255, 214, 150), material = M.Neon, collide = false, shadow = false, parent = model })
-				if side == 1 then
-					Parts.light(glow, Color3.fromRGB(255, 200, 140), 20, 1.1)
-				end
+				Parts.ball({ size = Vector3.one * 1.4, cf = base * CFrame.new(0, 3.4, 0), color = W.LampGlow, material = M.Neon, collide = false, shadow = false, parent = model })
 			end
 		end
 	end
@@ -201,9 +192,11 @@ local function lampPost(folder: Instance, position: Vector3, facing: Vector3, li
 	Parts.cylinder({ size = Vector3.new(1.4, 0.8, 1.4), cf = cf * CFrame.new(0, 0.4, 0), color = C.StoneDark, material = M.Slate, parent = model })
 	Parts.cylinder({ size = Vector3.new(0.6, 8, 0.6), cf = cf * CFrame.new(0, 4.4, 0), color = C.Trim, material = M.Metal, parent = model })
 	Parts.block({ size = Vector3.new(0.35, 0.35, 2.2), cf = cf * CFrame.new(0, 8.2, -0.9), color = C.Trim, material = M.Metal, parent = model })
-	local glow = Parts.ball({ size = Vector3.one * 1.5, cf = cf * CFrame.new(0, 7.3, -1.8), color = Color3.fromRGB(200, 170, 255), material = M.Neon, collide = false, shadow = false, parent = model })
-	if lit ~= false then
-		Parts.light(glow, Color3.fromRGB(190, 160, 255), 18, 1)
+	-- Round candy lamp; in daylight only the ring-road lamps cast light.
+	local glow = Parts.ball({ size = Vector3.one * 1.8, cf = cf * CFrame.new(0, 7.3, -1.8), color = W.LampGlow, material = M.Neon, collide = false, shadow = false, parent = model })
+	Parts.ellipsoid({ size = Vector3.new(2.2, 0.6, 2.2), cf = cf * CFrame.new(0, 8.25, -1.8), color = W.Rift, collide = false, shadow = false, parent = model, name = "LampCap" })
+	if lit == true then
+		Parts.light(glow, W.LampGlow, 16, 0.8)
 	end
 end
 
@@ -213,7 +206,7 @@ local function buildRoadLamps(folder: Folder)
 			local a = Layout.plotAngle(i) + math.rad(offset)
 			local r = Layout.RingRoadRadius + 5.2
 			local position = Vector3.new(math.cos(a) * r, Layout.GroundY, math.sin(a) * r)
-			lampPost(folder, position, -Vector3.new(math.cos(a), 0, math.sin(a)))
+			lampPost(folder, position, -Vector3.new(math.cos(a), 0, math.sin(a)), offset > 0)
 		end
 	end
 	-- V2: the crown trail is lit too (every other lamp casts light).
@@ -228,7 +221,7 @@ local function buildRoadLamps(folder: Folder)
 		local nearObservatory = math.abs(((deg - 112.5 + 180) % 360) - 180) < 15
 		if ground and not nearArch and not nearBoss and not nearObservatory then
 			count += 1
-			lampPost(folder, Vector3.new(x, ground - 0.2, z), -Vector3.new(math.cos(math.rad(deg)), 0, math.sin(math.rad(deg))), count % 2 == 0)
+			lampPost(folder, Vector3.new(x, ground - 0.2, z), -Vector3.new(math.cos(math.rad(deg)), 0, math.sin(math.rad(deg))), false)
 		end
 	end
 end
@@ -239,9 +232,9 @@ local function tree(folder: Instance, position: Vector3, rng: Random, scale: num
 	local tilt = CFrame.Angles(rng:NextNumber(-0.08, 0.08), rng:NextNumber(0, 6.28), rng:NextNumber(-0.08, 0.08))
 	local base = CFrame.new(position) * tilt
 	local trunkH = 8 * scale
-	Parts.cylinder({ size = Vector3.new(1.7, trunkH, 1.7) * Vector3.new(scale, 1, scale), cf = base * CFrame.new(0, trunkH / 2 - 0.5, 0), color = Color3.fromRGB(96, 70, 84), material = M.Wood, parent = model, name = "Trunk" })
+	Parts.cylinder({ size = Vector3.new(1.7, trunkH, 1.7) * Vector3.new(scale, 1, scale), cf = base * CFrame.new(0, trunkH / 2 - 0.5, 0), color = W.Trunk, material = M.Wood, parent = model, name = "Trunk" })
 	local bend = base * CFrame.new(0, trunkH - 0.5, 0) * CFrame.Angles(rng:NextNumber(-0.25, 0.25), 0, rng:NextNumber(-0.25, 0.25))
-	Parts.cylinder({ size = Vector3.new(1.1 * scale, 5 * scale, 1.1 * scale), cf = bend * CFrame.new(0, 2.3 * scale, 0), color = Color3.fromRGB(96, 70, 84), material = M.Wood, parent = model })
+	Parts.cylinder({ size = Vector3.new(1.1 * scale, 5 * scale, 1.1 * scale), cf = bend * CFrame.new(0, 2.3 * scale, 0), color = W.Trunk, material = M.Wood, parent = model })
 	local top = bend * CFrame.new(0, 5 * scale, 0)
 	local canopies = {
 		{ offset = Vector3.new(0, 1.5, 0), size = 9 },
@@ -250,7 +243,7 @@ local function tree(folder: Instance, position: Vector3, rng: Random, scale: num
 		{ offset = Vector3.new(0.6, 3.6, -0.8), size = 5.5 },
 	}
 	for i, c in canopies do
-		local color = style.canopy:Lerp(Color3.new(1, 1, 1), (i - 1) * 0.04)
+		local color = style.canopy:Lerp(Color3.new(1, 1, 1), (i - 1) * 0.06)
 		Parts.ball({ size = Vector3.one * c.size * scale, cf = top * CFrame.new(c.offset * scale), color = color, material = M.SmoothPlastic, parent = model, name = "Canopy" })
 	end
 	for _ = 1, 3 do
@@ -259,7 +252,7 @@ local function tree(folder: Instance, position: Vector3, rng: Random, scale: num
 			size = Vector3.one * 0.7 * scale,
 			cf = top * CFrame.new(math.cos(angle) * 3.4 * scale, -2.6 * scale, math.sin(angle) * 3.4 * scale),
 			color = style.fruit,
-			material = M.Neon,
+			material = M.SmoothPlastic,
 			collide = false,
 			shadow = false,
 			parent = model,
@@ -352,7 +345,12 @@ local function starfall(folder: Instance, angle: number)
 	beam.Attachment1 = a1
 	beam.Width0 = 7
 	beam.Width1 = 2
-	beam.Color = ColorSequence.new(Color3.fromRGB(200, 170, 255), Color3.fromRGB(110, 210, 255))
+	-- Rainbow candy waterfall pouring off the island edge.
+	beam.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 150, 220)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 230, 120)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 220, 255)),
+	})
 	beam.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.35),
 		NumberSequenceKeypoint.new(1, 1),
@@ -363,7 +361,7 @@ local function starfall(folder: Instance, angle: number)
 	beam.Parent = origin
 	local sparks = Instance.new("ParticleEmitter")
 	sparks.Texture = SPARKLE
-	sparks.Color = ColorSequence.new(Color3.fromRGB(230, 210, 255))
+	sparks.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 220, 245))
 	sparks.Size = NumberSequence.new(0.6)
 	sparks.Lifetime = NumberRange.new(3, 4)
 	sparks.Speed = NumberRange.new(10, 18)
@@ -456,8 +454,87 @@ local function buildVegetation(folder: Folder)
 			local style = TREE_STYLES[rng:NextInteger(1, #TREE_STYLES)]
 			local size = rng:NextNumber(2.5, 4)
 			-- Bushes are soft decoration: players brush through them (no snagging mid-chase).
-			Parts.ball({ size = Vector3.one * size, cf = CFrame.new(p + Vector3.new(0, size * 0.25, 0)), color = style.canopy:Lerp(Color3.fromRGB(70, 150, 120), 0.5), collide = false, parent = folder, name = "Bush" })
-			Parts.ball({ size = Vector3.one * size * 0.7, cf = CFrame.new(p + Vector3.new(size * 0.45, size * 0.12, 0.3)), color = style.canopy:Lerp(Color3.fromRGB(70, 150, 120), 0.4), collide = false, parent = folder, name = "Bush" })
+			Parts.ball({ size = Vector3.one * size, cf = CFrame.new(p + Vector3.new(0, size * 0.25, 0)), color = style.canopy:Lerp(W.LeafDark, 0.6), collide = false, parent = folder, name = "Bush" })
+			Parts.ball({ size = Vector3.one * size * 0.7, cf = CFrame.new(p + Vector3.new(size * 0.45, size * 0.12, 0.3)), color = style.canopy:Lerp(W.Leaf, 0.5), collide = false, parent = folder, name = "Bush" })
+		end
+	end
+end
+
+-- Giant cartoon flower: stem, two leaves, five round petals and a sunny heart.
+local function flower(folder: Instance, position: Vector3, rng: Random)
+	local model = Parts.model("Flower", folder)
+	local h = rng:NextNumber(3.5, 6.5)
+	local petal = Palette.Flowers[rng:NextInteger(1, #Palette.Flowers)]
+	local base = CFrame.new(position) * CFrame.Angles(rng:NextNumber(-0.12, 0.12), rng:NextNumber(0, 6.28), rng:NextNumber(-0.12, 0.12))
+	Parts.cylinder({ size = Vector3.new(0.45, h, 0.45), cf = base * CFrame.new(0, h / 2, 0), color = W.LeafDark, collide = false, shadow = false, parent = model, name = "Stem" })
+	Parts.ellipsoid({ size = Vector3.new(1.8, 0.3, 0.9), cf = base * CFrame.new(0.8, h * 0.35, 0) * CFrame.Angles(0, 0, math.rad(20)), color = W.Leaf, collide = false, shadow = false, parent = model, name = "Leaf" })
+	local head = base * CFrame.new(0, h, 0) * CFrame.Angles(math.rad(70), 0, 0)
+	for k = 0, 4 do
+		local a = k * math.pi * 2 / 5
+		Parts.ellipsoid({ size = Vector3.new(1.5, 1.5, 0.6), cf = head * CFrame.new(math.cos(a) * 1.05, math.sin(a) * 1.05, 0), color = petal, collide = false, shadow = false, parent = model, name = "Petal" })
+	end
+	Parts.ellipsoid({ size = Vector3.new(1.3, 1.3, 0.9), cf = head * CFrame.new(0, 0, -0.15), color = Palette.Core.Sunny, collide = false, shadow = false, parent = model, name = "Heart" })
+end
+
+-- Spotted mushroom: chunky cream stem, round candy cap, three white dots.
+local function mushroom(folder: Instance, position: Vector3, rng: Random)
+	local model = Parts.model("Mushroom", folder)
+	local s = rng:NextNumber(1.2, 2.4)
+	local cap = if rng:NextNumber() > 0.5 then Palette.Core.Cherry else Palette.Core.Bubblegum
+	local base = CFrame.new(position) * CFrame.Angles(rng:NextNumber(-0.1, 0.1), rng:NextNumber(0, 6.28), rng:NextNumber(-0.1, 0.1))
+	Parts.cylinder({ size = Vector3.new(1.2 * s, 2.2 * s, 1.2 * s), cf = base * CFrame.new(0, 1.1 * s, 0), color = Palette.Core.Cream, collide = false, shadow = false, parent = model, name = "Stem" })
+	local top = base * CFrame.new(0, 2.3 * s, 0)
+	Parts.ellipsoid({ size = Vector3.new(3.6 * s, 1.9 * s, 3.6 * s), cf = top, color = cap, collide = false, shadow = false, parent = model, name = "Cap" })
+	for k = 0, 2 do
+		local a = k * math.pi * 2 / 3 + 0.4
+		Parts.ball({ size = Vector3.one * 0.7 * s, cf = top * CFrame.new(math.cos(a) * 1.05 * s, 0.55 * s, math.sin(a) * 1.05 * s), color = Color3.new(1, 1, 1), collide = false, shadow = false, parent = model, name = "Dot" })
+	end
+end
+
+local function buildDecor(folder: Folder)
+	local rng = Random.new(5505)
+	local placed: { Vector3 } = {}
+	local function spot(minR: number, maxR: number, spacing: number): Vector3?
+		for _ = 1, 24 do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local r = rng:NextNumber(minR, maxR)
+			local x, z = math.cos(a) * r, math.sin(a) * r
+			local sample = TerrainBuilder.sample(x, z)
+			if sample and sample.path == nil and sample.zone ~= "river" and sample.zone ~= "plateau" and not nearSanctuary(x, z, 46) and not Props.isReserved(x, z) then
+				local ok = true
+				for _, p in placed do
+					if (p - Vector3.new(x, p.Y, z)).Magnitude < spacing then
+						ok = false
+						break
+					end
+				end
+				if ok then
+					local p = Vector3.new(x, sample.height - 0.3, z)
+					table.insert(placed, p)
+					return p
+				end
+			end
+		end
+		return nil
+	end
+	-- Flower patches: 3 flowers around each patch centre.
+	for _ = 1, 22 do
+		local center = spot(60, Layout.IslandRadius - 12, 9)
+		if center then
+			for k = 1, 3 do
+				local offset = Vector3.new(rng:NextNumber(-2.6, 2.6), 0, rng:NextNumber(-2.6, 2.6))
+				local p = center + offset
+				local sample = TerrainBuilder.sample(p.X, p.Z)
+				if sample and sample.path == nil and (k == 1 or not Props.isReserved(p.X, p.Z)) then
+					flower(folder, Vector3.new(p.X, sample.height - 0.3, p.Z), rng)
+				end
+			end
+		end
+	end
+	for _ = 1, 26 do
+		local p = spot(64, Layout.IslandRadius - 12, 10)
+		if p then
+			mushroom(folder, p, rng)
 		end
 	end
 end
@@ -500,14 +577,19 @@ end
 local function buildSky(folder: Instance)
 	type Planet = { position: Vector3, diameter: number, color: Color3, ring: Color3? }
 	local planets: { Planet } = {
-		{ position = Vector3.new(-620, 260, -540), diameter = 230, color = Color3.fromRGB(170, 110, 220), ring = Color3.fromRGB(255, 190, 230) },
-		{ position = Vector3.new(700, 170, 380), diameter = 120, color = Color3.fromRGB(90, 190, 200), ring = nil },
-		{ position = Vector3.new(260, 330, 760), diameter = 70, color = Color3.fromRGB(255, 180, 120), ring = nil },
+		{ position = Vector3.new(-620, 260, -540), diameter = 230, color = Color3.fromRGB(255, 160, 210), ring = Color3.fromRGB(255, 230, 120) },
+		{ position = Vector3.new(700, 170, 380), diameter = 120, color = Color3.fromRGB(110, 225, 200), ring = nil },
+		{ position = Vector3.new(260, 330, 760), diameter = 70, color = Color3.fromRGB(255, 200, 90), ring = nil },
 	}
 	for i, spec in planets do
-		local body = Parts.ball({ size = Vector3.one * spec.diameter, cf = CFrame.new(spec.position), color = spec.color, material = M.Neon, transparency = 0.25, collide = false, shadow = false, parent = folder, name = "Planet" .. i })
+		-- Pastel "candy planets" hanging in the daytime sky like toy balloons.
+		local body = Parts.ball({ size = Vector3.one * spec.diameter, cf = CFrame.new(spec.position), color = spec.color, material = M.SmoothPlastic, collide = false, shadow = false, parent = folder, name = "Planet" .. i })
 		body.CanQuery = false
-		Parts.ball({ size = Vector3.one * spec.diameter * 1.12, cf = CFrame.new(spec.position), color = spec.color, material = M.ForceField, transparency = 0.2, collide = false, shadow = false, parent = folder, name = "PlanetHalo" })
+		-- A few big polka dots on the side facing the island.
+		local facing = CFrame.lookAt(spec.position, Vector3.new(0, 40, 0))
+		for k, dot in { Vector3.new(-0.25, 0.2, 0), Vector3.new(0.22, -0.18, 0), Vector3.new(0.05, 0.35, 0) } do
+			Parts.ball({ size = Vector3.one * spec.diameter * (0.16 - k * 0.03), cf = facing * CFrame.new(dot * spec.diameter * 0.9 + Vector3.new(0, 0, -spec.diameter * 0.43)), color = spec.color:Lerp(Color3.new(1, 1, 1), 0.45), collide = false, shadow = false, parent = folder, name = "PlanetDot" })
+		end
 		if spec.ring then
 			local holder = Parts.block({ size = Vector3.one, cf = CFrame.new(spec.position) * CFrame.Angles(math.rad(18), 0, math.rad(-12)), transparency = 1, collide = false, shadow = false, parent = folder, name = "PlanetRing" })
 			Parts.beamRing(holder, CFrame.identity, spec.diameter * 0.85, spec.diameter * 0.12, spec.ring, 0.35)
@@ -541,6 +623,7 @@ function Props.build(parent: Instance, isletTops: { Vector3 })
 	task.wait()
 	buildVegetation(Parts.folder("Vegetation", world))
 	task.wait()
+	buildDecor(Parts.folder("Decor", world))
 	buildRuins(Parts.folder("Ruins", world))
 	buildSky(Parts.folder("Sky", world))
 	local edge = Parts.folder("Edge", world)

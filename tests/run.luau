@@ -912,6 +912,35 @@ require("./scenarios/V2Cosmetics")({
 	end,
 })
 
+-- V2 phase 5.5: cartoon & goofy art direction (tokens, emoji policy, sunny
+-- world, Rift face, relic faces, chunky UI, reward juice).
+require("./scenarios/V2ArtDirection")({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	waitFor = waitFor,
+	sreq = sreq,
+	shared = shared,
+	remote = remote,
+	Engine = Engine,
+	Loader = Loader,
+	game = game,
+	sessionOf = sessionOf,
+	teleport = teleport,
+	insideOwnPlot = insideOwnPlot,
+	plotCenter = plotCenter,
+	hasNotification = hasNotification,
+	clearLog = clearLog,
+	prompt = prompt,
+	claimRelic = claimRelic,
+	alice = function()
+		return alice
+	end,
+	bob = function()
+		return bob
+	end,
+})
+
 scenario("Shutdown: BindToClose saves everyone", function()
 	local sa = sessionOf(alice)
 	sa.data.essence += 12345

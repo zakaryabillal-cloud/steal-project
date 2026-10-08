@@ -118,7 +118,8 @@ function RelicViewport.new(props: Props): Viewport
 		camera = camera,
 		visual = nil,
 		spin = props.spin ~= false,
-		angle = 0.6,
+		-- Look at the front (-Z) of the relic, where faces are (Phase 5.5).
+		angle = math.pi + 0.5,
 		distance = 6,
 	}, methods) :: any
 	if viewport.spin then

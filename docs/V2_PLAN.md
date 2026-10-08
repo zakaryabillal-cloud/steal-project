@@ -1,6 +1,7 @@
 # RIFT HEIST — Plan V2 (validé)
 
-> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique), 4 (Capacités) et 5 (Cosmétiques) terminées.** Phases 6 à 11 : non commencées (attente d'autorisation).
+> Statut : **Phases 1 (Fondations), 2 (Monde V2), 3 (Audio dynamique), 4 (Capacités), 5 (Cosmétiques) et 5.5 (Direction artistique cartoon) terminées.** Phases 6 à 11 : non commencées (attente d'autorisation).
+> Toute nouvelle phase suit [`ART_DIRECTION.md`](ART_DIRECTION.md).
 
 Boucle principale conservée : *Faille → Reliques → Vol/PvP → Sanctuaire → Essence → Progression → contenu plus difficile → récompenses rares.*
 Boucle secondaire V2 : *Collecter → améliorer → Power ↑ → boss → drops exclusifs / Forge → build & collection → contenu supérieur*,
@@ -54,6 +55,7 @@ Sync découpé chaud / froid.
 | 3 | Audio dynamique | MusicDirector (Boss > Poursuite > Événement > Faille > Exploration), fondus, Sounds v2 documenté, aucun ID inventé | ✅ |
 | 4 | Capacités | Blink, Grappin (points dédiés), Onde de givre, Piège runique, Bouclier, Leurre, Phase spectrale ; déblocages par Power record + Essence/matériaux ; UI de loadout (au Sanctuaire) ; harmonisations (Storm Crystal, Void Cube, Magma Heart, Frost Lotus, Chrono Glass, Cosmic Eye) | ✅ |
 | 5 | Cosmétiques (moteur) | possession / équipement / rendu : 7 catégories (traînées, auras, effets de transport, thèmes de Sanctuaire, arrivée, sécurisation, titres), 26 cosmétiques, déblocages par la progression, écran Style, budgets de rendu | ✅ |
+| 5.5 | Direction artistique « Cartoon & Goofy » | jetons UI cartoon, HUD / menus refaits, monde de jour (palette, matériaux jouet, fleurs, champignons, fanions), Faille avec un visage, visages des reliques, présentation des cosmétiques, `ART_DIRECTION.md` (règles + boss) | ✅ |
 | 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, Forge, protection Expédition, piédestaux trophées | — |
 | 7 | Boss 2 & 3 | Forgeheart, Tempest Seraph | — |
 | 8 | Événements V2 | Rift Overload, Void Storm, Golden Surge, Eclipse enrichis + Marée Céleste, Chute d'Étoile ; WorldDirector (pas de chevauchement boss / événement modifiant la carte) | — |
@@ -536,3 +538,79 @@ Préparer 2 joueurs (*Test → Clients and Servers*), `/rh cosmetics` sur chacun
 8. **Performance** : 8 joueurs avec tout équipé (MicroProfiler, Qualité Basse / Haute) ; mort, réapparition,
    départ d'un joueur : rien ne reste dans `Workspace.CosmeticFX` ni `PlayerGui.CosmeticFX`.
 9. **Sauvegarde** : équiper, quitter, revenir ; `/rh cosmetics off` retire ce qui n'est pas possédé.
+
+---
+
+## 11. Phase 5.5 — Direction artistique « Cartoon & Goofy » : ce qui a été livré
+
+**Changement d'apparence, pas de mécanique.** Aucune règle de jeu, valeur de gameplay, remote, sauvegarde ou
+condition de déblocage n'a changé (les 856 vérifications précédentes passent sans modification de leurs attentes).
+Règles visuelles pour les phases 6 à 11 : [`ART_DIRECTION.md`](ART_DIRECTION.md).
+
+### Interface
+- **Jetons** (`Config/Theme`) : panneaux bleu roi opaques, contours encre, texte blanc avec contour, polices
+  Fredoka One / Builder Sans / Luckiest Guy (intégrées), 10 familles de boutons colorés, étoiles de rareté.
+- **Kit** : `Button` « chunky » (face + lèvre plus sombre, reflet, enfoncement au clic, secousse si refusé, désactivé
+  désaturé, `setKind`), `Modal` (ruban de titre coloré avec emoji, ✕ rouge rond qui déborde, ouverture « pop »),
+  `Style` (panneau, carte, pilule, badge, reflet, contraste WCAG), `Juice` (confettis, « +250! », étoiles, rayons,
+  plafonnés), `Tween.wiggle` / `popIn`.
+- **HUD** : bulle d'Essence géante (gemme qui déborde, pilule verte « +x/s », « +250 » flottant à la collecte),
+  barre Power orange, **grille 2×2 de gros boutons emoji** (🚀 Améliorations, 📖 RiftDex, 🎨 Style, 🔧 Réglages),
+  objectif avec barre de progression qui gigote quand c'est payable, capacités en gros ronds colorés, sac 🎒 du
+  loadout, statuts en pilules avec emoji (💪 👻 💫 🌱 🐌), panneau de transport qui devient rouge clignotant en vol.
+- **Écrans** : Améliorations (tuiles inclinées, pastilles, « NIVEAU +1 ! » + confettis), RiftDex (cartes avec
+  projecteur de rareté, ★), Style (onglets emoji, pastilles de statut), Capacités (couleur du bouton = action :
+  débloquer jaune, équiper vert, retirer rouge), Réglages, Inspect, découverte (assiette de rareté, autocollant
+  « NOUVEAU ! », confettis, étoiles), notifications (toasts colorés avec emoji), annonces, bannière d'événement,
+  écran de chargement ensoleillé (nuages, portail, logo qui rebondit), invites colorées par action, panneaux de
+  Sanctuaire à la couleur du propriétaire, étiquettes de reliques avec pastille de rareté, marqueurs de transport,
+  « BONK! » quand on se fait repousser.
+
+### Monde
+- **Éclairage** de plein jour (`Config/Palette`, `World/Ambience`, recopié dans `default.project.json`), nuages
+  blancs, atmosphère bleu ciel, événements recolorés en version lumineuse (jamais plus sombre que le crépuscule).
+- **Matériaux** : tous les matériaux réalistes rendus en SmoothPlastic (monde et reliques) ; Neon/Glass/ForceField gardés.
+- **Palette** : herbe vert vif, chemins biscuit, falaises lavande, rambardes jaunes, rivière turquoise.
+- **Décor** : arbres « barbe à papa », 22 massifs de fleurs géantes, 26 champignons à pois (non collidables, hors
+  routes), cascades arc-en-ciel au bord de l'île, planètes-bonbons, lampadaires ronds (lumières réduites de 79 à 58).
+- **Sanctuaires** : fondations pastel à la couleur du propriétaire (8 couleurs bonbon distinctes), sol crème,
+  fanions sur les poteaux et guirlande au-dessus de l'entrée.
+- **La Faille** : intérieur violet bonbon, anneaux jaune / cyan / rose, **visage** (yeux globuleux qui suivent
+  chaque joueur, clignements, sourcils levés pendant la charge, bouche qui s'ouvre et « BURP! » à chaque relique).
+- Monolithes et Tablette runique : plus de croix (aucune lecture « cimetière »).
+
+### Reliques et cosmétiques
+- **14 reliques sur 19 ont un visage** (`Relics/RelicFaces`) avec une humeur ; elles se tournent vers le joueur le
+  plus proche, se dandinent, clignent ; les 5 autres (Fragment lunaire, Sablier, Œil cosmique — déjà un œil —,
+  Astrolabe, Anomalie prismatique) gardent leur silhouette abstraite.
+- **Cosmétiques** : couleurs des 26 effets saturées pour le plein jour (plus de violets presque noirs), cartes
+  de l'écran Style refaites. Catégories, déblocages et sauvegarde inchangés.
+
+### Écarts au plan / limites
+1. **Les emojis ne sont pas utilisés pour les icônes critiques** (capacités, Essence, Sceau, fermer) : dessinées
+   pour s'afficher à coup sûr ; les emojis décorent menus, statuts, toasts, onglets.
+2. **Pas d'outline 3D** : Roblox ne trace pas de contour encre autour des objets 3D ; le style cartoon du monde
+   repose sur les aplats, les couleurs et les silhouettes.
+3. **Musique inchangée** : les 5 pistes configurées en Phase 3 sont conservées (ton plus sombre que la nouvelle
+   direction ; à remplacer par des pistes plus joyeuses quand vous en aurez — voir ART_DIRECTION §14).
+4. **Aperçus** : le moteur de rendu du dépôt ne dessine pas l'interface ; vérifier l'UI dans Studio.
+
+### Tests (phase 5.5)
+`tests/scenarios/V2ArtDirection.luau` : **+238 vérifications, 1094 au total, 0 échec**. Le harnais gagne
+`Terrain:GetMaterialColor`.
+
+### À vérifier dans Roblox Studio (phase 5.5)
+1. **Premier coup d'œil** (*Play*) : écran de chargement ensoleillé, ciel bleu, île verte, Faille rose avec des
+   yeux qui te suivent quand tu tournes autour.
+2. **HUD** (PC 1080p, téléphone en mode paysage, manette) : lisibilité de l'Essence, des 4 gros boutons emoji
+   (vérifier que les emojis s'affichent **en couleur** sur PC, iOS et Android), objectif, capacités, statuts.
+3. **Boutons** : survol (grossit), appui (s'enfonce sur la lèvre), refus (secousse), désactivé (grisé).
+4. **Modales** (Améliorations, RiftDex, Style, Capacités, Réglages) : ruban, ✕ rouge, défilement, téléphone.
+5. **Récompenses** : achat d'amélioration (confettis + « NIVEAU +1 ! »), découverte RiftDex (autocollant), collecte
+   d'Essence (« +250 »), déblocage de capacité.
+6. **Reliques** : chaque visage de près, regard vers toi, clignement, mutations (Golden, Void…) — yeux toujours blancs.
+7. **Faille** : sourcils pendant la charge, « BURP! » à la sortie d'une relique, lisible depuis chaque Sanctuaire.
+8. **Monde** : routes et grottes toujours aussi lisibles (fleurs/champignons traversables), Sanctuaires bien
+   distincts, fanions, événements (couleurs lumineuses).
+9. **Performance** : MicroProfiler avec 8 joueurs ; Qualité Basse ; téléphone d'entrée de gamme.
+

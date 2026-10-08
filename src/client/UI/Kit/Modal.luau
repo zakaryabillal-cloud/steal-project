@@ -1,6 +1,7 @@
 --!strict
--- Shared modal shell: glass panel, title/subtitle header, close button,
--- open/close animations.
+-- Shared modal shell (Phase 5.5): a chunky blue panel with a coloured title
+-- ribbon (emoji + rounded title with an ink outline), a red round close
+-- button, a subtitle line and a bouncy open / close.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
@@ -17,8 +18,10 @@ export type Modal = {
 	panel: Frame,
 	body: Frame,
 	header: Frame,
+	ribbon: Frame,
 	title: TextLabel,
 	subtitle: TextLabel,
+	emoji: TextLabel,
 	scale: UIScale,
 	open: () -> (),
 	close: () -> (),
@@ -30,59 +33,74 @@ export type Props = {
 	parent: Instance,
 	onClose: () -> (),
 	accent: Color3?,
+	-- Emoji shown at the start of the title ribbon (Config/Emoji glyph).
+	emoji: string?,
 }
 
 function Modal.new(props: Props): Modal
+	local accent = props.accent or Theme.Colors.Essence
 	local panel = Style.panel({
 		Name = props.name,
 		Size = props.size,
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundTransparency = 0.06,
 		Visible = false,
 		ZIndex = 5,
+		Outline = Theme.Outline.Thick,
 		Parent = props.parent,
 	})
 	local scale: UIScale = Create("UIScale", { Parent = panel })
-	-- Accent glow line along the top edge.
-	local line = Create("Frame", {
-		Size = UDim2.new(0.6, 0, 0, 3),
-		Position = UDim2.new(0.5, 0, 0, 0),
-		AnchorPoint = Vector2.new(0.5, 0),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BorderSizePixel = 0,
+
+	-- Title ribbon: an accent-coloured tab overlapping the panel's top edge.
+	local ribbon: Frame = Create("Frame", {
+		Name = "Ribbon",
+		Size = UDim2.new(1, -150, 0, 54),
+		Position = UDim2.new(0, 22, 0, -16),
+		BackgroundColor3 = accent,
 		ZIndex = 6,
 		Parent = panel,
 	})
-	Style.corner(line, UDim.new(1, 0))
-	Create("UIGradient", {
-		Color = ColorSequence.new(props.accent or Theme.Colors.Essence, Theme.Colors.EssenceDeep),
-		Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 1),
-			NumberSequenceKeypoint.new(0.5, 0),
-			NumberSequenceKeypoint.new(1, 1),
-		}),
-		Parent = line,
-	})
+	Style.corner(ribbon, Theme.Radius.Large)
+	Style.stroke(ribbon, Theme.Colors.Ink, 0, Theme.Outline.Regular)
+	Style.shade(ribbon, 0.22)
+	Style.gloss(ribbon, 6)
 
 	local header: Frame = Create("Frame", {
 		Name = "Header",
-		Size = UDim2.new(1, -40, 0, 70),
-		Position = UDim2.fromOffset(20, 14),
+		Size = UDim2.new(1, -40, 0, 82),
+		Position = UDim2.fromOffset(20, -16),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
 		Parent = panel,
 	})
-	local title = Style.text({
-		Size = UDim2.new(1, -60, 0, 40),
+	local emoji = Style.text({
+		Name = "Emoji",
+		Size = UDim2.fromOffset(44, 54),
+		Position = UDim2.fromOffset(12, 0),
+		Text = props.emoji or "",
+		TextSize = 32,
 		FontFace = Theme.Fonts.Display,
-		TextSize = 34,
-		ZIndex = 6,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 7,
 		Parent = header,
 	})
+	local titleX = if props.emoji then 58 else 18
+	local title = Style.text({
+		Name = "Title",
+		Size = UDim2.new(1, -(titleX + 150), 0, 54),
+		Position = UDim2.fromOffset(titleX, 0),
+		FontFace = Theme.Fonts.Display,
+		TextSize = 34,
+		TextScaled = true,
+		ZIndex = 7,
+		Parent = header,
+	})
+	Create("UITextSizeConstraint", { MaxTextSize = 34, MinTextSize = 18, Parent = title })
+	Style.ink(title, Theme.Outline.Regular)
 	local subtitle = Style.text({
-		Size = UDim2.new(1, -60, 0, 22),
-		Position = UDim2.fromOffset(2, 40),
+		Name = "Subtitle",
+		Size = UDim2.new(1, -70, 0, 22),
+		Position = UDim2.fromOffset(4, 58),
 		FontFace = Theme.Fonts.Body,
 		TextSize = 16,
 		TextColor3 = Theme.Colors.TextDim,
@@ -91,13 +109,13 @@ function Modal.new(props: Props): Modal
 	})
 	local close = Button.new({
 		name = "Close",
-		size = UDim2.fromOffset(42, 42),
-		position = UDim2.new(1, 0, 0, 0),
+		size = UDim2.fromOffset(52, 52),
+		position = UDim2.new(1, 18, 0, -22),
 		anchor = Vector2.new(1, 0),
-		color = Theme.Colors.PanelRaised,
-		corner = UDim.new(1, 0),
-		zIndex = 7,
-		parent = header,
+		kind = "red",
+		corner = Theme.Radius.Pill,
+		zIndex = 8,
+		parent = panel,
 		onClick = props.onClose,
 	})
 	local iconHolder = Create("Frame", {
@@ -105,15 +123,10 @@ function Modal.new(props: Props): Modal
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundTransparency = 1,
-		ZIndex = 8,
-		Parent = close.instance,
+		ZIndex = 10,
+		Parent = close.content,
 	})
 	Icons.close(iconHolder, Theme.Colors.Text)
-	for _, child in iconHolder:GetDescendants() do
-		if child:IsA("GuiObject") then
-			child.ZIndex = 8
-		end
-	end
 
 	local body: Frame = Create("Frame", {
 		Name = "Body",
@@ -129,21 +142,27 @@ function Modal.new(props: Props): Modal
 		panel = panel,
 		body = body,
 		header = header,
+		ribbon = ribbon,
 		title = title,
 		subtitle = subtitle,
+		emoji = emoji,
 		scale = scale,
 		open = function()
 			token += 1
 			panel.Visible = true
-			scale.Scale = 0.88
-			panel.Position = UDim2.new(0.5, 0, 0.5, 24)
-			Tween.play(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
-			Tween.play(panel, 0.3, { Position = UDim2.fromScale(0.5, 0.5) })
+			scale.Scale = 0.7
+			panel.Rotation = -3
+			panel.Position = UDim2.new(0.5, 0, 0.5, 30)
+			Tween.play(scale, 0.42, { Scale = 1 }, Enum.EasingStyle.Back)
+			Tween.play(panel, 0.42, { Position = UDim2.fromScale(0.5, 0.5), Rotation = 0 }, Enum.EasingStyle.Back)
+			-- The ribbon lands a beat later with a little wiggle.
+			ribbon.Rotation = 4
+			Tween.play(ribbon, 0.6, { Rotation = 0 }, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out, 0.1)
 		end,
 		close = function()
 			token += 1
 			local myToken = token
-			Tween.play(scale, 0.16, { Scale = 0.92 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			Tween.play(scale, 0.16, { Scale = 0.85 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 			task.delay(0.16, function()
 				if token == myToken then
 					panel.Visible = false

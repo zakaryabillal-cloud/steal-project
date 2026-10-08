@@ -1,8 +1,9 @@
 """Approximate 3D preview of the generated world (tools/.cache/world.json).
 
 A small numpy software rasteriser: parts become triangle meshes, terrain a
-heightmap mesh; flat diffuse + ambient night lighting, emissive Neon, distance
-fog, and a bloom pass. It is NOT Roblox's renderer, just a composition check.
+heightmap mesh; flat diffuse lighting (sunny day from the exported Phase 5.5
+palette, or the old night look with NIGHT=1), emissive Neon, distance fog and
+a bloom pass. It is NOT Roblox's renderer, just a composition check.
 
 usage: python3 render_view.py world.json out.png "camX,camY,camZ" "targetX,targetY,targetZ" [width height]
 """
@@ -21,12 +22,23 @@ W = int(sys.argv[5]) if len(sys.argv) > 5 else 960
 H = int(sys.argv[6]) if len(sys.argv) > 6 else 540
 FOV = math.radians(70)
 
-FOG = np.array([120, 96, 175], dtype=float)
-FOG_DENSITY = float(__import__("os").environ.get("FOG", "0.0042"))
-AMBIENT = np.array([0.40, 0.37, 0.58])
-MOON_DIR = np.array([-0.35, 0.85, 0.4])
+import os
+PALETTE = data.get("palette")
+DAY = PALETTE is not None and os.environ.get("NIGHT") != "1"
+if DAY:
+    # Sunny afternoon (Config/Palette.Lighting): bright ambient, warm sun.
+    FOG = np.array(PALETTE["horizon"], dtype=float)
+    FOG_DENSITY = float(os.environ.get("FOG", "0.0022"))
+    AMBIENT = np.array([0.62, 0.62, 0.68])
+    MOON_DIR = np.array([-0.45, 0.8, 0.35])
+    MOON = np.array([0.55, 0.53, 0.48])
+else:
+    FOG = np.array([120, 96, 175], dtype=float)
+    FOG_DENSITY = float(os.environ.get("FOG", "0.0042"))
+    AMBIENT = np.array([0.40, 0.37, 0.58])
+    MOON_DIR = np.array([-0.35, 0.85, 0.4])
+    MOON = np.array([0.55, 0.55, 0.75])
 MOON_DIR /= np.linalg.norm(MOON_DIR)
-MOON = np.array([0.55, 0.55, 0.75])
 
 ZONE = {
     "basin": (78, 70, 110), "rim": (86, 168, 134), "meadow": (86, 168, 134),
@@ -40,6 +52,9 @@ MATERIAL = {
 }
 WATER = np.array([70, 130, 210], dtype=float)
 WATER_Y = 16.5
+if DAY:
+    MATERIAL.update({k: tuple(v) for k, v in PALETTE["terrain"].items()})
+    WATER = np.array(PALETTE["water"], dtype=float)
 
 tris = []  # (v0, v1, v2, color, emissive, alpha)
 
@@ -258,15 +273,33 @@ sy_ = (cy / cz) * f
 px = (sx_ + 1) * 0.5 * W
 py = (1 - sy_) * 0.5 * H
 
-# Sky: gradient + stars.
 img = np.zeros((H, W, 3))
-for yy in range(H):
-    t = yy / H
-    img[yy, :] = np.array([22, 14, 52]) * (1 - t) + np.array([118, 92, 170]) * t
 rng = np.random.default_rng(3)
-for _ in range(500):
-    x, y = rng.integers(0, W), rng.integers(0, int(H * 0.7))
-    img[y, x] = [235, 230, 255]
+if DAY:
+    # Sky: blue gradient + a few puffy white clouds.
+    top = np.array(PALETTE["sky"], dtype=float) * 0.82
+    horizon = np.array(PALETTE["horizon"], dtype=float)
+    for yy in range(H):
+        t = min(1.0, yy / (H * 0.75))
+        img[yy, :] = top * (1 - t) + horizon * t
+    YY, XX = np.mgrid[0:H, 0:W]
+    for _ in range(9):
+        cx0, cy0 = rng.integers(0, W), rng.integers(int(H * 0.05), int(H * 0.45))
+        for k in range(4):
+            rx = rng.integers(int(W * 0.04), int(W * 0.08))
+            ry = int(rx * 0.55)
+            ox = cx0 + (k - 1.5) * rx * 0.9
+            oy = cy0 + rng.integers(-ry // 2, ry // 2 + 1)
+            mask = ((XX - ox) / rx) ** 2 + ((YY - oy) / ry) ** 2 < 1
+            img[mask] = img[mask] * 0.15 + np.array([255, 255, 255]) * 0.85
+else:
+    # Sky: gradient + stars.
+    for yy in range(H):
+        t = yy / H
+        img[yy, :] = np.array([22, 14, 52]) * (1 - t) + np.array([118, 92, 170]) * t
+    for _ in range(500):
+        x, y = rng.integers(0, W), rng.integers(0, int(H * 0.7))
+        img[y, x] = [235, 230, 255]
 zbuf = np.full((H, W), np.inf)
 glow = np.zeros((H, W, 3))
 
@@ -323,6 +356,6 @@ for i in order_alpha:
 
 base = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
 bloom = Image.fromarray(np.clip(glow, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(radius=9))
-out = np.clip(np.asarray(base, dtype=float) + np.asarray(bloom, dtype=float) * 0.85, 0, 255).astype(np.uint8)
+out = np.clip(np.asarray(base, dtype=float) + np.asarray(bloom, dtype=float) * (0.35 if DAY else 0.85), 0, 255).astype(np.uint8)
 Image.fromarray(out).save(out_path)
 print("saved", out_path)

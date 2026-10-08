@@ -20,6 +20,8 @@ local Tween = require(Kit.Tween)
 local Icons = require(Kit.Icons)
 local Button = require(Kit.Button)
 local Modal = require(Kit.Modal)
+local Juice = require(Kit.Juice)
+local Emoji = require(Shared.Config.Emoji)
 
 local Controllers = UIRoot.Parent.Controllers
 local Store = require(Controllers.Store)
@@ -46,12 +48,13 @@ local modal: Modal.Modal
 local cards: { [string]: Card } = {}
 local balance: TextLabel
 
+-- Candy tile per upgrade (Theme.Buttons families).
 local ICON_COLORS: { [string]: { Color3 } } = {
-	pedestal = { Color3.fromRGB(120, 220, 255), Color3.fromRGB(90, 120, 255) },
-	tier = { Color3.fromRGB(255, 205, 100), Color3.fromRGB(255, 120, 90) },
-	resonance = { Color3.fromRGB(150, 245, 255), Color3.fromRGB(170, 110, 255) },
-	stride = { Color3.fromRGB(190, 160, 255), Color3.fromRGB(110, 90, 255) },
-	harness = { Color3.fromRGB(120, 240, 160), Color3.fromRGB(60, 170, 140) },
+	pedestal = { Theme.Buttons.blue.face, Theme.Buttons.blue.lip },
+	tier = { Theme.Buttons.yellow.face, Theme.Buttons.orange.face },
+	resonance = { Theme.Buttons.mint.face, Theme.Buttons.blue.face },
+	stride = { Theme.Buttons.purple.face, Theme.Buttons.pink.face },
+	harness = { Theme.Buttons.green.face, Theme.Buttons.green.lip },
 }
 
 local function pedestalIcon(parent: Instance, color: Color3)
@@ -135,14 +138,14 @@ local function refreshCard(card: Card)
 	card.desc.Text = Locale.t("upgrade." .. card.id .. ".desc")
 	for i, pip in card.pips do
 		local filled = i <= level
-		pip.BackgroundColor3 = if filled then Theme.Colors.Essence else Theme.Colors.PanelRaised
-		pip.BackgroundTransparency = if filled then 0 else 0.2
+		pip.BackgroundColor3 = if filled then Theme.Colors.Gold else Theme.Colors.Panel
+		pip.BackgroundTransparency = 0
 	end
 	local blocker = Economy.upgradeBlocker(card.id, upgrades)
 	local cost = Economy.upgradeCost(card.id, level)
 	if blocker == "max" or cost == nil then
 		card.effect.Text = ""
-		card.costLabel.Text = Locale.t("shop.max")
+		card.costLabel.Text = Emoji.label("trophy", Locale.t("shop.max"))
 		card.costLabel.TextColor3 = Theme.Colors.Gold
 		card.costIcon.Visible = false
 		card.buy:setEnabled(false)
@@ -152,13 +155,13 @@ local function refreshCard(card: Card)
 	card.costIcon.Visible = blocker == nil
 	if blocker == "needTier" then
 		card.costLabel.Text = Locale.t("shop.needTier")
-		card.costLabel.TextColor3 = Theme.Colors.TextDim
+		card.costLabel.TextColor3 = Theme.Colors.Text
 		card.buy:setEnabled(false)
 		return
 	end
 	local affordable = state.essence >= cost
 	card.costLabel.Text = Format.abbrev(cost)
-	card.costLabel.TextColor3 = if affordable then Theme.Colors.Text else Theme.Colors.Danger
+	card.costLabel.TextColor3 = if affordable then Theme.Colors.Text else Theme.Colors.Warning
 	card.buy:setEnabled(affordable and not card.busy)
 end
 
@@ -168,6 +171,7 @@ local function refreshAll()
 		refreshCard(card)
 	end
 	modal.title.Text = Locale.t("shop.title")
+	modal.emoji.Text = Emoji.get("upgrades")
 	modal.subtitle.Text = Locale.t("shop.subtitle")
 end
 
@@ -186,6 +190,8 @@ local function purchase(card: Card)
 			Tween.play(card.flash, 0.5, { BackgroundTransparency = 1 })
 			Tween.pop(card.frame, 0.04)
 			sparkle(card)
+			Juice.burstFrom(card.buy.instance, 18)
+			Juice.floatFrom(card.buy.instance, Locale.t("fx.levelUp"), Theme.Colors.Gold, 28)
 		else
 			Audio.play("UiError")
 			local frame = card.frame
@@ -200,26 +206,26 @@ local function purchase(card: Card)
 end
 
 local function buildCard(parent: Instance, def: Upgrades.UpgradeDef)
-	local frame: Frame = Create("Frame", {
+	local frame: Frame = Style.card({
 		Name = def.id,
-		Size = UDim2.new(1, -8, 0, 104),
-		BackgroundColor3 = Theme.Colors.PanelLight,
-		BackgroundTransparency = 0.2,
+		Size = UDim2.new(1, -8, 0, 110),
 		LayoutOrder = def.order,
+		CornerRadius = Theme.Radius.Large,
 		Parent = parent,
 	})
-	Style.corner(frame, Theme.Radius.Large)
-	Style.stroke(frame)
 	local colors = ICON_COLORS[def.id] or { Theme.Colors.Essence, Theme.Colors.EssenceDeep }
 	local tile = Create("Frame", {
-		Size = UDim2.fromOffset(72, 72),
-		Position = UDim2.new(0, 16, 0.5, 0),
+		Size = UDim2.fromOffset(76, 76),
+		Position = UDim2.new(0, 14, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundColor3 = Color3.new(1, 1, 1),
+		Rotation = -4,
 		Parent = frame,
 	})
-	Style.corner(tile, Theme.Radius.Medium)
-	Style.gradient(tile, colors[1], colors[2], 45)
+	Style.corner(tile, Theme.Radius.Large)
+	Style.stroke(tile, Theme.Colors.Ink, 0, Theme.Outline.Regular)
+	Style.gradient(tile, colors[1], colors[2], 60)
+	Style.gloss(tile)
 	local iconHolder = Create("Frame", {
 		Size = UDim2.fromScale(0.56, 0.56),
 		Position = UDim2.fromScale(0.5, 0.5),
@@ -229,37 +235,40 @@ local function buildCard(parent: Instance, def: Upgrades.UpgradeDef)
 	})
 	iconFor(def.id, iconHolder)
 
-	local name = Style.text({ Size = UDim2.new(1, -270, 0, 24), Position = UDim2.fromOffset(104, 12), FontFace = Theme.Fonts.Heavy, TextSize = 20, Parent = frame })
-	local pipRow = Create("Frame", { Size = UDim2.new(0, 160, 0, 8), Position = UDim2.fromOffset(105, 40), BackgroundTransparency = 1, Parent = frame })
+	local name = Style.text({ Size = UDim2.new(1, -280, 0, 26), Position = UDim2.fromOffset(104, 10), FontFace = Theme.Fonts.Display, TextSize = 22, Parent = frame })
+	Style.ink(name, 2)
+	local pipRow = Create("Frame", { Size = UDim2.new(0, 170, 0, 12), Position = UDim2.fromOffset(105, 40), BackgroundTransparency = 1, Parent = frame })
 	Style.list(pipRow, 4, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Left)
 	local pips = {}
-	local pipWidth = math.clamp(math.floor(150 / def.maxLevel) - 4, 8, 26)
+	local pipWidth = math.clamp(math.floor(160 / def.maxLevel) - 4, 10, 28)
 	for i = 1, def.maxLevel do
-		local pip = Create("Frame", { Size = UDim2.fromOffset(pipWidth, 8), BackgroundColor3 = Theme.Colors.PanelRaised, LayoutOrder = i, Parent = pipRow })
+		local pip = Create("Frame", { Size = UDim2.fromOffset(pipWidth, 12), BackgroundColor3 = Theme.Colors.Panel, LayoutOrder = i, Parent = pipRow })
 		Style.corner(pip, UDim.new(1, 0))
+		Style.stroke(pip, Theme.Colors.Ink, 0, 1.5)
 		table.insert(pips, pip)
 	end
-	local desc = Style.text({ Size = UDim2.new(1, -270, 0, 18), Position = UDim2.fromOffset(104, 54), FontFace = Theme.Fonts.Body, TextSize = 14, TextColor3 = Theme.Colors.TextDim, TextTruncate = Enum.TextTruncate.AtEnd, Parent = frame })
-	local effect = Style.text({ Size = UDim2.new(1, -270, 0, 18), Position = UDim2.fromOffset(104, 76), FontFace = Theme.Fonts.BodyBold, TextSize = 14, TextColor3 = Theme.Colors.Essence, Parent = frame })
+	local desc = Style.text({ Size = UDim2.new(1, -280, 0, 18), Position = UDim2.fromOffset(104, 58), FontFace = Theme.Fonts.Body, TextSize = 14, TextColor3 = Theme.Colors.TextDim, TextTruncate = Enum.TextTruncate.AtEnd, Parent = frame })
+	local effect = Style.text({ Size = UDim2.new(1, -280, 0, 20), Position = UDim2.fromOffset(104, 80), FontFace = Theme.Fonts.Heavy, TextSize = 15, TextColor3 = Theme.Colors.Gold, Parent = frame })
+	Style.ink(effect, 1.5)
 
 	local card: Card
 	local buy = Button.new({
 		name = "Buy",
-		size = UDim2.fromOffset(140, 52),
-		position = UDim2.new(1, -16, 0.5, 0),
+		size = UDim2.fromOffset(150, 60),
+		position = UDim2.new(1, -14, 0.5, 0),
 		anchor = Vector2.new(1, 0.5),
-		color = Color3.new(1, 1, 1),
-		gradient = { Color3.fromRGB(110, 225, 255), Color3.fromRGB(150, 105, 255) },
-		corner = Theme.Radius.Medium,
+		kind = "green",
+		corner = Theme.Radius.Large,
 		parent = frame,
 		onClick = function()
 			purchase(card)
 		end,
 	})
-	local costIcon = Create("Frame", { Size = UDim2.fromOffset(20, 20), Position = UDim2.new(0, 16, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Parent = buy.instance })
-	Icons.essence(costIcon, Color3.new(1, 1, 1), Color3.fromRGB(220, 240, 255))
-	local costLabel = Style.text({ Size = UDim2.new(1, -46, 1, 0), Position = UDim2.fromOffset(40, 0), FontFace = Theme.Fonts.Display, TextSize = 20, Parent = buy.instance })
-	Style.textStroke(costLabel, 0.5, 1.5)
+	local costIcon = Create("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.new(0, 14, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, ZIndex = 3, Parent = buy.content })
+	Icons.essence(costIcon)
+	local costLabel = Style.text({ Size = UDim2.new(1, -48, 1, 0), Position = UDim2.fromOffset(42, 0), FontFace = Theme.Fonts.Display, TextSize = 22, TextScaled = true, ZIndex = 3, Parent = buy.content })
+	Create("UITextSizeConstraint", { MaxTextSize = 22, MinTextSize = 11, Parent = costLabel })
+	Style.ink(costLabel, 2)
 	local flash = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, ZIndex = 9, Parent = frame })
 	Style.corner(flash, Theme.Radius.Large)
 	card = { id = def.id, frame = frame, name = name, desc = desc, effect = effect, pips = pips, buy = buy, costLabel = costLabel, costIcon = costIcon, flash = flash, busy = false }
@@ -267,26 +276,31 @@ local function buildCard(parent: Instance, def: Upgrades.UpgradeDef)
 end
 
 function Shop.init(parent: Instance, close: () -> ()): Modal.Modal
-	modal = Modal.new({ name = "Shop", size = UDim2.fromOffset(640, 690), parent = parent, onClose = close })
-	-- Balance pill in the header.
+	modal = Modal.new({ name = "Shop", size = UDim2.fromOffset(660, 700), parent = parent, onClose = close, accent = Theme.Buttons.green.face, emoji = Emoji.get("upgrades") })
+	-- Balance pill on the subtitle row.
+	modal.subtitle.Size = UDim2.new(1, -230, 0, 22)
 	local pill = Create("Frame", {
-		Size = UDim2.fromOffset(170, 40),
-		Position = UDim2.new(1, -54, 0, 2),
+		Name = "Balance",
+		Size = UDim2.fromOffset(180, 40),
+		Position = UDim2.new(1, -4, 0, 48),
 		AnchorPoint = Vector2.new(1, 0),
-		BackgroundColor3 = Theme.Colors.PanelRaised,
+		BackgroundColor3 = Theme.Colors.PanelLight,
+		ZIndex = 6,
 		Parent = modal.header,
 	})
 	Style.corner(pill, UDim.new(1, 0))
-	local icon = Create("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.new(0, 10, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Parent = pill })
+	Style.stroke(pill, Theme.Colors.Ink, 0, Theme.Outline.Thin)
+	local icon = Create("Frame", { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(0, 8, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, ZIndex = 7, Parent = pill })
 	Icons.essence(icon)
-	balance = Style.text({ Size = UDim2.new(1, -46, 1, 0), Position = UDim2.fromOffset(40, 0), FontFace = Theme.Fonts.Display, TextSize = 20, Parent = pill })
+	balance = Style.text({ Size = UDim2.new(1, -48, 1, 0), Position = UDim2.fromOffset(42, 0), FontFace = Theme.Fonts.Display, TextSize = 22, ZIndex = 7, Parent = pill })
+	Style.ink(balance, 2)
 
 	local scroll: ScrollingFrame = Create("ScrollingFrame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 4,
-		ScrollBarImageColor3 = Theme.Colors.TextMuted,
+		ScrollBarThickness = 8,
+		ScrollBarImageColor3 = Theme.Colors.Cream,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,

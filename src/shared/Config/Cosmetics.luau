@@ -115,53 +115,53 @@ end
 local list: { CosmeticDef } = {
 	-- Trails -------------------------------------------------------------------
 	{ id = "trail_stardust", category = "trail", rarity = "Common", order = 1, unlock = unlock("starter"),
-		visual = { colors = { c(235, 240, 255), c(170, 190, 255) }, lifetime = 0.35, width = 0.9, light = 0.6 } },
+		visual = { colors = { c(255, 228, 90), c(255, 140, 210) }, lifetime = 0.35, width = 0.9, light = 0.6 } },
 	{ id = "trail_riftwake", category = "trail", rarity = "Rare", order = 2, unlock = unlock("power", 150),
-		visual = { colors = { c(150, 230, 255), c(170, 110, 255) }, lifetime = 0.45, width = 1.1, light = 0.9 } },
+		visual = { colors = { c(90, 220, 255), c(170, 100, 255) }, lifetime = 0.45, width = 1.1, light = 0.9 } },
 	{ id = "trail_tempest", category = "trail", rarity = "Epic", order = 3, unlock = unlock("stat", 5, "stolen"),
-		visual = { colors = { c(255, 255, 255), c(110, 200, 255) }, lifetime = 0.5, width = 1.2, light = 1 } },
+		visual = { colors = { c(255, 255, 255), c(60, 170, 255) }, lifetime = 0.5, width = 1.2, light = 1 } },
 	{ id = "trail_voidwake", category = "trail", rarity = "Legendary", order = 4, unlock = unlock("power", 600),
-		visual = { colors = { c(200, 130, 255), c(40, 10, 70) }, lifetime = 0.55, width = 1.4, light = 0.8 } },
+		visual = { colors = { c(196, 100, 255), c(96, 50, 210) }, lifetime = 0.55, width = 1.4, light = 0.8 } },
 
 	-- Auras --------------------------------------------------------------------
 	{ id = "aura_embers", category = "aura", rarity = "Common", order = 1, unlock = unlock("stat", 10, "deposits"),
-		visual = { color = c(255, 170, 90), color2 = c(255, 90, 40), rate = 5, size = 0.35, speed = 1.5, texture = "spark" } },
+		visual = { color = c(255, 176, 60), color2 = c(255, 90, 40), rate = 5, size = 0.35, speed = 1.5, texture = "spark" } },
 	{ id = "aura_frosthalo", category = "aura", rarity = "Rare", order = 2, unlock = unlock("stat", 3, "recovered"),
-		visual = { color = c(200, 240, 255), color2 = c(120, 200, 255), rate = 6, size = 0.4, speed = 1, texture = "sparkle" } },
+		visual = { color = c(170, 232, 255), color2 = c(80, 170, 255), rate = 6, size = 0.4, speed = 1, texture = "sparkle" } },
 	{ id = "aura_celestial", category = "aura", rarity = "Epic", order = 3, unlock = unlock("dex", 12),
-		visual = { color = c(255, 240, 180), color2 = c(170, 140, 255), rate = 8, size = 0.45, speed = 1.2, texture = "sparkle" } },
+		visual = { color = c(255, 230, 120), color2 = c(170, 130, 255), rate = 8, size = 0.45, speed = 1.2, texture = "sparkle" } },
 	{ id = "aura_eclipse", category = "aura", rarity = "Legendary", order = 4, unlock = unlock("stat", 5, "rareFinds"),
-		visual = { color = c(255, 200, 120), color2 = c(60, 20, 90), rate = 10, size = 0.5, speed = 0.8, texture = "glow", light = { range = 8, brightness = 0.6 } } },
+		visual = { color = c(255, 190, 90), color2 = c(150, 60, 220), rate = 10, size = 0.5, speed = 0.8, texture = "glow", light = { range = 8, brightness = 0.6 } } },
 
 	-- Relic carry FX -------------------------------------------------------------
 	{ id = "carry_glimmer", category = "carry", rarity = "Common", order = 1, unlock = unlock("starter"),
-		visual = { color = c(240, 240, 255), color2 = c(180, 200, 255), rate = 5, size = 0.3, radius = 1.6 } },
+		visual = { color = c(255, 240, 140), color2 = c(255, 180, 236), rate = 5, size = 0.3, radius = 1.6 } },
 	{ id = "carry_orbit", category = "carry", rarity = "Rare", order = 2, unlock = unlock("stat", 25, "claimed"),
-		visual = { color = c(140, 230, 255), color2 = c(90, 140, 255), rate = 7, size = 0.35, radius = 2.2 } },
+		visual = { color = c(90, 222, 255), color2 = c(80, 120, 255), rate = 7, size = 0.35, radius = 2.2 } },
 	{ id = "carry_comet", category = "carry", rarity = "Epic", order = 3, unlock = unlock("power", 300),
-		visual = { color = c(255, 220, 140), color2 = c(255, 120, 200), rate = 9, size = 0.4, radius = 1.8 } },
+		visual = { color = c(255, 210, 90), color2 = c(255, 100, 190), rate = 9, size = 0.4, radius = 1.8 } },
 
 	-- Sanctuary themes -------------------------------------------------------------
 	{ id = "theme_dawn", category = "sanctuary", rarity = "Common", order = 1, unlock = unlock("starter"),
-		visual = { accent = c(255, 196, 120), motes = c(255, 230, 190), rate = 3 } },
+		visual = { accent = c(255, 176, 80), motes = c(255, 228, 160), rate = 3 } },
 	{ id = "theme_nebula", category = "sanctuary", rarity = "Rare", order = 2, unlock = unlock("tier", 2),
-		visual = { accent = c(230, 120, 255), motes = c(255, 170, 240), rate = 4 } },
+		visual = { accent = c(236, 104, 255), motes = c(255, 170, 240), rate = 4 } },
 	{ id = "theme_tempest", category = "sanctuary", rarity = "Epic", order = 3, unlock = unlock("tier", 3),
-		visual = { accent = c(110, 210, 255), motes = c(220, 250, 255), rate = 5 } },
+		visual = { accent = c(70, 196, 255), motes = c(220, 250, 255), rate = 5 } },
 	{ id = "theme_singularity", category = "sanctuary", rarity = "Legendary", order = 4, unlock = unlock("power", 1000),
-		visual = { accent = c(150, 80, 255), motes = c(40, 0, 70), rate = 6 } },
+		visual = { accent = c(150, 80, 255), motes = c(255, 120, 230), rate = 6 } },
 
 	-- Arrival (spawn) FX -----------------------------------------------------------
 	{ id = "arrival_spark", category = "arrival", rarity = "Common", order = 1, unlock = unlock("starter"),
-		visual = { color = c(220, 235, 255), color2 = c(150, 200, 255), size = 6, burst = 12, rings = 1 } },
+		visual = { color = c(255, 230, 110), color2 = c(110, 200, 255), size = 6, burst = 12, rings = 1 } },
 	{ id = "arrival_riftgate", category = "arrival", rarity = "Rare", order = 2, unlock = unlock("power", 80),
-		visual = { color = c(170, 120, 255), color2 = c(110, 230, 255), size = 8, burst = 20, rings = 2 } },
+		visual = { color = c(255, 110, 210), color2 = c(110, 230, 255), size = 8, burst = 20, rings = 2 } },
 	{ id = "arrival_starfall", category = "arrival", rarity = "Epic", order = 3, unlock = unlock("playtime", 2 * 3600),
 		visual = { color = c(255, 240, 190), color2 = c(255, 160, 90), size = 9, burst = 28, rings = 2, pillar = true } },
 
 	-- Secure FX (a relic placed / a heist secured) ---------------------------------
 	{ id = "secure_chime", category = "secure", rarity = "Common", order = 1, unlock = unlock("starter"),
-		visual = { color = c(150, 245, 255), color2 = c(255, 255, 255), size = 5, burst = 10, rings = 1 } },
+		visual = { color = c(100, 232, 255), color2 = c(255, 255, 255), size = 5, burst = 10, rings = 1 } },
 	{ id = "secure_fireworks", category = "secure", rarity = "Rare", order = 2, unlock = unlock("stat", 25, "deposits"),
 		visual = { color = c(255, 200, 90), color2 = c(255, 110, 200), size = 7, burst = 24, rings = 2 } },
 	{ id = "secure_supernova", category = "secure", rarity = "Legendary", order = 3, unlock = unlock("stat", 10, "stolen"),
@@ -169,15 +169,15 @@ local list: { CosmeticDef } = {
 
 	-- Titles ---------------------------------------------------------------------
 	{ id = "title_drifter", category = "title", rarity = "Common", order = 1, unlock = unlock("starter"),
-		visual = { color = c(205, 210, 230) } },
+		visual = { color = c(230, 240, 255) } },
 	{ id = "title_collector", category = "title", rarity = "Rare", order = 2, unlock = unlock("dex", 8),
-		visual = { color = c(120, 190, 255) } },
+		visual = { color = c(110, 200, 255) } },
 	{ id = "title_heister", category = "title", rarity = "Epic", order = 3, unlock = unlock("stat", 3, "stolen"),
-		visual = { color = c(190, 120, 255) } },
+		visual = { color = c(206, 136, 255) } },
 	{ id = "title_warden", category = "title", rarity = "Epic", order = 4, unlock = unlock("stat", 5, "recovered"),
-		visual = { color = c(140, 240, 200) } },
+		visual = { color = c(110, 240, 190) } },
 	{ id = "title_riftborn", category = "title", rarity = "Legendary", order = 5, unlock = unlock("power", 500),
-		visual = { color = c(255, 196, 80) } },
+		visual = { color = c(255, 204, 70) } },
 }
 
 -- Allowed visual keys per category (display data only).

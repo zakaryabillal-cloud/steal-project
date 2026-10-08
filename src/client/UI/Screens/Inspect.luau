@@ -33,6 +33,8 @@ local modal: Modal.Modal
 local viewport: RelicViewport.Viewport
 local nameLabel: TextLabel
 local infoLabel: TextLabel
+local infoPill: Frame
+local plate: Frame
 local starsLabel: TextLabel
 local rateLabel: TextLabel
 local hintLabel: TextLabel
@@ -66,8 +68,9 @@ local function refresh()
 	if mutationDef then
 		info ..= "  ·  " .. Locale.mutation(mutationDef.id) .. " ×" .. mutationDef.multiplier
 	end
-	infoLabel.Text = info
-	infoLabel.TextColor3 = rarity.color
+	infoLabel.Text = Style.stars(rarity.id) .. "  " .. info
+	infoPill.BackgroundColor3 = rarity.color
+	plate.BackgroundColor3 = rarity.color
 	starsLabel.Text = Format.stars(level, GameConfig.Economy.MaxRelicLevel) .. "   " .. Locale.t("inspect.level", { level = level })
 	local rate = Economy.relicBaseRate(relicId, level, mutation) * Store.state.multiplier
 	rateLabel.Text = Locale.t("inspect.rate", { rate = Format.abbrev(rate) })
@@ -120,30 +123,48 @@ function Inspect.init(parent: Instance, close: () -> ()): Modal.Modal
 	closeModal = close
 	modal = Modal.new({ name = "Inspect", size = UDim2.fromOffset(560, 330), parent = parent, onClose = close })
 	modal.header.Size = UDim2.new(1, -40, 0, 44)
+	-- No title here: the relic itself is the headline.
+	modal.ribbon.Visible = false
 	modal.body.Position = UDim2.fromOffset(20, 20)
 	modal.body.Size = UDim2.new(1, -40, 1, -40)
-	viewport = RelicViewport.new({ size = UDim2.fromOffset(200, 200), position = UDim2.fromOffset(0, 10), parent = modal.body })
+	plate = Create("Frame", {
+		Name = "Plate",
+		Size = UDim2.fromOffset(190, 190),
+		Position = UDim2.fromOffset(5, 15),
+		BackgroundColor3 = Theme.Colors.Gold,
+		Parent = modal.body,
+	})
+	Style.corner(plate, UDim.new(1, 0))
+	Style.stroke(plate, Theme.Colors.Ink, 0, Theme.Outline.Regular)
+	Style.shade(plate, 0.3)
+	Style.gloss(plate)
+	viewport = RelicViewport.new({ size = UDim2.fromOffset(200, 200), position = UDim2.fromOffset(0, 10), zIndex = 2, parent = modal.body })
 	local x = 214
-	nameLabel = Style.text({ Size = UDim2.new(1, -x - 50, 0, 32), Position = UDim2.fromOffset(x, 4), FontFace = Theme.Fonts.Display, TextSize = 26, TextWrapped = true, Parent = modal.body })
-	infoLabel = Style.text({ Size = UDim2.new(1, -x, 0, 18), Position = UDim2.fromOffset(x, 40), FontFace = Theme.Fonts.Heavy, TextSize = 14, Parent = modal.body })
-	starsLabel = Style.text({ Size = UDim2.new(1, -x, 0, 22), Position = UDim2.fromOffset(x, 66), FontFace = Theme.Fonts.Heavy, TextSize = 18, TextColor3 = Theme.Colors.Gold, Parent = modal.body })
-	rateLabel = Style.text({ Size = UDim2.new(1, -x, 0, 24), Position = UDim2.fromOffset(x, 96), FontFace = Theme.Fonts.Display, TextSize = 22, TextColor3 = Theme.Colors.Essence, Parent = modal.body })
-	hintLabel = Style.text({ Size = UDim2.new(1, -x, 0, 36), Position = UDim2.fromOffset(x, 126), FontFace = Theme.Fonts.Body, TextSize = 14, TextColor3 = Theme.Colors.TextDim, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Parent = modal.body })
+	nameLabel = Style.text({ Size = UDim2.new(1, -x - 50, 0, 34), Position = UDim2.fromOffset(x, 2), FontFace = Theme.Fonts.Display, TextSize = 28, TextWrapped = true, Parent = modal.body })
+	Style.ink(nameLabel, 2.5)
+	infoPill, infoLabel = Style.pill({ name = "Rarity", text = "", color = Theme.Colors.Gold, size = UDim2.new(1, -x - 10, 0, 24), position = UDim2.fromOffset(x, 40), textSize = 13, parent = modal.body })
+	starsLabel = Style.text({ Size = UDim2.new(1, -x, 0, 24), Position = UDim2.fromOffset(x, 70), FontFace = Theme.Fonts.Display, TextSize = 20, TextColor3 = Theme.Colors.Gold, Parent = modal.body })
+	Style.ink(starsLabel, 2)
+	rateLabel = Style.text({ Size = UDim2.new(1, -x, 0, 26), Position = UDim2.fromOffset(x, 98), FontFace = Theme.Fonts.Display, TextSize = 24, TextColor3 = Theme.Colors.Essence, Parent = modal.body })
+	Style.ink(rateLabel, 2)
+	hintLabel = Style.text({ Size = UDim2.new(1, -x, 0, 36), Position = UDim2.fromOffset(x, 128), FontFace = Theme.Fonts.BodyBold, TextSize = 14, TextColor3 = Theme.Colors.TextDim, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Parent = modal.body })
 
 	holdButton = Create("TextButton", {
 		Name = "Dissolve",
 		Size = UDim2.new(1, -x, 0, 50),
 		Position = UDim2.new(0, x, 1, -60),
-		BackgroundColor3 = Theme.Colors.PanelRaised,
+		BackgroundColor3 = Theme.Buttons.orange.face,
 		AutoButtonColor = false,
 		Text = "",
 		ClipsDescendants = true,
 		Parent = modal.body,
 	})
-	Style.corner(holdButton, Theme.Radius.Medium)
-	Style.stroke(holdButton, Theme.Colors.Danger, 0.4, 1.5)
-	holdFill = Create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Theme.Colors.Danger, BackgroundTransparency = 0.35, Parent = holdButton })
-	holdLabel = Style.text({ TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Heavy, TextSize = 16, Parent = holdButton })
+	Style.corner(holdButton, Theme.Radius.Large)
+	Style.stroke(holdButton, Theme.Colors.Ink, 0, Theme.Outline.Regular)
+	Style.shade(holdButton, 0.2)
+	holdFill = Create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Theme.Buttons.red.face, Parent = holdButton })
+	holdLabel = Style.text({ TextXAlignment = Enum.TextXAlignment.Center, FontFace = Theme.Fonts.Display, TextSize = 18, Parent = holdButton })
+	Style.ink(holdLabel, 2)
 	holdButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch or input.KeyCode == Enum.KeyCode.ButtonA then
 			startHold()

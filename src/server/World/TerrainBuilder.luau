@@ -15,6 +15,7 @@ local Shared = ReplicatedStorage.Shared
 local Layout = require(Shared.Layout)
 local WorldFeatures = require(Shared.WorldFeatures)
 local MathUtil = require(Shared.Util.MathUtil)
+local Palette = require(Shared.Config.Palette)
 
 local TerrainBuilder = {}
 
@@ -542,22 +543,16 @@ function TerrainBuilder.rock(terrain: Terrain, position: Vector3, size: number, 
 end
 
 function TerrainBuilder.styleTerrain(terrain: Terrain)
-	terrain:SetMaterialColor(M.Grass, Color3.fromRGB(86, 168, 134))
-	terrain:SetMaterialColor(M.LeafyGrass, Color3.fromRGB(70, 148, 122))
-	terrain:SetMaterialColor(M.Rock, Color3.fromRGB(104, 94, 134))
-	terrain:SetMaterialColor(M.Slate, Color3.fromRGB(78, 70, 110))
-	terrain:SetMaterialColor(M.Cobblestone, Color3.fromRGB(150, 140, 176))
-	terrain:SetMaterialColor(M.Pavement, Color3.fromRGB(132, 124, 160))
-	terrain:SetMaterialColor(M.Sand, Color3.fromRGB(190, 172, 206))
-	terrain:SetMaterialColor(M.Ground, Color3.fromRGB(110, 96, 120))
-	terrain:SetMaterialColor(M.Basalt, Color3.fromRGB(54, 48, 76))
-	terrain:SetMaterialColor(M.Limestone, Color3.fromRGB(196, 186, 214))
-	terrain:SetMaterialColor(M.CrackedLava, Color3.fromRGB(255, 120, 90))
-	terrain.WaterColor = Color3.fromRGB(70, 130, 210)
-	terrain.WaterTransparency = 0.45
-	terrain.WaterReflectance = 0.85
-	terrain.WaterWaveSize = 0.08
-	terrain.WaterWaveSpeed = 6
+	-- Bright candy terrain (Config/Palette.Terrain): green grass, sandy paths,
+	-- lavender cliffs and a turquoise river.
+	for name, color in Palette.Terrain do
+		terrain:SetMaterialColor((Enum.Material :: any)[name], color :: Color3)
+	end
+	terrain.WaterColor = Palette.Water.Color
+	terrain.WaterTransparency = Palette.Water.Transparency
+	terrain.WaterReflectance = Palette.Water.Reflectance
+	terrain.WaterWaveSize = Palette.Water.WaveSize
+	terrain.WaterWaveSpeed = Palette.Water.WaveSpeed
 end
 
 function TerrainBuilder.build(): { Vector3 }
