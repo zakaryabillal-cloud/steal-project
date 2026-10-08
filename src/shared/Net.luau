@@ -24,6 +24,10 @@ Net.Events = table.freeze({
 	Settings = "Settings",
 	DissolveCarried = "DissolveCarried",
 	TutorialSeen = "TutorialSeen",
+	-- V2 phase 6: boss expeditions (no payload: the server decides everything).
+	BossStrike = "BossStrike", -- "Strike" in the arena (range, damage, cooldown: server)
+	BossLeave = "BossLeave", -- leave the expedition (abandon during the fight)
+	BossReady = "BossReady", -- ready in the waiting room
 }) :: { [string]: string }
 
 Net.Functions = table.freeze({
@@ -33,6 +37,7 @@ Net.Functions = table.freeze({
 	UnlockAbility = "UnlockAbility", -- (abilityId) -> (ok, reason)
 	SetHarmony = "SetHarmony", -- (relicId, enabled) -> (ok, reason)
 	EquipCosmetic = "EquipCosmetic", -- (category, cosmeticId | "") -> (ok, reason)
+	BossJoin = "BossJoin", -- () -> (ok, reason) join the open expedition from the portal
 }) :: { [string]: string }
 
 local FOLDER_NAME = "Remotes"

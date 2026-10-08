@@ -109,6 +109,16 @@ function MusicDirector.isRunning(): boolean
 	return connection ~= nil
 end
 
+-- One-shot stinger (e.g. "Stinger.BossVictory"). A slot without an asset id
+-- stays silent: returns false and nothing is created (existing fallback).
+function MusicDirector.stinger(key: string): boolean
+	local p = player
+	if not p then
+		return false
+	end
+	return p:stinger(key)
+end
+
 -- Current music state and slot (slot nil = silent).
 function MusicDirector.current(): (string?, string?)
 	local m = machine

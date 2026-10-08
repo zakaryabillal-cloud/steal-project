@@ -11,6 +11,8 @@ local Mutations = require(Shared.Config.Mutations)
 local Upgrades = require(Shared.Config.Upgrades)
 local Abilities = require(Shared.Config.Abilities)
 local Cosmetics = require(Shared.Config.Cosmetics)
+local Bosses = require(Shared.Config.Bosses)
+local Materials = require(Shared.Config.Materials)
 local PowerConfig = require(Shared.Config.Power)
 local Economy = require(Shared.Economy)
 local Layout = require(Shared.Layout)
@@ -63,7 +65,14 @@ function DataSchema.default(): SaveData
 			owned = Cosmetics.starters(),
 			equipped = {},
 		},
+		bosses = {},
+		materials = {},
+		trophies = {},
 	}
+end
+
+function DataSchema.newBossRecord(): Types.BossRecord
+	return { discovered = false, attempts = 0, wins = 0, bestTime = 0, rare = {}, lastFight = "" }
 end
 
 -- Ordered migrations: MIGRATIONS[n] upgrades a schema-n table to schema n+1.
@@ -104,6 +113,21 @@ local MIGRATIONS: { [number]: (any) -> any } = {
 			raw.cosmetics = { owned = {}, equipped = {} }
 		end
 		raw.schema = 4
+		return raw
+	end,
+	-- 4 -> 5 (V2 phase 6): boss Codex, materials, trophy pedestals. Everyone
+	-- starts with an empty Codex, no material and no trophy.
+	[4] = function(raw: any): any
+		if type(raw.bosses) ~= "table" then
+			raw.bosses = {}
+		end
+		if type(raw.materials) ~= "table" then
+			raw.materials = {}
+		end
+		if type(raw.trophies) ~= "table" then
+			raw.trophies = {}
+		end
+		raw.schema = 5
 		return raw
 	end,
 }
@@ -281,6 +305,92 @@ function DataSchema.normalize(raw: any): SaveData
 		end
 	end
 
+	-- Boss Codex: known bosses only; counters clamped; rare ids must be loot
+	-- entries of that boss.
+	if type(raw.bosses) == "table" then
+		for bossId, entry in raw.bosses do
+			local def = Bosses.get(bossId)
+			if def and type(entry) == "table" then
+				local record = DataSchema.newBossRecord()
+				record.discovered = entry.discovered == true
+				record.attempts = math.floor(num(entry.attempts, 0, 0, 1e7))
+				record.wins = math.floor(num(entry.wins, 0, 0, record.attempts))
+				record.bestTime = if record.wins > 0 then num(entry.bestTime, 0, 0, Bosses.Combat.Duration) else 0
+				record.lastFight = str(entry.lastFight, "", 40)
+				if type(entry.rare) == "table" then
+					for _, loot in def.loot do
+						if loot.rare then
+							local count = math.floor(num(entry.rare[loot.id], 0, 0, 1e6))
+							if count > 0 then
+								record.rare[loot.id] = count
+							end
+						end
+					end
+				end
+				if record.attempts > 0 then
+					record.discovered = true
+				end
+				data.bosses[def.id] = record
+			end
+		end
+	end
+
+	-- Materials: known ids only, whole numbers within bounds.
+	if type(raw.materials) == "table" then
+		for _, def in Materials.list do
+			local amount = math.floor(num(raw.materials[def.id], 0, 0, def.max))
+			if amount > 0 then
+				data.materials[def.id] = amount
+			end
+		end
+	end
+
+	-- Trophies: boss relics only, one per relic id, unique uids, slots in range.
+	if type(raw.trophies) == "table" then
+		local usedTrophySlots: { [number]: boolean } = {}
+		local usedTrophyIds: { [string]: boolean } = {}
+		local usedTrophyUids: { [string]: boolean } = {}
+		local maxSlots = #Bosses.Trophies.Unlocks
+		local homeless: { Types.SaveTrophy } = {}
+		for _, entry in raw.trophies do
+			if type(entry) ~= "table" or type(entry.id) ~= "string" then
+				continue
+			end
+			local def = Relics.get(entry.id)
+			if not def or def.bossOnly == nil or usedTrophyIds[def.id] then
+				continue
+			end
+			local uid = str(entry.uid, "", 64)
+			if uid == "" or usedTrophyUids[uid] then
+				continue
+			end
+			local trophy: Types.SaveTrophy = {
+				uid = uid,
+				id = def.id,
+				level = math.floor(num(entry.level, 1, 1, GameConfig.Economy.MaxRelicLevel)),
+				slot = math.floor(num(entry.slot, 0, 0, maxSlots)),
+			}
+			usedTrophyIds[def.id] = true
+			usedTrophyUids[uid] = true
+			if trophy.slot >= 1 and not usedTrophySlots[trophy.slot] then
+				usedTrophySlots[trophy.slot] = true
+				table.insert(data.trophies, trophy)
+			else
+				table.insert(homeless, trophy)
+			end
+		end
+		for _, trophy in homeless do
+			for slot = 1, maxSlots do
+				if not usedTrophySlots[slot] then
+					usedTrophySlots[slot] = true
+					trophy.slot = slot
+					table.insert(data.trophies, trophy)
+					break
+				end
+			end
+		end
+	end
+
 	-- Relics: valid ids only, unique uids, unique slots within unlocked range.
 	local unlocked = Economy.unlockedPedestals(data.upgrades)
 	local usedSlots: { [number]: boolean } = {}
@@ -288,7 +398,7 @@ function DataSchema.normalize(raw: any): SaveData
 	local overflow = {}
 	if type(raw.relics) == "table" then
 		for _, entry in raw.relics do
-			if type(entry) == "table" and type(entry.id) == "string" and Relics.get(entry.id) then
+			if type(entry) == "table" and type(entry.id) == "string" and Relics.get(entry.id) and (Relics.get(entry.id) :: Relics.RelicDef).bossOnly == nil then
 				local uid = str(entry.uid, "", 64)
 				if uid == "" or usedUids[uid] then
 					continue
@@ -343,6 +453,21 @@ function DataSchema.serialize(data: SaveData): { [string]: any }
 	for relicId, entry in data.dex do
 		dex[relicId] = { count = entry.count, mutations = table.clone(entry.mutations), first = entry.first }
 	end
+	local bosses = {}
+	for bossId, record in data.bosses do
+		bosses[bossId] = {
+			discovered = record.discovered,
+			attempts = record.attempts,
+			wins = record.wins,
+			bestTime = record.bestTime,
+			rare = table.clone(record.rare),
+			lastFight = record.lastFight,
+		}
+	end
+	local trophies = {}
+	for _, trophy in data.trophies do
+		table.insert(trophies, { uid = trophy.uid, id = trophy.id, level = trophy.level, slot = trophy.slot })
+	end
 	return {
 		schema = DataSchema.Version,
 		essence = data.essence,
@@ -369,6 +494,9 @@ function DataSchema.serialize(data: SaveData): { [string]: any }
 			owned = table.clone(data.cosmetics.owned),
 			equipped = table.clone(data.cosmetics.equipped),
 		},
+		bosses = bosses,
+		materials = table.clone(data.materials),
+		trophies = trophies,
 	}
 end
 

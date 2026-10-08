@@ -56,7 +56,7 @@ Sync découpé chaud / froid.
 | 4 | Capacités | Blink, Grappin (points dédiés), Onde de givre, Piège runique, Bouclier, Leurre, Phase spectrale ; déblocages par Power record + Essence/matériaux ; UI de loadout (au Sanctuaire) ; harmonisations (Storm Crystal, Void Cube, Magma Heart, Frost Lotus, Chrono Glass, Cosmic Eye) | ✅ |
 | 5 | Cosmétiques (moteur) | possession / équipement / rendu : 7 catégories (traînées, auras, effets de transport, thèmes de Sanctuaire, arrivée, sécurisation, titres), 26 cosmétiques, déblocages par la progression, écran Style, budgets de rendu | ✅ |
 | 5.5 | Direction artistique « Cartoon & Goofy » | jetons UI cartoon, HUD / menus refaits, monde de jour (palette, matériaux jouet, fleurs, champignons, fanions), Faille avec un visage, visages des reliques, présentation des cosmétiques, `ART_DIRECTION.md` (règles + boss) | ✅ |
-| 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, Forge, protection Expédition, piédestaux trophées | — |
+| 6 | Boss 1 | Portail (toutes les ~10 min, 60 s d'ouverture), écran pré-combat avec probabilités, arène céleste, Void Warden, loot individuel, Codex, matériaux pour la Forge, protection Expédition, piédestaux trophées | ✅ |
 | 7 | Boss 2 & 3 | Forgeheart, Tempest Seraph | — |
 | 8 | Événements V2 | Rift Overload, Void Storm, Golden Surge, Eclipse enrichis + Marée Céleste, Chute d'Étoile ; WorldDirector (pas de chevauchement boss / événement modifiant la carte) | — |
 | 9 | Daily | 7 jours sans reset, horloge serveur, boosts en temps de jeu | — |
@@ -614,3 +614,136 @@ Règles visuelles pour les phases 6 à 11 : [`ART_DIRECTION.md`](ART_DIRECTION.m
    distincts, fanions, événements (couleurs lumineuses).
 9. **Performance** : MicroProfiler avec 8 joueurs ; Qualité Basse ; téléphone d'entrée de gamme.
 
+## 12. Phase 6 — Premier boss : Void Warden — ce qui a été livré
+
+Un système de boss **générique et extensible** (portail, arène, cœurs, Frappe, attaques par formes, phases,
+récompenses, Codex, trophées) et un premier boss complet. Phase 7 (Forgeheart, Tempest Seraph) : non commencée.
+
+### Portail et expédition (`Config/Bosses.Portal`, `Services/BossService`)
+- **Toutes les 10 min** (première ouverture 4 min après le démarrage du serveur), **ouvert 60 s**, annoncé 30 s
+  avant à tout le serveur. Compte à rebours permanent : barre « Boss » du HUD, panneau au-dessus du portail,
+  attributs `PortalState` / `PortalOpensAt` / `PortalClosesAt` / `PortalCount` du modèle `BossPlateau`.
+- Une seule expédition à la fois par serveur. On rejoint **devant le portail** (≤ 34 studs) : invite `E` / `X` /
+  toucher → carte du boss → **ENTRER !**. Seul ou à plusieurs (jusqu'à 12). Salle d'attente : **Prêt !** de
+  tout le monde = début 3 s plus tard ; sinon début à la fermeture du portail. Personne = arène détruite.
+- **Reliques en main : entrée refusée** (règle la plus sûre : rien ne peut être perdu ni dupliqué). Aussi refusé :
+  portail fermé, combat en cours, Power record < 25, trop loin, déjà dedans.
+- **Arène séparée** à 1 600 studs de l'île (`World/ArenaBuilder`, construite à l'ouverture, détruite après) :
+  aucune interférence possible avec le PvP de l'île. **Combat limité à 3 min 30** (+ 4 s d'entrée, 7 s de fin).
+- **Protection « Expédition »** du Sanctuaire uniquement pendant la participation (`Core/Expeditions`) : elle
+  s'arrête à la sortie, au KO, à la mort, à la déconnexion et à la fin du combat. Les voleurs voient « Le
+  propriétaire affronte un boss ». Pas d'exploit « se cacher dans l'arène » : AFK 35 s = renvoyé.
+
+### Void Warden (`Server/Bosses/VoidWarden`, `Client/Boss/VoidWardenModel`)
+Rang I, difficulté ★★, **1 500 PV +70 % par joueur supplémentaire**, 3 phases. Corps cartoon construit par chaque
+client (pièces natives, ~30) qui suit une **ancre serveur invisible** (même modèle que les reliques).
+
+| Attaque | Télégraphe | Comment l'éviter | Phases |
+|---|---|---|---|
+| Coup de balai (`broom_wave`) | 1,2 s : anneau autour de lui qui se remplit, balai levé | **sauter** quand l'anneau de poussière passe (30 studs/s, +4 par phase ; double en phase 3) | 1-3 |
+| Flaques collantes (`goo_puddles`) | 1,2 s : disques jaune → rouge sous les joueurs (+ aléatoires) | sortir du cercle ; la flaque reste 4 s et ralentit de 45 % | 1-3 |
+| Moutons de poussière (`dust_bunnies`) | 1,1 s : marques au sol, projectiles en cloche | s'écarter des marques | 1-3 |
+| Plat ventre (`belly_flop`) | 1,0 s : ombre qui grossit sous la cible | s'écarter ; intouchable en l'air | 1-3 |
+| **Grand Ménage** (`big_cleanup`, spéciale) | **2,0 s** : 3 quarts se remplissent, le quart sûr brille « ✨ SAFE ✨ » | aller dans le quart sûr ; en phase 3, 2e balayage (autre quart) ; finit **étourdi 3,5 s** (dégâts ×1,5) | 2-3 |
+
+Phases : **grognon** 100-60 % (pause 1,6 s entre attaques) · **fâché** 60-25 % (1,3 s, spéciale à l'entrée puis
+toutes les 4 attaques) · **rouge comme une tomate** < 25 % (1,0 s, spéciale toutes les 3). Changement de phase :
+2,2 s de réaction (intouchable). Plus de joueurs = plus de flaques et de moutons (+1 par joueur, max +3).
+
+### Combat
+- **4 cœurs** par joueur, 1,5 s d'invincibilité après un coup, recul + 0,35 s d'étourdissement visuel ;
+  0 cœur = KO, retour au plateau (toujours éligible s'il a assez contribué). Mort (reset) = comme un KO.
+- **Frappe** : `BossStrike` sans argument ; portée 10 studs depuis le corps du boss, recharge 0,4 s, 10 dégâts ;
+  arène uniquement. Contrôles : clic gauche / E (PC), X (manette), gros bouton rond FRAPPE (mobile).
+- Capacités dans l'arène : **Dash, Blink, Bouclier, Phase** seulement ; aucune capacité ne touche un autre
+  combattant ni ne traverse la frontière (`Common.canAffect`).
+- Fin : PV à 0 = victoire ; 3:30 = défaite « temps écoulé » ; plus aucun combattant = défaite « balayés » (KO)
+  ou « abandon » (sortis / déconnectés).
+
+### Power
+- **Power record** : porte d'entrée (25, un nouveau joueur avec quelques reliques) ; **Power recommandé 150**
+  affiché face à ton Power actuel (vert / jaune / rouge).
+- **Power actuel** : bonus linéaire de Frappe **contre les boss uniquement**, plafonné à **+25 %** (atteint à 1 500).
+  Rien dans le PvP ne lit ce bonus. Un débutant seul peut gagner : 150 frappes ≈ 60 s de frappe sur 210 s.
+
+### Récompenses (`Config/Bosses` → `loot`, tirées par le serveur, individuellement)
+| Récompense | Probabilité exacte (par joueur éligible) | Détail |
+|---|---|---|
+| Essence | 100 % | 5 min de **ta** production (minimum 250) |
+| Éclats du Néant | 100 % | ×3 à 6 |
+| Catalyseur du Néant | 15 % | ×1 (rare) |
+| Relique exclusive **Plumeau du Néant** (Légendaire) | 8 % | sur un socle de trophée ; doublon = +1 niveau ; au niveau max = +8 Éclats |
+| Traînée exclusive **Bulles de savon** (Épique) | 5 % | doublon = +5 Éclats |
+
+Éligibilité : avoir infligé ≥ **20 % d'une part équitable** des PV, être encore sur le serveur, ni AFK, ni parti,
+ni retiré pour exploit. Anti-double récompense : l'id du combat payé est stocké dans le Codex (`lastFight`) et la
+sauvegarde est lancée immédiatement. Les probabilités affichées viennent de la même table que le tirage.
+
+### Trophées (`Services/TrophyService`)
+3 socles par Sanctuaire derrière le Noyau, débloqués par le **Power record** (0 / 400 / 900). Une relique de boss
+n'a **aucune invite** (état `Trophy`) : impossible à voler, ramasser, porter ou dissoudre ; elle produit et compte
+dans le Power comme une relique exposée ; elle part avec son propriétaire et revient à la reconnexion.
+Les reliques de boss n'apparaissent **jamais** dans la Faille (`bossOnly`, exclues de `Rolls`).
+
+### Boss Codex et matériaux
+Codex extensible (une carte par boss de `Config/Bosses`) : découvert (sinon silhouette « ??? »), tentatives,
+victoires, meilleur temps, trouvailles rares. Matériaux (`Config/Materials`) : Éclats et Catalyseur du Néant,
+stockés pour la **Forge** (non développée) ; recettes prévues documentées (`Materials.PlannedRecipes` :
+30 Éclats → Plumeau garanti ; 1 Catalyseur + 10 Éclats → +1 niveau). Les exigences de matériaux des capacités sont
+désormais vérifiées et débitées (aucune capacité n'en demande aujourd'hui).
+
+### Audio
+Attributs `MusicBoss = "VoidWarden"` et `MusicBossPhase = 1..3` posés par le serveur pendant le combat :
+`MusicDirector` passe en état **Boss** (priorité maximale). Aucun ID musical approprié n'existe : les emplacements
+`Boss.VoidWarden.1-3`, `Stinger.BossIntro/Victory/Defeat` restent **vides** → mécanisme de repli existant (la musique
+inférieure continue, stingers silencieux). Les briefs de ces emplacements ont été réécrits dans le ton cartoon.
+
+### Données (schéma 5)
+`bosses` (Codex), `materials`, `trophies` ; migration 4 → 5 sans perte ; assainissement (boss / ids de butin
+inconnus, victoires ≤ tentatives, matériaux entiers et bornés, une seule relique de boss par trophée, aucune
+relique de boss sur un piédestal normal). Sync froid : `bosses` (sans `lastFight`), `materials`, `trophies`.
+
+### Écarts au plan (et pourquoi)
+1. **Arène « céleste »** → arène flottante cartoon « placard du concierge du Néant », dans la même place (pas de
+   TeleportService) : plus simple, aucun temps de chargement, et l'éloignement suffit à isoler le PvP.
+2. **Tests existants modifiés (justifiés)** : `V2Cosmetics` attendait 26 cosmétiques tous automatiques, le schéma 4
+   et `CosmeticService` utilisé seulement par le bootstrap et les commandes Studio. La phase 6 ajoute exactement
+   un cosmétique de source `boss` donné uniquement par `BossService`, et passe au schéma 5 : les vérifications
+   comparent désormais au schéma courant et autorisent `BossService` ; tout le reste est inchangé.
+3. **Pas d'animation de personnage pour la Frappe** (aucun Animation ID n'est inventé) : un « swoosh » blanc devant
+   le joueur + « POW! » sur le boss.
+4. **Barre « Boss »** ajoutée sous la grille 2×2 du menu (la grille reste à 4 boutons) ; elle ouvre la carte du
+   boss, d'où l'on ouvre le Codex.
+
+### Tests (phase 6)
+`tests/scenarios/V2Bosses.luau` : **+260 vérifications, 1355 au total, 0 échec, 0 erreur d'exécution** :
+catalogue et formules, schéma 5, cycle du portail, règles d'entrée, protection + isolation PvP, salle d'attente et
+mise à l'échelle, Frappe (portée, recharge, spam, payloads falsifiés, en l'air, bouclier de phase), chaque attaque
+télégraphiée puis ne touchant que ceux qui restent (anneau / saut, flaques / ralentissement, quarts sûrs),
+cœurs / KO / mort / défaite, victoire solo (phases, musique, toutes les récompenses, trophée non volable,
+sauvegarde immédiate, jamais deux fois, doublons), victoire en coopération (récompenses individuelles, seuil de
+contribution), AFK, hors limites, téléportation, intrus, déconnexion, temps écoulé, socles et reconnexion,
+`MovementGuard`, nettoyage complet, interface client (carte avec probabilités exactes, invite, ENTRER, barre du
+HUD, Codex, panneau). `ONLY=bosses lune run tests/run.luau` pour itérer (≈ 40 s).
+
+### Limites connues
+- Le corps du boss est un assemblage de primitives (pas de modèle sculpté ni d'animation Roblox) ; voir
+  ART_DIRECTION §14 pour les vrais assets à prévoir (mesh, animations, musiques, SFX cartoon).
+- Positions des joueurs : Roblox laisse la physique du personnage au client ; le serveur juge les coups sur sa
+  propre vue (réplication ≈ 100 ms) : télégraphes généreux et 1,5 s d'invincibilité compensent la latence.
+- Saut au-dessus de l'anneau : jugé sur la hauteur du personnage au passage du front d'onde (échantillon 20 Hz).
+- La Forge, les autres boss et les récompenses quotidiennes ne sont pas commencés.
+
+### À vérifier dans Roblox Studio (phase 6)
+1. `/rh boss open` puis marcher jusqu'au portail : panneau + barre « Boss » (compte à rebours), invite **E** / **X**
+   / toucher, carte du boss (modèle 3D, pourcentages exacts, Power), **ENTRER !** grisé loin du portail.
+2. Entrer avec une relique en main (refus), puis sans ; salle d'attente, **Prêt !** (2 clients avec *Test →
+   Clients and Servers*).
+3. Combat (PC, manette, téléphone) : lisibilité des 5 attaques, saut au-dessus de l'anneau, quart sûr, cœurs,
+   « POW! », étoiles, bouton FRAPPE sur mobile, Dash/Blink dans l'arène, Repousser refusé.
+4. Phases : réaction, couleur rouge en phase 3, bannière « ÉTOURDI ! », musique (repli silencieux attendu).
+5. Victoire (`/rh boss win`, attendre sa réaction de 2 s, puis une frappe) : il s'enfuit en boudant, confettis, carte de récompenses, trophée sur
+   le socle (personne ne peut le voler), Codex mis à jour ; défaite (KO / temps / abandon).
+6. Pendant une expédition, un 2ᵉ joueur tente de voler le Sanctuaire du combattant : « affronte un boss ».
+7. Déconnexion / reset en plein combat ; publication puis vérification de la sauvegarde (Codex, Éclats, trophée).
+8. Performance : MicroProfiler pendant le Grand Ménage à 8 joueurs ; Qualité Basse sur téléphone.

@@ -206,6 +206,7 @@ local function nextState(self)
 end
 
 local RandomLib = {}
+Engine.Random = RandomLib
 local seedCounter = 12345
 function RandomLib.new(seed)
 	seedCounter += 7919

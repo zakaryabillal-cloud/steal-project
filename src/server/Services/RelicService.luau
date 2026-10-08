@@ -8,6 +8,8 @@
 --   Rift    floating at a Rift spawn spot, claimable
 --   Carried following a player (CarrierId), possibly stolen (StolenFrom)
 --   Placed  on a Sanctuary pedestal (OwnerId, Plot, Slot)
+--   Trophy  boss relic on a trophy pedestal (OwnerId, Plot, Slot = socle);
+--           no prompt at all: it can never be stolen, grabbed or dissolved
 --   Dropped knocked loose in the world, grabbable for a short time
 
 local HttpService = game:GetService("HttpService")
@@ -233,6 +235,19 @@ function RelicService.toPlaced(entity: Entity, ownerId: number, plot: number, sl
 	publish(entity)
 end
 
+-- Boss relic on a trophy pedestal (V2 phase 6): no prompts, never stealable.
+function RelicService.toTrophy(entity: Entity, ownerId: number, plot: number, socle: number, position: Vector3)
+	entity.state = "Trophy"
+	entity.ownerId = ownerId
+	entity.carrierId, entity.stolenFrom, entity.stolenAt, entity.returnSlot = nil, nil, nil, nil
+	entity.plot = plot
+	entity.slot = socle
+	entity.spot = nil
+	entity.expiresAt = nil
+	entity.anchor.CFrame = CFrame.new(position)
+	publish(entity)
+end
+
 function RelicService.toDropped(entity: Entity, position: Vector3, expiresAt: number)
 	entity.state = "Dropped"
 	entity.carrierId = nil
@@ -286,6 +301,16 @@ function RelicService.count(state: string): number
 		end
 	end
 	return n
+end
+
+function RelicService.trophiesOf(userId: number): { Entity }
+	local list = {}
+	for _, entity in entities do
+		if entity.state == "Trophy" and entity.ownerId == userId then
+			table.insert(list, entity)
+		end
+	end
+	return list
 end
 
 function RelicService.placedBy(userId: number): { Entity }

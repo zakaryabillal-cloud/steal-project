@@ -3,7 +3,7 @@
 -- Config/Rarities and Config/Mutations; formulas live in Shared/Economy.
 
 local GameConfig = {
-	Version = "2.0.0-phase5.5",
+	Version = "2.0.0-phase6",
 
 	Player = {
 		BaseWalkSpeed = 20,
@@ -232,8 +232,9 @@ local GameConfig = {
 		StoreName = "RiftHeist_Player_v1",
 		-- Bump together with a MIGRATIONS entry in Server/Core/DataSchema.
 		-- History: 1 = launch (V1), 2 = abilities loadout + Power record (V2 phase 1),
-		-- 3 = harmony toggles (V2 phase 4), 4 = cosmetics inventory (V2 phase 5).
-		SchemaVersion = 4,
+		-- 3 = harmony toggles (V2 phase 4), 4 = cosmetics inventory (V2 phase 5),
+		-- 5 = boss Codex + materials + trophy pedestals (V2 phase 6).
+		SchemaVersion = 5,
 		AutosaveInterval = 90,
 		MaxRetries = 5,
 		-- A session lock older than this is considered abandoned (crashed server).

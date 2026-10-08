@@ -31,6 +31,8 @@ local StealService = require(Services.StealService)
 local StatusService = require(Services.StatusService)
 local AbilityService = require(Services.AbilityService)
 local CosmeticService = require(Services.CosmeticService)
+local TrophyService = require(Services.TrophyService)
+local BossService = require(Services.BossService)
 local UpgradeService = require(Services.UpgradeService)
 local TutorialService = require(Services.TutorialService)
 local MovementGuard = require(Services.MovementGuard)
@@ -56,6 +58,7 @@ CarryService.start()
 StealService.start()
 AbilityService.start()
 CosmeticService.start()
+BossService.start()
 UpgradeService.start()
 MovementGuard.start()
 DevCommands.start()
@@ -134,6 +137,8 @@ local function restoreCollection(session: Session)
 		PlotService.setSlot(plot, saved.slot, entity.uid, entity.rarity)
 	end
 	PlotService.refreshPedestals(plot)
+	-- Boss relics on their trophy pedestals (never stealable).
+	TrophyService.restore(session)
 end
 
 local function makeLeaderstats(session: Session)
@@ -224,9 +229,12 @@ local function onPlayerRemoving(player: Player)
 	activeSaves += 1
 
 	local ok, err = pcall(function()
-		-- Traps, decoys, flights... first: nothing may outlive the player.
+		-- Boss expedition first (the fight goes on without them, no reward),
+		-- then traps, decoys, flights...: nothing may outlive the player.
+		BossService.onLeave(session)
 		AbilityService.release(session)
 		CarryService.onLeave(session)
+		TrophyService.release(session)
 	end)
 	if not ok then
 		warn("[RiftHeist] Leave cleanup failed for", player.Name, err)

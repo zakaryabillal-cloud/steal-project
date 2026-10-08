@@ -822,7 +822,7 @@ require("./scenarios/V2Foundations")({
 })
 
 -- V2 phase 2: World V2 (budgets, routes, caves, pads, landmarks, V1 core).
-require("./scenarios/V2World")({
+;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2World"))({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -836,7 +836,7 @@ require("./scenarios/V2World")({
 })
 
 -- V2 phase 3: dynamic audio (music states, crossfades, director).
-require("./scenarios/V2Audio")({
+;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2Audio"))({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -856,7 +856,7 @@ require("./scenarios/V2Audio")({
 
 -- V2 phase 4: abilities (catalogue, unlocks, loadout, every ability, harmonies,
 -- security, cleanup, two-player chases).
-require("./scenarios/V2Abilities")({
+;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2Abilities"))({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -885,7 +885,7 @@ require("./scenarios/V2Abilities")({
 
 -- V2 phase 5: cosmetics (catalogue, schema 4, server authority, unlocks, no
 -- gameplay effect, rendering budgets, Cosmetics screen).
-require("./scenarios/V2Cosmetics")({
+;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2Cosmetics"))({
 	scenario = scenario,
 	check = check,
 	advance = advance,
@@ -914,7 +914,36 @@ require("./scenarios/V2Cosmetics")({
 
 -- V2 phase 5.5: cartoon & goofy art direction (tokens, emoji policy, sunny
 -- world, Rift face, relic faces, chunky UI, reward juice).
-require("./scenarios/V2ArtDirection")({
+;(if process.env.ONLY == "bosses" then function(_) end else require("./scenarios/V2ArtDirection"))({
+	scenario = scenario,
+	check = check,
+	advance = advance,
+	waitFor = waitFor,
+	sreq = sreq,
+	shared = shared,
+	remote = remote,
+	Engine = Engine,
+	Loader = Loader,
+	game = game,
+	sessionOf = sessionOf,
+	teleport = teleport,
+	insideOwnPlot = insideOwnPlot,
+	plotCenter = plotCenter,
+	hasNotification = hasNotification,
+	clearLog = clearLog,
+	prompt = prompt,
+	claimRelic = claimRelic,
+	alice = function()
+		return alice
+	end,
+	bob = function()
+		return bob
+	end,
+})
+
+-- V2 phase 6: first boss (Void Warden): portal, arena, combat, loot, Codex,
+-- trophies, security, multiplayer, cleanup, client UI.
+require("./scenarios/V2Bosses")({
 	scenario = scenario,
 	check = check,
 	advance = advance,

@@ -46,6 +46,18 @@ export type State = {
 	harmonyOff: { [string]: boolean },
 	-- Cosmetics (cold): owned set and equipped id per category.
 	cosmetics: { owned: { [string]: boolean }, equipped: { [string]: string } },
+	-- Phase 6 (cold): boss Codex, materials, trophy pedestals.
+	bosses: { [string]: CodexEntry },
+	materials: { [string]: number },
+	trophies: { { id: string, level: number, slot: number } },
+}
+
+export type CodexEntry = {
+	discovered: boolean,
+	attempts: number,
+	wins: number,
+	bestTime: number,
+	rare: { [string]: number },
 }
 
 export type StatusView = {
@@ -85,6 +97,9 @@ Store.state = {
 	harmonies = {},
 	harmonyOff = {},
 	cosmetics = { owned = Cosmetics.starters(), equipped = {} },
+	bosses = {},
+	materials = {},
+	trophies = {},
 } :: State
 
 Store.ready = false

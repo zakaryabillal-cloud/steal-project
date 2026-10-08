@@ -85,6 +85,24 @@ function Layout.rampFoot(plot: number): Vector3
 	return (Layout.plotCFrame(plot) * CFrame.new(0, -Layout.PlatformHeight, -(Layout.PlatformRadius + Layout.RampLength))).Position
 end
 
+-- Trophy pedestals (V2 phase 6): boss relics, behind the Core, facing the
+-- gate. phi is measured from the back (+Z) of the Sanctuary.
+Layout.TrophyAngles = { 0, -40, 40 }
+Layout.TrophyRadius = 11.5
+Layout.TrophyHeight = 1.9
+
+function Layout.trophyLocal(slot: number): CFrame
+	local angle = math.rad(Layout.TrophyAngles[slot] or 0)
+	local position = Vector3.new(math.sin(angle) * Layout.TrophyRadius, 0, math.cos(angle) * Layout.TrophyRadius)
+	return CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+end
+
+-- World position a boss relic hovers at above its trophy pedestal.
+function Layout.trophyPosition(plot: number, slot: number): Vector3
+	local cf = Layout.plotCFrame(plot) * Layout.trophyLocal(slot)
+	return cf.Position + Vector3.new(0, Layout.TrophyHeight + Layout.RelicHover, 0)
+end
+
 function Layout.spawnCFrame(plot: number): CFrame
 	return Layout.plotCFrame(plot) * CFrame.new(0, 3, -12)
 end

@@ -50,6 +50,8 @@ local ACTION_COLORS = {
 	Recover = Color3.fromRGB(80, 225, 190),
 	Steal = Color3.fromRGB(255, 84, 96),
 	Inspect = Color3.fromRGB(70, 170, 255),
+	-- Boss portal (V2 phase 6): the Void Warden's purple.
+	Boss = Color3.fromRGB(176, 110, 255),
 }
 
 local PROTECTION_KEYS = {
@@ -57,6 +59,7 @@ local PROTECTION_KEYS = {
 	Aegis = "block.aegis",
 	Sealed = "block.sealed",
 	Resting = "block.resting",
+	Expedition = "block.expedition",
 	LastRelics = "block.lastRelics",
 }
 
@@ -223,14 +226,21 @@ local function buildCard(prompt: ProximityPrompt, inputType: Enum.ProximityPromp
 		Parent = panel,
 	})
 	Style.ink(actionLabel, 2.5)
-	local title = Locale.relicTitle(relicId, if mutationId == "" then nil else mutationId)
-	local mutation = Mutations.get(mutationId)
-	local titleColor = if mutation then mutation.color:Lerp(rarity.color, 0.3) else rarity.color
 	local detail: string
-	if action == "Steal" or action == "Inspect" then
+	if action == "Boss" then
+		-- Boss portal: which boss, and whether it is open right now.
+		local plateau = anchor.Parent
+		local bossId = if plateau then attrString(plateau, "PortalBoss") else ""
+		local state = if plateau then attrString(plateau, "PortalState") else ""
+		detail = string.format("%s  ·  %s", Locale.t("boss." .. bossId .. ".name"), Locale.t("boss.portal." .. string.lower(if state == "" then "dormant" else state)))
+	elseif action == "Steal" or action == "Inspect" then
+		local title = Locale.relicTitle(relicId, if mutationId == "" then nil else mutationId)
 		local rate = Economy.relicBaseRate(relicId, level, if mutationId == "" then nil else mutationId)
 		detail = string.format("%s  %s  +%s/s", title, Style.colored(string.rep("★", level), Style.Colors.Gold), Format.abbrev(rate))
 	else
+		local title = Locale.relicTitle(relicId, if mutationId == "" then nil else mutationId)
+		local mutation = Mutations.get(mutationId)
+		local titleColor = if mutation then mutation.color:Lerp(rarity.color, 0.3) else rarity.color
 		detail = string.format("%s  %s", title, Style.colored(Style.stars(rarity.id), titleColor:Lerp(Color3.new(1, 1, 1), 0.2)))
 	end
 	local detailLabel = Style.text({
@@ -407,6 +417,18 @@ function Prompts.init()
 	for _, descendant in relics:GetDescendants() do
 		track(descendant)
 	end
+	-- Boss portal prompt (V2 phase 6) on the Boss Plateau.
+	task.spawn(function()
+		local world = workspace:WaitForChild("World", 30)
+		local landmarks = world and world:WaitForChild("Landmarks", 30)
+		local plateau = landmarks and landmarks:WaitForChild("BossPlateau", 30)
+		if plateau then
+			plateau.DescendantAdded:Connect(track)
+			for _, descendant in plateau:GetDescendants() do
+				track(descendant)
+			end
+		end
+	end)
 
 	ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 		if prompt.Style == Enum.ProximityPromptStyle.Custom and tracked[prompt] then

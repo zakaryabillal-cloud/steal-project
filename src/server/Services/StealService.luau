@@ -83,6 +83,8 @@ function StealService.check(thief: Session, entity: Entity): (boolean, string?, 
 		return false, "block.sealed", nil
 	elseif kind == "Aegis" then
 		return false, "block.aegis", { time = (untilTime or now()) - now() }
+	elseif kind == "Expedition" then
+		return false, "block.expedition", nil
 	elseif kind == "Novice" then
 		return false, "block.novice", nil
 	elseif kind == "Resting" then

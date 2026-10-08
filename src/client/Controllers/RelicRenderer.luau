@@ -15,6 +15,7 @@ local Factory = require(Shared.Relics.RelicFactory)
 local Rarities = require(Shared.Config.Rarities)
 local Mutations = require(Shared.Config.Mutations)
 local GameConfig = require(Shared.Config.GameConfig)
+local Emoji = require(Shared.Config.Emoji)
 local Layout = require(Shared.Layout)
 local Locale = require(Shared.Locale)
 local Format = require(Shared.Util.Format)
@@ -146,10 +147,14 @@ end
 
 local function labelSubtitle(record: Record): string
 	local rarityName = Locale.rarity(record.rarity.id)
-	if record.state == "Placed" then
+	if record.state == "Placed" or record.state == "Trophy" then
 		local rate = Economy.relicBaseRate(record.relicId, record.level, record.mutation)
 		if attrNumber(record.anchor, "OwnerId") == localPlayer.UserId then
 			rate *= Store.state.multiplier
+		end
+		if record.state == "Trophy" then
+			-- Boss relic on a trophy pedestal (never stealable).
+			return string.format("%s %s  ·  %s  ·  +%s/s", Emoji.get("trophy"), string.upper(Locale.t("trophy.label")), Format.stars(record.level, GameConfig.Economy.MaxRelicLevel), Format.abbrev(rate))
 		end
 		return string.format("%s  ·  %s  ·  +%s/s", string.upper(rarityName), Format.stars(record.level, GameConfig.Economy.MaxRelicLevel), Format.abbrev(rate))
 	end
@@ -751,7 +756,7 @@ local function step(dt: number)
 
 		-- Labels
 		if refreshLabels then
-			local labelRange = if record.state == "Placed" then 26 elseif record.state == "Carried" then 0 else 70
+			local labelRange = if record.state == "Placed" or record.state == "Trophy" then 26 elseif record.state == "Carried" then 0 else 70
 			local show = distance < labelRange
 			if show then
 				ensureLabel(record)

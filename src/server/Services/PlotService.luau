@@ -16,6 +16,7 @@ local Signal = require(Shared.Util.Signal)
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
+local Expeditions = require(Core.Expeditions)
 local Remotes = require(Core.Remotes)
 local Scheduler = require(Core.Scheduler)
 local SanctuaryBuilder = require(script.Parent.Parent.World.SanctuaryBuilder)
@@ -337,7 +338,9 @@ end
 ----------------------------------------------------------------------------
 
 -- Why this Sanctuary cannot be robbed right now, if any.
--- Returns (kind, untilTime?) with kind in Sealed | Aegis | Novice | Resting | LastRelics.
+-- Returns (kind, untilTime?) with kind in Sealed | Aegis | Expedition | Novice | Resting | LastRelics.
+-- Expedition (V2 phase 6): the owner is fighting a boss right now (only while
+-- participating: it ends with the exit, a KO, a death or the end of the fight).
 function PlotService.protection(plot: Plot): (string?, number?)
 	local owner = plot.owner
 	if not owner then
@@ -349,6 +352,9 @@ function PlotService.protection(plot: Plot): (string?, number?)
 	end
 	if plot.aegisUntil > t then
 		return "Aegis", plot.aegisUntil
+	end
+	if Expeditions.isAway(owner) then
+		return "Expedition", nil
 	end
 	local playTime = Sessions.playTime(owner)
 	if playTime < GameConfig.Steal.NoviceSeconds then

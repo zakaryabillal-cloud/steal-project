@@ -15,6 +15,9 @@ export type RelicDef = {
 	spawnWeight: number,
 	-- Only spawns while this event is active (see Config/Events).
 	eventOnly: string?,
+	-- Boss-exclusive relic (V2 phase 6): never spawns in the Rift, only
+	-- dropped by this boss and kept on non-stealable trophy pedestals.
+	bossOnly: string?,
 	primary: Color3,
 	secondary: Color3,
 	glow: Color3,
@@ -241,6 +244,20 @@ local list: { RelicDef } = {
 		glow = Color3.fromRGB(255, 170, 80),
 		dexIndex = 0,
 	},
+	-- Boss relics (V2 phase 6) ----------------------------------------------
+	{
+		-- The Void Warden's favourite feather duster (he wants it back).
+		id = "void_duster",
+		rarity = "Legendary",
+		shape = "VoidDuster",
+		rateFactor = 1.1,
+		spawnWeight = 0,
+		bossOnly = "VoidWarden",
+		primary = Color3.fromRGB(255, 150, 220),
+		secondary = Color3.fromRGB(150, 96, 255),
+		glow = Color3.fromRGB(255, 220, 120),
+		dexIndex = 0,
+	},
 }
 
 local byId: { [string]: RelicDef } = {}
@@ -248,6 +265,7 @@ local byRarity: { [string]: { RelicDef } } = {}
 for index, def in list do
 	def.dexIndex = index
 	assert(byId[def.id] == nil, "Duplicate relic id " .. def.id)
+	assert(def.bossOnly == nil or def.spawnWeight == 0, "boss relic " .. def.id .. " must never spawn in the Rift")
 	byId[def.id] = def
 	local bucket = byRarity[def.rarity]
 	if not bucket then

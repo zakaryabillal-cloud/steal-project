@@ -162,9 +162,9 @@ Music.Tracks = {
 	--------------------------------------------------------------------------
 	["Boss.Default.1"] = loop(0.7, "Generic boss fight: epic, rhythmic, readable (telegraphs must stay audible).", "120-140 BPM", "1.5-3 min loop", "Any boss without its own music."),
 	["Boss.Default.2"] = loop(0.72, "Generic boss, final phase: more intense layer of Boss.Default.1.", "same as phase 1", "1.5-3 min loop", "Any boss in its last phase."),
-	["Boss.VoidWarden.1"] = loop(0.7, "VOID WARDEN: dark, heavy, pulsating void synths and taiko.", "110-125 BPM", "2-3 min loop", "Void Warden, phase 1 (100-50 % HP)."),
-	["Boss.VoidWarden.2"] = loop(0.72, "VOID WARDEN collapsing arena: faster, distorted, alarm-like.", "125-140 BPM", "1.5-2 min loop", "Void Warden, phase 2 (50-20 % HP, platforms fall)."),
-	["Boss.VoidWarden.3"] = loop(0.75, "VOID WARDEN enraged: maximum intensity.", "140+ BPM", "1-2 min loop", "Void Warden, enrage (< 20 % HP)."),
+	["Boss.VoidWarden.1"] = loop(0.7, "VOID WARDEN (Cartoon & Goofy): bouncy grumpy-janitor march, tuba + pizzicato + bubbly synths, never scary.", "110-125 BPM", "2-3 min loop", "Void Warden, phase 1 'grumpy' (100-60 % HP)."),
+	["Boss.VoidWarden.2"] = loop(0.72, "VOID WARDEN angry: same theme faster, comic brass stabs, slide whistles.", "125-140 BPM", "1.5-2 min loop", "Void Warden, phase 2 'angry' (60-25 % HP, Big Cleanup special)."),
+	["Boss.VoidWarden.3"] = loop(0.75, "VOID WARDEN red as a tomato: frantic cartoon chase version, still playful.", "140+ BPM", "1-2 min loop", "Void Warden, phase 3 'furious' (< 25 % HP)."),
 	["Boss.Forgeheart.1"] = loop(0.7, "FORGEHEART: industrial, anvils, slow heavy groove, brass.", "90-105 BPM", "2-3 min loop", "Forgeheart, phase 1."),
 	["Boss.Forgeheart.2"] = loop(0.72, "FORGEHEART with rising lava: urgent percussion, choir.", "110-125 BPM", "1.5-2 min loop", "Forgeheart, phase 2 (lava rises)."),
 	["Boss.TempestSeraph.1"] = loop(0.7, "TEMPEST SERAPH: airy, fast strings, wind, soaring melody.", "140-160 BPM", "2-3 min loop", "Tempest Seraph, phase 1."),

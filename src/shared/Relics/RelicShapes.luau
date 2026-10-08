@@ -823,4 +823,42 @@ Shapes.EclipseSigil = function(ctx: Ctx)
 	})
 end
 
+-- Legendary (boss relic, V2 phase 6): the Void Warden's favourite feather
+-- duster. A stubby handle, a gold band and a big fluffy puff that wiggles.
+Shapes.VoidDuster = function(ctx: Ctx)
+	local def = ctx.def
+	local tilt = CFrame.Angles(0, 0, rad(-12))
+	ctx:part({ kind = "VCylinder", size = Vector3.new(0.36, 1.7, 0.36), cf = tilt * CFrame.new(0, -0.75, 0), color = def.secondary, role = "body", name = "Handle" })
+	ctx:part({ kind = "Ball", size = Vector3.one * 0.5, cf = tilt * CFrame.new(0, -1.62, 0), color = def.glow, material = M.Neon, role = "glow", name = "Knob" })
+	ctx:part({ kind = "VCylinder", size = Vector3.new(0.6, 0.26, 0.6), cf = tilt * CFrame.new(0, 0.12, 0), color = Color3.fromRGB(255, 214, 72), role = "body", name = "Band" })
+	ctx:part({ kind = "Ellipsoid", size = Vector3.new(1.75, 1.45, 1.6), cf = tilt * CFrame.new(0, 0.95, 0), color = def.primary, role = "body", name = "Puff" })
+	local feathers = {}
+	for i = 0, 5 do
+		local a = i * 60
+		local part = ctx:part({ kind = "Ellipsoid", size = Vector3.new(0.9, 0.42, 0.55), color = if i % 2 == 0 then def.primary else Color3.fromRGB(255, 196, 236), role = "body" })
+		table.insert(feathers, { part = part, angle = rad(a), phase = i * 0.9 })
+	end
+	ctx:part({ kind = "Ellipsoid", size = Vector3.new(0.7, 0.55, 0.6), cf = tilt * CFrame.new(0, 1.68, 0.1), color = Color3.fromRGB(255, 196, 236), role = "body", name = "Tuft" })
+
+	ctx:animate(function(env: Env)
+		local t = env.time
+		for _, f in feathers do
+			local wiggle = math.sin(t * 3.2 + f.phase) * rad(10)
+			ctx:move(f.part, tilt * CFrame.new(0, 1.0, 0) * CFrame.Angles(0, f.angle, 0) * CFrame.new(0.78, 0.05, 0) * CFrame.Angles(0, 0, rad(18) + wiggle))
+		end
+	end)
+
+	ctx:emitter({
+		texture = TEX.sparkle,
+		color = ColorSequence.new(Color3.fromRGB(255, 255, 255), def.glow),
+		rate = 5,
+		lifetime = NumberRange.new(0.8, 1.4),
+		speed = NumberRange.new(0.4, 0.9),
+		size = 0.16,
+		spread = 180,
+		acceleration = Vector3.new(0, -0.3, 0),
+		essential = true,
+	})
+end
+
 return Shapes

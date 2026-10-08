@@ -17,6 +17,7 @@ local Abilities = require(Shared.Config.Abilities)
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
+local Expeditions = require(Core.Expeditions)
 local Services = script.Parent.Parent.Services
 local PlotService = require(Services.PlotService)
 local StatusService = require(Services.StatusService)
@@ -156,12 +157,18 @@ end
 
 export type Target = { session: Session, root: BasePart, offset: Vector3 }
 
+-- May an effect of `caster` touch `target`? Never across (or inside) a boss
+-- expedition: PvP stays on the island (Core/Expeditions).
+function Common.canAffect(caster: Session, target: Session): boolean
+	return caster ~= target and Expeditions.canAffect(caster, target)
+end
+
 -- Other live players within `radius` of `origin` (optionally in sight).
 function Common.targets(caster: Session, origin: Vector3, radius: number, needSight: boolean): { Target }
 	local list: { Target } = {}
 	local params = if needSight then Common.params(caster) else nil
 	for _, target in Sessions.all() do
-		if target == caster then
+		if not Common.canAffect(caster, target) then
 			continue
 		end
 		local root = Common.root(target)

@@ -98,7 +98,7 @@ function Dash.tick(now: number)
 		end
 		local a, b = trail.from, trail.to :: Vector3
 		for _, target in Sessions.all() do
-			if target == trail.owner or trail.hit[target] then
+			if trail.hit[target] or not Common.canAffect(trail.owner, target) then
 				continue
 			end
 			local root = Common.root(target)

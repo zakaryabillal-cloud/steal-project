@@ -191,7 +191,7 @@ Les étoiles de rareté utilisent le caractère texte `★` (pas un emoji) : 1 �
 - Couleurs des effets : saturées, lisibles de jour ; jamais d'effet sombre « gothique ».
 - Titres : police Fredoka, couleur du titre, contour encre.
 
-## 11. Boss (Phases 6-7) — direction, pas encore de système
+## 11. Boss (Phases 6-7) — Void Warden livré (Phase 6), les autres en Phase 7
 
 **Créatures géantes, rondes, expressives, un peu ridicules. Jamais de gore, de sang, de cadavre ni
 d'horreur.** La défaite d'un boss : étoiles qui tournent autour de la tête, « pouf » de confettis, il
@@ -209,10 +209,35 @@ d'avance (1,2 s pour les gros coups), anticipation exagérée du boss (squash av
 dédié. Une attaque = une forme = une couleur. Barres de vie : grosse pilule avec la tête du boss, pas de
 chiffres de dégâts rouges sanglants (étoiles et « POW! » à la place).
 
+### Void Warden tel qu'il est construit (Phase 6)
+
+- **Corps** (`Client/Boss/VoidWardenModel`, ~30 pièces natives, aucune mesh) : cube de gelée violet légèrement
+  translucide avec reflet, ventre lavande, **gros yeux** (blanc + pupille encre + éclat) qui suivent le joueur et
+  clignent, sourcils qui changent selon l'humeur, **grosse moustache**, bouche en 3 segments (moue, sourire,
+  bouche ouverte + langue), joues roses (rouges quand il est furieux), casquette de concierge bleue à bandeau
+  jaune, **gants blancs flottants**, baskets bleues, **balai géant** pivotant autour du gant droit.
+- **Humeurs** : endormi (Z z z, yeux fermés) → grognon (phase 1) → fâché (phase 2) → **rouge comme une tomate**
+  (phase 3, corps qui vire au rose-rouge) ; choqué au changement de phase ; étourdi (yeux en spirale, ★ qui
+  tournent) ; narquois s'il gagne ; vaincu : étourdi puis il **s'enfuit en boudant** en sautillant vers la porte
+  et disparaît dans un « pouf » de confettis.
+- **Poses** (squash & stretch) : anticipation avant chaque attaque (il se tasse, se penche en arrière, lève le
+  balai), tourbillon du coup de balai, étirement avant un SPLAT, lancer, saut ventre à terre.
+- **Attaques** (forme / couleur après l'impact) : anneau de poussière jaune-orangé (sauter) · disques
+  → flaques vertes collantes · moutons de poussière gris aux petits yeux, lancés en cloche · ombre violette du
+  plat ventre · quarts d'arène qui se remplissent puis vague bleue, le quart sûr vert brille avec « ✨ SAFE ✨ ».
+- **Arène** : disque pastel en cible, lignes des quarts, gros pare-chocs bonbon (on voit dehors, on ne tombe
+  jamais), seau géant plein de mousse, flacon de savon, éponges, serpillière, bulles qui flottent, porte de
+  placard qui brille.
+- **Retours** : « POW! / BAM! / BONK! / WHAM! / BOP! » en police Luckiest Guy (sans chiffres), étoiles, petit
+  coup de caméra ; « BONK! » au-dessus d'un joueur touché ; KO = « 💫 Balayé ! ».
+- **Interface** : barre « Boss » violette du HUD (compte à rebours permanent), carte « affiche de catch » avec le
+  boss en 3D sur fond de rayons, cœurs dessinés, gros bouton rond orange **FRAPPE** (💥), carte de résultats
+  (VICTOIRE ! / OUPS !) avec la tête du boss, Codex avec silhouette encre « ??? » tant qu'il est inconnu.
+
 ## 12. Interfaces des Phases 6 à 11
 
-- **Boss** : écran pré-combat = carte « affiche de catch » (portrait, nom, 3 icônes d'attaques, butin
-  possible avec ★ et pourcentages lisibles).
+- **Boss** (livré en Phase 6) : écran pré-combat = carte « affiche de catch » (boss en 3D, nom, rang,
+  difficulté ★, Power recommandé vs le tien, butin possible avec ★ et **pourcentages exacts**).
 - **Quotidien** : 7 cadeaux 🎁 en ligne, le jour actuel rebondit, réclamer = confettis + rayons.
 - **Boutique Robux (Phase 10)** : prix toujours visibles, aucun compte à rebours artificiel, aucune
   « boîte mystère » payante opaque, bouton d'achat vert identique partout, conforme aux règles Roblox

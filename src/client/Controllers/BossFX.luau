@@ -1,0 +1,937 @@
+--!strict
+-- Boss visuals (V2 phase 6), client only, Cartoon & Goofy
+-- (docs/ART_DIRECTION.md):
+--   * the Void Warden's body (Client/Boss/VoidWardenModel) follows the
+--     server anchor with squash & stretch, a face per mood and one readable
+--     pose per action (anticipation before every attack);
+--   * telegraphs: every attack draws its shape on the floor BEFORE it can
+--     hurt, filling yellow -> red with an ink outline (rings, discs,
+--     quarters), then a short impact effect in the attack's own colour;
+--   * juicy feedback: "POW!" + stars on our strikes, "BONK!" on hits, dizzy
+--     stars, confetti poof when he runs away sulking. No damage numbers;
+--   * the portal: a countdown board above the ring and a brighter membrane
+--     while it is open.
+-- Particle bursts follow Settings.particleScale (fewer on Low / mobile) and
+-- every instance created here is destroyed with its attack or the arena.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage.Shared
+local Bosses = require(Shared.Config.Bosses)
+local Emoji = require(Shared.Config.Emoji)
+local Locale = require(Shared.Locale)
+local Format = require(Shared.Util.Format)
+
+local Kit = script.Parent.Parent.UI.Kit
+local Create = require(Kit.Create)
+local Style = require(Kit.Style)
+local Tween = require(Kit.Tween)
+
+local Boss = require(script.Parent.Boss)
+local Settings = require(script.Parent.Settings)
+local Audio = require(script.Parent.Audio)
+local CameraFX = require(script.Parent.CameraFX)
+local CharacterFX = require(script.Parent.CharacterFX)
+local RelicRenderer = require(script.Parent.RelicRenderer)
+local VoidWardenModel = require(script.Parent.Parent.Boss.VoidWardenModel)
+
+local BossFX = {}
+
+local INK = Color3.fromRGB(30, 27, 75)
+local WARN = Color3.fromRGB(255, 220, 60)
+local DANGER = Color3.fromRGB(255, 70, 90)
+-- One attack = one colour (after impact).
+local ATTACK_COLORS: { [string]: Color3 } = {
+	broom_wave = Color3.fromRGB(255, 196, 90),
+	goo_puddles = Color3.fromRGB(120, 230, 110),
+	dust_bunnies = Color3.fromRGB(200, 200, 225),
+	belly_flop = Color3.fromRGB(176, 110, 255),
+	big_cleanup = Color3.fromRGB(90, 190, 255),
+}
+BossFX.AttackColors = ATTACK_COLORS
+local SAFE = Color3.fromRGB(110, 255, 170)
+local POWS = { "POW!", "BAM!", "BONK!", "WHAM!", "BOP!" }
+
+local localPlayer = Players.LocalPlayer
+local folder: Folder
+local rig: VoidWardenModel.Rig? = nil
+local rigAnchor: BasePart? = nil
+local rigPosition: Vector3? = nil
+local zzz: BillboardGui? = nil
+local dizzyStars: BillboardGui? = nil
+local wobble = 0
+local hopLand = 0
+local lastAttack: { [string]: any }? = nil
+
+type Visual = {
+	kind: string,
+	untilTime: number,
+	update: ((now: number, dt: number) -> boolean)?,
+	instances: { Instance },
+}
+local visuals: { Visual } = {}
+
+local function now(): number
+	return workspace:GetServerTimeNow()
+end
+
+local function floorY(): number
+	return Bosses.Arena.Center.Y + 0.12
+end
+
+local function particleScale(): number
+	return Settings.particleScale()
+end
+
+----------------------------------------------------------------------------
+-- Drawing helpers (local parts only)
+----------------------------------------------------------------------------
+
+local function newPart(props: { [string]: any }): Part
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Material = Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in props do
+		(part :: any)[key] = value
+	end
+	part.Parent = folder
+	return part
+end
+
+-- Flat disc lying on the floor (cylinder standing up).
+local function disc(center: Vector3, radius: number, color: Color3, transparency: number, y: number?): Part
+	return newPart({
+		Name = "Disc",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.12, radius * 2, radius * 2),
+		CFrame = CFrame.new(center.X, (y or floorY()), center.Z) * CFrame.Angles(0, 0, math.pi / 2),
+		Color = color,
+		Transparency = transparency,
+		Material = Enum.Material.Neon,
+	})
+end
+
+local function setDisc(part: BasePart, radius: number)
+	part.Size = Vector3.new(part.Size.X, math.max(0.05, radius * 2), math.max(0.05, radius * 2))
+end
+
+-- Ring of two curved beams (radius can change every frame).
+type Ring = { holder: Part, a0: Attachment, a1: Attachment, beams: { Beam } }
+local RING_K = 4 / 3
+local function ring(center: Vector3, radius: number, width: number, color: Color3, y: number?): Ring
+	local holder = newPart({ Name = "Ring", Size = Vector3.one * 0.2, Transparency = 1, CFrame = CFrame.new(center.X, y or floorY() + 0.2, center.Z) })
+	local a0 = Instance.new("Attachment")
+	local a1 = Instance.new("Attachment")
+	a0.Parent = holder
+	a1.Parent = holder
+	local beams = {}
+	for i = 1, 2 do
+		local beam = Instance.new("Beam")
+		beam.Attachment0 = a0
+		beam.Attachment1 = a1
+		beam.Width0 = width
+		beam.Width1 = width
+		beam.Color = ColorSequence.new(color)
+		beam.Transparency = NumberSequence.new(0.05)
+		beam.LightEmission = 0.6
+		beam.LightInfluence = 0
+		beam.FaceCamera = true
+		beam.Segments = 24
+		beam:SetAttribute("Side", i)
+		beam.Parent = holder
+		table.insert(beams, beam)
+	end
+	local r: Ring = { holder = holder, a0 = a0, a1 = a1, beams = beams }
+	return r
+end
+
+local function setRing(r: Ring, radius: number, color: Color3?)
+	local axis = Vector3.new(0, 0, 1)
+	local normal = Vector3.new(0, 1, 0)
+	r.a0.CFrame = CFrame.fromMatrix(Vector3.new(-radius, 0, 0), axis, normal)
+	r.a1.CFrame = CFrame.fromMatrix(Vector3.new(radius, 0, 0), axis, normal)
+	for i, beam in r.beams do
+		local k = RING_K * radius * (if i == 1 then 1 else -1)
+		beam.CurveSize0 = k
+		beam.CurveSize1 = -k
+		if color then
+			beam.Color = ColorSequence.new(color)
+		end
+	end
+end
+
+-- Flat triangle from two wedges (sector fill of the big special).
+local function triangle(a: Vector3, b: Vector3, c: Vector3, w1: WedgePart, w2: WedgePart)
+	local ab, ac, bc = b - a, c - a, c - b
+	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
+	if abd > acd and abd > bcd then
+		c, a = a, c
+	elseif acd > bcd and acd > abd then
+		a, b = b, a
+	end
+	ab, ac, bc = b - a, c - a, c - b
+	if ab.Magnitude < 1e-3 or ac.Magnitude < 1e-3 or bc.Magnitude < 1e-3 then
+		w1.Transparency, w2.Transparency = 1, 1
+		return
+	end
+	local right = ac:Cross(ab).Unit
+	local up = bc:Cross(right).Unit
+	local back = bc.Unit
+	local height = math.abs(ab:Dot(up))
+	w1.Size = Vector3.new(0.12, height, math.abs(ab:Dot(back)))
+	w1.CFrame = CFrame.fromMatrix((a + b) / 2, right, up, back)
+	w2.Size = Vector3.new(0.12, height, math.abs(ac:Dot(back)))
+	w2.CFrame = CFrame.fromMatrix((a + c) / 2, -right, up, -back)
+end
+
+local function wedge(color: Color3, transparency: number): WedgePart
+	local w = Instance.new("WedgePart")
+	w.Anchored = true
+	w.CanCollide = false
+	w.CanQuery = false
+	w.CanTouch = false
+	w.CastShadow = false
+	w.Material = Enum.Material.Neon
+	w.Color = color
+	w.Transparency = transparency
+	w.Parent = folder
+	return w
+end
+
+-- Short world billboard text ("POW!", "BONK!", "SAFE").
+local function shout(adornee: Instance?, position: Vector3?, text: string, color: Color3, size: number, duration: number)
+	local holder: Part? = nil
+	if not adornee and position then
+		holder = newPart({ Name = "ShoutAnchor", Size = Vector3.one * 0.2, Transparency = 1, CFrame = CFrame.new(position) })
+	end
+	local gui: BillboardGui = Create("BillboardGui", {
+		Name = "Shout",
+		Size = UDim2.fromOffset(220, 90),
+		StudsOffsetWorldSpace = Vector3.new(0, 2, 0),
+		AlwaysOnTop = true,
+		LightInfluence = 0,
+		Adornee = adornee or holder,
+		Parent = folder,
+	})
+	local label = Style.text({
+		Text = text,
+		TextSize = size,
+		FontFace = Style.burstFont(text),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = color,
+		Rotation = math.random(-12, 12),
+		Parent = gui,
+	})
+	Style.ink(label, 3)
+	local scale: UIScale = Create("UIScale", { Scale = 0.3, Parent = label })
+	Tween.play(scale, 0.18, { Scale = 1 }, Enum.EasingStyle.Back)
+	Tween.play(gui, duration, { StudsOffsetWorldSpace = Vector3.new(0, 5, 0) }, Enum.EasingStyle.Quad)
+	Tween.play(label, duration * 0.4, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In, duration * 0.6)
+	task.delay(duration + 0.1, function()
+		gui:Destroy()
+		if holder then
+			holder:Destroy()
+		end
+	end)
+end
+BossFX.shout = shout
+
+local function burst(position: Vector3, color: Color3, size: number)
+	if particleScale() <= 0 then
+		return
+	end
+	RelicRenderer.burst(position, color, size * math.max(0.5, particleScale()), nil)
+end
+
+local function addVisual(kind: string, untilTime: number, instances: { Instance }, update: ((number, number) -> boolean)?)
+	table.insert(visuals, { kind = kind, untilTime = untilTime, update = update, instances = instances })
+end
+
+local function clearVisuals()
+	for _, visual in visuals do
+		for _, instance in visual.instances do
+			instance:Destroy()
+		end
+	end
+	table.clear(visuals)
+end
+
+local function fillColor(k: number): Color3
+	return WARN:Lerp(DANGER, math.clamp(k, 0, 1))
+end
+
+-- Disc telegraph: ink outline + a fill growing yellow -> red until `hitAt`,
+-- then `onImpact`.
+local function discTelegraph(center: Vector3, radius: number, telegraphAt: number, hitAt: number, onImpact: (() -> ())?)
+	local outline = disc(center, radius + 0.45, INK, 0.25, floorY() - 0.02)
+	local back = disc(center, radius, WARN, 0.7, floorY())
+	local fill = disc(center, 0.1, WARN, 0.25, floorY() + 0.02)
+	local fired = false
+	addVisual("disc", hitAt + 0.05, { outline, back, fill }, function(t: number)
+		local k = math.clamp((t - telegraphAt) / math.max(0.05, hitAt - telegraphAt), 0, 1)
+		setDisc(fill, radius * k)
+		fill.Color = fillColor(k)
+		back.Color = fillColor(k)
+		if t >= hitAt and not fired then
+			fired = true
+			if onImpact then
+				onImpact()
+			end
+		end
+		return true
+	end)
+end
+
+----------------------------------------------------------------------------
+-- Attacks
+----------------------------------------------------------------------------
+
+local function broomWave(data: { [string]: any }, telegraphAt: number)
+	local origin = data.origin :: Vector3
+	local speed = data.speed :: number
+	local band = data.band :: number
+	local maxRadius = data.maxRadius :: number
+	for _, startAt in data.starts :: { number } do
+		-- Telegraph: a fat ring around him, filling yellow -> red.
+		local warnRing = ring(origin, 9, band + 1, WARN, floorY() + 0.25)
+		setRing(warnRing, 9)
+		local fill = disc(origin, 0.1, WARN, 0.3, floorY() + 0.02)
+		local wave = ring(origin, 0.1, band, ATTACK_COLORS.broom_wave, floorY() + 0.3)
+		local crest = ring(origin, 0.1, band * 0.6, Color3.new(1, 1, 1), floorY() + 1.8)
+		wave.holder.Parent = nil
+		crest.holder.Parent = nil
+		addVisual("wave", startAt + maxRadius / speed + 0.1, { warnRing.holder, fill, wave.holder, crest.holder }, function(t: number)
+			if t < startAt then
+				local k = math.clamp((t - telegraphAt) / math.max(0.05, startAt - telegraphAt), 0, 1)
+				setRing(warnRing, 9 + math.sin(t * 20) * 0.3, fillColor(k))
+				setDisc(fill, 9 * k)
+				fill.Color = fillColor(k)
+				return true
+			end
+			if warnRing.holder.Parent then
+				warnRing.holder.Parent = nil
+				fill.Parent = nil
+				wave.holder.Parent = folder
+				crest.holder.Parent = folder
+				CameraFX.shake(0.15)
+				Audio.playAt("Pulse", origin, { pitch = 0.7 })
+			end
+			local radius = (t - startAt) * speed
+			setRing(wave, math.max(0.1, radius))
+			setRing(crest, math.max(0.1, radius))
+			return radius <= maxRadius
+		end)
+	end
+end
+
+local function gooPuddles(data: { [string]: any }, telegraphAt: number)
+	local radius = data.radius :: number
+	local hitAt = data.hitAt :: number
+	local untilTime = data.untilTime :: number
+	for _, spot in data.spots :: { Vector3 } do
+		discTelegraph(spot, radius, telegraphAt, hitAt, function()
+			local goo = disc(spot, radius, ATTACK_COLORS.goo_puddles, 0.15, floorY() + 0.04)
+			goo.Material = Enum.Material.SmoothPlastic
+			local shine = disc(spot + Vector3.new(radius * 0.3, 0, -radius * 0.25), radius * 0.25, Color3.new(1, 1, 1), 0.4, floorY() + 0.07)
+			burst(spot + Vector3.new(0, 1, 0), ATTACK_COLORS.goo_puddles, 8)
+			Audio.playAt("Splash", spot, { pitch = 0.8 })
+			addVisual("goo", untilTime, { goo, shine }, function(t: number)
+				local left = untilTime - t
+				if left < 0.6 then
+					goo.Transparency = 1 - left / 0.6 * 0.85
+					shine.Transparency = 1 - left / 0.6 * 0.6
+				end
+				return true
+			end)
+		end)
+	end
+end
+
+local function bunny(position: Vector3): { Instance }
+	local body = newPart({ Name = "DustBunny", Shape = Enum.PartType.Ball, Size = Vector3.one * 2.6, Color = ATTACK_COLORS.dust_bunnies, CFrame = CFrame.new(position) })
+	local list: { Instance } = { body }
+	if Settings.quality ~= "Low" then
+		for _, side in { -1, 1 } do
+			local eye = newPart({ Name = "Eye", Shape = Enum.PartType.Ball, Size = Vector3.one * 0.8, Color = Color3.new(1, 1, 1) })
+			local pupil = newPart({ Name = "Pupil", Shape = Enum.PartType.Ball, Size = Vector3.one * 0.4, Color = INK })
+			eye:SetAttribute("Side", side)
+			pupil:SetAttribute("Side", side)
+			table.insert(list, eye)
+			table.insert(list, pupil)
+		end
+	end
+	return list
+end
+
+local function dustBunnies(data: { [string]: any }, telegraphAt: number)
+	local from = data.from :: Vector3
+	local launchAt = data.launchAt :: number
+	local radius = data.radius :: number
+	local lands = data.lands :: { number }
+	for i, spot in data.spots :: { Vector3 } do
+		local landAt = lands[i] or launchAt + 1
+		discTelegraph(spot, radius, telegraphAt, landAt, function()
+			burst(spot + Vector3.new(0, 1, 0), ATTACK_COLORS.dust_bunnies, 7)
+			Audio.playAt("Hit", spot, { pitch = 1.4, volume = 0.6 })
+		end)
+		local parts = bunny(from)
+		local target = Vector3.new(spot.X, floorY() + 1.3, spot.Z)
+		addVisual("bunny", landAt, parts, function(t: number)
+			local k = math.clamp((t - launchAt) / math.max(0.05, landAt - launchAt), 0, 1)
+			local p = from:Lerp(target, k) + Vector3.new(0, 16 * 4 * k * (1 - k), 0)
+			local spin = CFrame.Angles(t * 6, t * 4, 0)
+			for _, instance in parts do
+				local part = instance :: BasePart
+				local side = part:GetAttribute("Side")
+				if type(side) == "number" then
+					local forward = (target - from)
+					local look = if forward.Magnitude > 0.1 then CFrame.lookAt(p, p + Vector3.new(forward.X, 0, forward.Z)) else CFrame.new(p)
+					local depth = if part.Name == "Pupil" then 1.45 else 1.15
+					part.CFrame = look * CFrame.new(side * 0.55, 0.45, -depth)
+				else
+					part.CFrame = CFrame.new(p) * spin
+				end
+			end
+			return true
+		end)
+	end
+end
+
+local function bellyFlop(data: { [string]: any }, telegraphAt: number)
+	local to = data.to :: Vector3
+	local landAt = data.landAt :: number
+	local spot = Vector3.new(to.X, floorY(), to.Z)
+	discTelegraph(spot, data.radius :: number, telegraphAt, landAt, function()
+		hopLand = os.clock()
+		burst(spot + Vector3.new(0, 1, 0), ATTACK_COLORS.belly_flop, 16)
+		CameraFX.shakeAt(spot, 0.45, 70)
+		Audio.playAt("Eruption", spot, { pitch = 1.3, volume = 0.7 })
+	end)
+end
+
+local function bigCleanup(data: { [string]: any }, telegraphAt: number)
+	local center = data.center :: Vector3
+	local radius = (data.radius :: number) + 3
+	local half = (data.safeWidth :: number) / 2
+	local previous = telegraphAt
+	for _, sweep in data.sweeps :: { { safeAngle: number, at: number } } do
+		local startAt = previous
+		local hitAt = sweep.at
+		previous = hitAt
+		local instances: { Instance } = {}
+		local fans: { { w1: WedgePart, w2: WedgePart, a: number, b: number } } = {}
+		for quarter = 0, 3 do
+			local mid = quarter * math.pi / 2
+			local diff = math.abs(((mid - sweep.safeAngle + math.pi) % (math.pi * 2)) - math.pi)
+			if diff > half - 0.01 then
+				for step = 0, 2 do
+					local a = mid - math.pi / 4 + step * math.pi / 6
+					local w1, w2 = wedge(WARN, 0.45), wedge(WARN, 0.45)
+					table.insert(instances, w1)
+					table.insert(instances, w2)
+					table.insert(fans, { w1 = w1, w2 = w2, a = a, b = a + math.pi / 6 })
+				end
+			end
+		end
+		-- The safe quarter sparkles (and says so).
+		local safeCenter = center + Vector3.new(math.cos(sweep.safeAngle), 0, math.sin(sweep.safeAngle)) * radius * 0.55
+		local safe = disc(safeCenter, 11, SAFE, 0.45, floorY() + 0.03)
+		table.insert(instances, safe)
+		local label: BillboardGui = Create("BillboardGui", {
+			Name = "Safe",
+			Size = UDim2.fromOffset(200, 60),
+			StudsOffsetWorldSpace = Vector3.new(0, 6, 0),
+			AlwaysOnTop = true,
+			LightInfluence = 0,
+			Adornee = safe,
+			Parent = folder,
+		})
+		local text = Style.text({ Text = Emoji.get("ready") .. " SAFE " .. Emoji.get("ready"), TextSize = 30, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = SAFE, Parent = label })
+		Style.ink(text, 3)
+		table.insert(instances, label)
+		local fired = false
+		addVisual("cleanup", hitAt + 0.5, instances, function(t: number)
+			local k = math.clamp((t - startAt) / math.max(0.05, hitAt - startAt), 0, 1)
+			local r = radius * math.max(0.05, k)
+			local y = floorY() + 0.03
+			for _, fan in fans do
+				local a = center + Vector3.new(0, y - center.Y, 0)
+				local b = a + Vector3.new(math.cos(fan.a), 0, math.sin(fan.a)) * r
+				local c = a + Vector3.new(math.cos(fan.b), 0, math.sin(fan.b)) * r
+				triangle(a, b, c, fan.w1, fan.w2)
+				local color = if t >= hitAt then ATTACK_COLORS.big_cleanup else fillColor(k)
+				fan.w1.Color, fan.w2.Color = color, color
+			end
+			safe.Transparency = 0.35 + math.sin(t * 10) * 0.15
+			if t >= hitAt and not fired then
+				fired = true
+				CameraFX.shake(0.35)
+				Audio.playAt("Splash", center, { pitch = 0.6 })
+				for _, fan in fans do
+					burst(center + Vector3.new(math.cos((fan.a + fan.b) / 2), 0.1, math.sin((fan.a + fan.b) / 2)) * radius * 0.6, ATTACK_COLORS.big_cleanup, 10)
+				end
+			end
+			return true
+		end)
+	end
+end
+
+local PLAYERS: { [string]: ({ [string]: any }, number) -> () } = {
+	broom_wave = broomWave,
+	goo_puddles = gooPuddles,
+	dust_bunnies = dustBunnies,
+	belly_flop = bellyFlop,
+	big_cleanup = bigCleanup,
+}
+
+-- Draws an attack announced by the server ("BossAttack" FX).
+function BossFX.attack(payload: { [string]: any })
+	if not folder or type(payload.attack) ~= "string" or type(payload.data) ~= "table" then
+		return
+	end
+	local draw = PLAYERS[payload.attack]
+	if not draw then
+		return
+	end
+	lastAttack = payload
+	draw(payload.data, tonumber(payload.telegraphAt) or now())
+end
+
+----------------------------------------------------------------------------
+-- The boss body
+----------------------------------------------------------------------------
+
+local function attr(instance: Instance?, name: string): any
+	return if instance then instance:GetAttribute(name) else nil
+end
+
+local function poseFor(anchor: BasePart, t: number): VoidWardenModel.Pose
+	local pose = VoidWardenModel.defaultPose()
+	local action = attr(anchor, "Action")
+	local actionAt = attr(anchor, "ActionAt")
+	local mood = attr(anchor, "Mood")
+	pose.mood = if type(mood) == "string" then mood else "grumpy"
+	local since = if type(actionAt) == "number" then t - actionAt else 99
+	local character = localPlayer.Character
+	local head = character and character:FindFirstChild("Head")
+	pose.lookAt = if head and head:IsA("BasePart") then head.Position else nil
+	pose.squash = 1 + math.sin(t * 3) * 0.04
+	local attack = lastAttack
+	local hitAt = if attack and type(attack.hitAt) == "number" then attack.hitAt else t
+	if action == "Sleep" then
+		pose.eyesClosed = true
+		pose.mood = "sleepy"
+		pose.squash = 1 + math.sin(t * 1.3) * 0.06
+	elseif action == "Intro" then
+		if since < 0.9 then
+			pose.squash = 1.3
+		elseif since < 1.5 then
+			pose.squash = 0.65 + (since - 0.9) / 0.6 * 0.35
+		elseif since < 3 then
+			pose.mouth = 1
+			pose.mood = "angry"
+			pose.squash = 1.05 + math.sin(t * 30) * 0.03
+			pose.broom = 0.8
+		end
+	elseif action == "Sweep" then
+		if t < hitAt then
+			pose.squash = 0.85
+			pose.lean = -0.22
+			pose.broom = 1
+			pose.mouth = 0.3
+		elseif t < hitAt + 0.5 then
+			pose.spin = (t - hitAt) / 0.5 * math.pi * 2
+			pose.broom = -1
+			pose.squash = 1.1
+			pose.mouth = 0.8
+		end
+	elseif action == "Splat" then
+		if t < hitAt then
+			pose.squash = 1 + math.clamp(since / 1.2, 0, 1) * 0.3
+			pose.mouth = 0.5
+		elseif t < hitAt + 0.5 then
+			pose.squash = 0.62 + (t - hitAt) / 0.5 * 0.38
+		end
+	elseif action == "Throw" then
+		local launchAt = if attack and attack.data and type(attack.data.launchAt) == "number" then attack.data.launchAt else hitAt
+		if t < launchAt then
+			pose.lean = -0.3
+			pose.broom = 0.9
+		elseif t < launchAt + 0.4 then
+			pose.lean = 0.25
+			pose.broom = -0.7
+			pose.mouth = 0.6
+		end
+	elseif action == "Hop" then
+		local data = if attack and type(attack.data) == "table" then attack.data else nil
+		local startAt = if data and type(data.startAt) == "number" then data.startAt else hitAt
+		if t < startAt then
+			pose.squash = 0.7
+		elseif t < hitAt then
+			pose.squash = 1.35
+			pose.mouth = 0.7
+			pose.hands = 2
+		elseif t < hitAt + 0.45 then
+			pose.squash = 0.6 + (t - hitAt) / 0.45 * 0.4
+		end
+	elseif action == "Spin" then
+		if t < hitAt then
+			pose.spin = since * since * 3
+			pose.broom = -1
+			pose.mouth = 0.4
+		end
+	elseif action == "Dizzy" then
+		pose.dizzy = true
+		pose.mood = "dizzy"
+		pose.lean = math.sin(t * 5) * 0.12
+		pose.squash = 0.92 + math.sin(t * 4) * 0.05
+	elseif action == "PhaseChange" then
+		if since < 1 then
+			pose.mood = "shocked"
+			pose.mouth = 1
+			pose.squash = 1.15 + math.sin(t * 40) * 0.05
+		else
+			pose.squash = 1 + math.sin(t * 8) * 0.06
+			pose.broom = 0.6
+		end
+	elseif action == "Defeated" then
+		if since < 2.6 then
+			pose.dizzy = true
+			pose.mood = "dizzy"
+			pose.lean = math.sin(t * 6) * 0.18
+		else
+			-- Runs away sulking (and fades out).
+			pose.mood = "grumpy"
+			pose.spin = math.pi
+			pose.squash = 1 + math.abs(math.sin(t * 14)) * 0.15
+			pose.fade = math.clamp((since - 4.2) / 1.2, 0, 1)
+		end
+	elseif action == "Gloat" then
+		pose.mood = "smug"
+		pose.mouth = 0.6 + math.sin(t * 16) * 0.3
+		pose.squash = 1 + math.abs(math.sin(t * 9)) * 0.12
+		pose.broom = 0.5 + math.sin(t * 6) * 0.4
+	end
+	if wobble > 0 then
+		pose.squash *= 1 - math.sin(wobble * math.pi) * 0.12
+	end
+	if os.clock() - hopLand < 0.35 then
+		pose.squash = math.min(pose.squash, 0.7)
+	end
+	return pose
+end
+
+local function destroyRig()
+	if rig then
+		VoidWardenModel.destroy(rig)
+	end
+	rig = nil
+	rigAnchor = nil
+	rigPosition = nil
+	if zzz then
+		zzz:Destroy()
+		zzz = nil
+	end
+	if dizzyStars then
+		dizzyStars:Destroy()
+		dizzyStars = nil
+	end
+	lastAttack = nil
+	clearVisuals()
+end
+
+local function ensureRig(anchor: BasePart)
+	if rig and rigAnchor == anchor then
+		return
+	end
+	destroyRig()
+	local newRig = VoidWardenModel.build(1, folder)
+	rig = newRig
+	rigAnchor = anchor
+	rigPosition = anchor.Position
+	local body = newRig.byName.Body.part
+	zzz = Create("BillboardGui", {
+		Name = "Zzz",
+		Size = UDim2.fromOffset(120, 60),
+		StudsOffsetWorldSpace = Vector3.new(4, 10, 0),
+		AlwaysOnTop = false,
+		LightInfluence = 0,
+		Adornee = body,
+		Enabled = false,
+		Parent = folder,
+	})
+	local text = Style.text({ Text = "Z z z", TextSize = 34, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(206, 160, 255), Parent = zzz })
+	Style.ink(text, 3)
+	dizzyStars = Create("BillboardGui", {
+		Name = "DizzyStars",
+		Size = UDim2.fromOffset(160, 60),
+		StudsOffsetWorldSpace = Vector3.new(0, 11, 0),
+		AlwaysOnTop = false,
+		LightInfluence = 0,
+		Adornee = body,
+		Enabled = false,
+		Parent = folder,
+	})
+	local stars = Style.text({ Name = "Stars", Text = "★  ★  ★", TextSize = 34, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(255, 220, 70), Parent = dizzyStars })
+	Style.ink(stars, 3)
+end
+
+local function stepRig(dt: number)
+	local anchor = Boss.anchor()
+	if not anchor then
+		if rig then
+			destroyRig()
+		end
+		return
+	end
+	ensureRig(anchor)
+	local current = rig :: VoidWardenModel.Rig
+	local t = now()
+	local target = anchor.Position
+	local position = rigPosition or target
+	-- Smooth the server's 20 Hz moves (snappy enough for hops).
+	position = position:Lerp(target, math.clamp(dt * 18, 0, 1))
+	rigPosition = position
+	wobble = math.max(0, wobble - dt * 4)
+	local pose = poseFor(anchor, t)
+	local root = CFrame.new(position) * anchor.CFrame.Rotation
+	if anchor:GetAttribute("Action") == "Defeated" then
+		local since = t - ((anchor:GetAttribute("ActionAt") :: number?) or t)
+		if since > 2.6 then
+			-- Hop away toward the door.
+			local run = math.min(since - 2.6, 3) * 14
+			root = root * CFrame.new(0, math.abs(math.sin(since * 9)) * 2, run)
+		end
+	end
+	VoidWardenModel.pose(current, root, pose, dt)
+	if zzz then
+		zzz.Enabled = anchor:GetAttribute("Action") == "Sleep"
+	end
+	if dizzyStars then
+		dizzyStars.Enabled = pose.dizzy
+		local label = dizzyStars:FindFirstChild("Stars")
+		if label and label:IsA("TextLabel") then
+			label.Rotation = math.sin(t * 6) * 15
+		end
+	end
+end
+
+local function stepVisuals(dt: number)
+	local t = now()
+	for i = #visuals, 1, -1 do
+		local visual = visuals[i]
+		local keep = t <= visual.untilTime
+		if keep and visual.update then
+			local ok, result = pcall(visual.update, t, dt)
+			keep = ok and result ~= false
+		end
+		if not keep then
+			for _, instance in visual.instances do
+				instance:Destroy()
+			end
+			table.remove(visuals, i)
+		end
+	end
+end
+
+----------------------------------------------------------------------------
+-- Portal board
+----------------------------------------------------------------------------
+
+local portalBoard: BillboardGui? = nil
+local portalTitle: TextLabel? = nil
+local portalTimer: TextLabel? = nil
+local membraneOpen: boolean? = nil
+
+local function buildPortalBoard()
+	local plateau = Boss.plateau()
+	local prompt = plateau and plateau:FindFirstChild("PortalPrompt")
+	if not prompt or not prompt:IsA("BasePart") then
+		return
+	end
+	local gui: BillboardGui = Create("BillboardGui", {
+		Name = "PortalBoard",
+		Size = UDim2.fromOffset(300, 110),
+		StudsOffsetWorldSpace = Vector3.new(0, 34, 0),
+		MaxDistance = 260,
+		LightInfluence = 0,
+		AlwaysOnTop = false,
+		Adornee = prompt,
+		Parent = folder,
+	})
+	local panel = Style.panel({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(150, 96, 240), Parent = gui })
+	Style.gloss(panel)
+	local title = Style.text({ Name = "Title", Size = UDim2.new(1, -16, 0, 44), Position = UDim2.fromOffset(8, 8), TextSize = 30, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, Parent = panel })
+	Style.ink(title, 3)
+	local timer = Style.text({ Name = "Timer", Size = UDim2.new(1, -16, 0, 40), Position = UDim2.fromOffset(8, 56), TextSize = 26, FontFace = Style.Fonts.Display, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(255, 226, 90), Parent = panel })
+	Style.ink(timer, 2.5)
+	portalBoard, portalTitle, portalTimer = gui, title, timer
+end
+
+local function refreshPortal()
+	if not portalBoard then
+		buildPortalBoard()
+	end
+	local view = Boss.portal()
+	local t = now()
+	if portalTitle and portalTimer then
+		portalTitle.Text = Emoji.get("trophy") .. " " .. Locale.t("boss." .. Boss.portalBoss().id .. ".name")
+		if view.state == "Open" then
+			portalTimer.Text = Locale.t("boss.portal.open") .. "  " .. Format.clock(math.max(0, view.closesAt - t))
+		elseif view.state == "Fight" then
+			portalTimer.Text = Locale.t("boss.inProgress", { count = view.count })
+		else
+			portalTimer.Text = Locale.t("boss.opensIn", { time = Format.clock(math.max(0, view.opensAt - t)) })
+		end
+	end
+	-- The dormant membrane wakes up (brighter, pinker) while it is open.
+	local isOpen = view.state == "Open"
+	if membraneOpen ~= isOpen then
+		membraneOpen = isOpen
+		local plateau = Boss.plateau()
+		local membrane = plateau and plateau:FindFirstChild("Membrane")
+		if membrane and membrane:IsA("BasePart") then
+			Tween.play(membrane, 0.8, {
+				Color = if isOpen then Color3.fromRGB(255, 140, 230) else Color3.fromRGB(150, 70, 200),
+				Transparency = if isOpen then 0.15 else 0.35,
+			})
+		end
+		if isOpen then
+			local prompt = plateau and plateau:FindFirstChild("PortalPrompt")
+			if prompt and prompt:IsA("BasePart") then
+				burst(prompt.Position + Vector3.new(0, 14, 0), Color3.fromRGB(255, 140, 230), 26)
+			end
+		end
+	end
+end
+
+----------------------------------------------------------------------------
+-- Events
+----------------------------------------------------------------------------
+
+function BossFX.struck(payload: { [string]: any })
+	local anchor = Boss.anchor()
+	if not anchor then
+		return
+	end
+	wobble = 1
+	local dizzy = payload.dizzy == true
+	local text = POWS[math.random(1, #POWS)]
+	shout(nil, anchor.Position + Vector3.new(math.random(-5, 5), 6, math.random(-3, 3)), if dizzy then text .. " x1.5" else text, if dizzy then Color3.fromRGB(255, 120, 220) else Color3.fromRGB(255, 226, 70), if dizzy then 40 else 34, 0.7)
+	burst(anchor.Position + Vector3.new(0, 4, -6), Color3.fromRGB(255, 230, 120), if dizzy then 9 else 6)
+	Audio.playAt("Hit", anchor.Position, { pitch = 1.2 + math.random() * 0.3, volume = 0.8 })
+	CameraFX.punch(2)
+end
+
+function BossFX.swing()
+	local character = localPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		-- A quick white swoosh in front of the player.
+		local swoosh = newPart({
+			Name = "Swoosh",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.2, 6, 6),
+			CFrame = root.CFrame * CFrame.new(0, 0.5, -3) * CFrame.Angles(0, math.pi / 2, 0),
+			Color = Color3.new(1, 1, 1),
+			Material = Enum.Material.Neon,
+			Transparency = 0.35,
+		})
+		Tween.play(swoosh, 0.18, { Size = Vector3.new(0.05, 9, 9), Transparency = 1 }, Enum.EasingStyle.Quad)
+		task.delay(0.25, function()
+			swoosh:Destroy()
+		end)
+		Audio.play("Dash", { pitch = 1.6, volume = 0.45 })
+	end
+end
+
+function BossFX.hit(payload: { [string]: any })
+	local userId = payload.userId
+	if type(userId) ~= "number" then
+		return
+	end
+	CharacterFX.hit(userId)
+	local player = Players:GetPlayerByUserId(userId)
+	local character = player and player.Character
+	local head = character and character:FindFirstChild("Head")
+	if head then
+		shout(head, nil, "BONK!", Color3.fromRGB(255, 160, 80), 30, 0.8)
+	end
+	if userId == localPlayer.UserId then
+		CameraFX.shake(0.3)
+	end
+end
+
+function BossFX.ko(payload: { [string]: any })
+	local player = Players:GetPlayerByUserId(payload.userId or 0)
+	local character = player and player.Character
+	local head = character and character:FindFirstChild("Head")
+	if head then
+		shout(head, nil, Emoji.get("dizzy") .. " " .. Locale.t("boss.ko"), Color3.fromRGB(206, 160, 255), 28, 1.3)
+	end
+end
+
+function BossFX.ended(payload: { [string]: any })
+	clearVisuals()
+	local anchor = Boss.anchor()
+	if payload.result == "Victory" and anchor then
+		task.delay(2.6, function()
+			if Boss.anchor() == anchor then
+				-- Confetti poof as he runs off.
+				local colors = { Color3.fromRGB(255, 111, 190), Color3.fromRGB(255, 210, 63), Color3.fromRGB(90, 232, 255), Color3.fromRGB(120, 230, 110) }
+				for i, color in colors do
+					burst(anchor.Position + Vector3.new(math.cos(i * 1.6) * 5, 4 + i, math.sin(i * 1.6) * 5), color, 14)
+				end
+			end
+		end)
+	end
+end
+
+-- Tests / debug.
+function BossFX.debugState(): { rig: boolean, visuals: number, parts: number, board: boolean }
+	local parts = 0
+	if folder then
+		for _, d in folder:GetDescendants() do
+			if d:IsA("BasePart") then
+				parts += 1
+			end
+		end
+	end
+	local kinds = 0
+	for _ in visuals do
+		kinds += 1
+	end
+	return { rig = rig ~= nil, visuals = kinds, parts = parts, board = portalBoard ~= nil }
+end
+
+function BossFX.rig(): VoidWardenModel.Rig?
+	return rig
+end
+
+function BossFX.init()
+	folder = Instance.new("Folder")
+	folder.Name = "ClientBoss"
+	folder.Parent = workspace
+	local portalTimerClock = 0
+	RunService.Heartbeat:Connect(function(dt: number)
+		stepRig(dt)
+		stepVisuals(dt)
+		portalTimerClock += dt
+		if portalTimerClock >= 0.25 then
+			portalTimerClock = 0
+			refreshPortal()
+		end
+	end)
+	Boss.struck:Connect(BossFX.struck)
+	Boss.swung:Connect(BossFX.swing)
+end
+
+return BossFX

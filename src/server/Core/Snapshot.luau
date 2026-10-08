@@ -29,7 +29,7 @@ Snapshot.HotKeys = table.freeze({
 })
 Snapshot.ColdKeys = table.freeze({
 	"upgrades", "dex", "stats", "tutorial", "tips", "settings", "canSave", "dataStatus", "loadout", "unlocked", "powerPeak",
-	"harmonyOff", "cosmetics",
+	"harmonyOff", "cosmetics", "bosses", "materials", "trophies",
 })
 
 -- Status snapshot provider, injected by StatusService's owner (avoids a
@@ -89,6 +89,29 @@ function Snapshot.cosmeticsView(session: Types.Session): { [string]: any }
 	return { owned = owned, equipped = table.clone(session.data.cosmetics.equipped) }
 end
 
+-- Boss Codex as the client sees it (the anti-replay fight id stays private).
+function Snapshot.codexView(session: Types.Session): { [string]: any }
+	local view = {}
+	for bossId, record in session.data.bosses do
+		view[bossId] = {
+			discovered = record.discovered,
+			attempts = record.attempts,
+			wins = record.wins,
+			bestTime = record.bestTime,
+			rare = table.clone(record.rare),
+		}
+	end
+	return view
+end
+
+function Snapshot.trophiesView(session: Types.Session): { any }
+	local view = {}
+	for _, trophy in session.data.trophies do
+		table.insert(view, { id = trophy.id, level = trophy.level, slot = trophy.slot })
+	end
+	return view
+end
+
 function Snapshot.cold(session: Types.Session): { [string]: any }
 	local data = session.data
 	local dex = {}
@@ -109,6 +132,9 @@ function Snapshot.cold(session: Types.Session): { [string]: any }
 		powerPeak = data.power.peak,
 		harmonyOff = table.clone(data.abilities.harmonyOff),
 		cosmetics = Snapshot.cosmeticsView(session),
+		bosses = Snapshot.codexView(session),
+		materials = table.clone(data.materials),
+		trophies = Snapshot.trophiesView(session),
 	}
 end
 

@@ -55,6 +55,28 @@ export type CosmeticData = {
 	equipped: { [string]: string },
 }
 
+-- Schema 5 (V2 phase 6) ---------------------------------------------------------
+-- Boss Codex entry (one per boss id, created on the first expedition).
+export type BossRecord = {
+	discovered: boolean,
+	attempts: number,
+	wins: number,
+	-- Fastest victory in seconds (0 = no victory yet).
+	bestTime: number,
+	-- Rare reward id (Config/Bosses loot entry) -> times obtained.
+	rare: { [string]: number },
+	-- Id of the last fight rewarded (a fight can never pay twice).
+	lastFight: string,
+}
+
+-- Boss relic kept on a trophy pedestal (never stealable).
+export type SaveTrophy = {
+	uid: string,
+	id: string,
+	level: number,
+	slot: number,
+}
+
 export type PowerData = {
 	-- Highest Power ever reached. Used for unlocks so thefts never re-lock content.
 	peak: number,
@@ -79,6 +101,10 @@ export type SaveData = {
 	power: PowerData,
 	-- schema 4
 	cosmetics: CosmeticData,
+	-- schema 5
+	bosses: { [string]: BossRecord },
+	materials: { [string]: number },
+	trophies: { SaveTrophy },
 }
 
 -- Runtime crowd-control state (never saved). See Shared/Status.

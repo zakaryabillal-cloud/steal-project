@@ -12,6 +12,11 @@
 --   /rh cooldowns                 reset your ability cooldowns
 --   /rh cosmetics [off|reset]     every cosmetic equippable for this session
 --                                 (never saved) / back to the starters only
+--   /rh boss open|start|hp <%>|win open the boss portal now / start the
+--                                 fight now / set the boss Health / 1 HP left
+--   /rh boss shards <n>           add Void Shards
+--   /rh boss codex                clear your boss Codex (test the discovery)
+--   /rh boss stop                 end the expedition now (everyone back)
 --   /rh reset                     wipe your temporary data
 
 local Players = game:GetService("Players")
@@ -37,6 +42,7 @@ local RiftService = require(script.Parent.RiftService)
 local EventService = require(script.Parent.EventService)
 local AbilityService = require(script.Parent.AbilityService)
 local CosmeticService = require(script.Parent.CosmeticService)
+local BossService = require(script.Parent.BossService)
 
 local DevCommands = {}
 
@@ -73,7 +79,8 @@ local function run(player: Player, text: string)
 		if not def and Rarities.byId[what] then
 			def = Rolls.relic(rng, what, "Eclipse")
 		end
-		if def then
+		-- Boss relics never come out of the Rift (even in Studio).
+		if def and def.bossOnly == nil then
 			RiftService.force({ relicId = def.id, rarity = def.rarity, mutation = mutation })
 		end
 	elseif command == "event" then
@@ -107,6 +114,24 @@ local function run(player: Player, text: string)
 			CosmeticService.reset(session)
 		else
 			CosmeticService.setDevUnlock(session, option ~= "off")
+		end
+	elseif command == "boss" then
+		local option = string.lower(args[3] or "open")
+		if option == "open" then
+			BossService.open()
+		elseif option == "start" then
+			BossService.devStart()
+		elseif option == "hp" then
+			BossService.devSetHealth((tonumber(args[4]) or 50) / 100)
+		elseif option == "win" then
+			BossService.devSetHealth(0.001)
+		elseif option == "shards" then
+			local materials = session.data.materials
+			materials.void_shard = math.max(0, (materials.void_shard or 0) + math.floor(tonumber(args[4]) or 30))
+		elseif option == "codex" then
+			table.clear(session.data.bosses)
+		elseif option == "stop" then
+			BossService.devReset()
 		end
 	elseif command == "cooldowns" then
 		table.clear(session.cooldowns)
@@ -152,7 +177,7 @@ function DevCommands.start()
 	if not ok then
 		warn("[DevCommands] TextChatCommand unavailable; using Player.Chatted only")
 	end
-	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|cosmetics|reset")
+	print("[RiftHeist] Studio dev commands enabled: /rh essence|spawn|event|tier|pedestals|core|novice|abilities|cooldowns|cosmetics|boss|reset")
 end
 
 return DevCommands

@@ -1,0 +1,382 @@
+--!strict
+-- Boss catalogue and expedition rules (V2 phase 6). Shared by the server
+-- (authority: portal, fight, damage, loot) and the client (portal card,
+-- exact loot probabilities, boss HUD, Codex). Formulas live here as pure
+-- functions so both sides always agree.
+--
+-- To add a boss (phase 7+): one entry in `list` (stats, phases, attacks,
+-- loot), a behaviour module Server/Bosses/<Id>.luau, its visuals in
+-- Client/Controllers/BossFX (model builder), "boss.<id>.*" strings, and
+-- (optionally) Boss.<Id>.<phase> music slots in Config/Music. Everything
+-- else (portal, arena, hearts, strikes, rewards, Codex, trophies) is shared.
+--
+-- Power: the Power RECORD gates / recommends the expedition; the CURRENT
+-- Power only adds a small capped bonus to strikes against bosses. Nothing
+-- here is ever read by PvP code (theft, abilities, protections).
+
+local Relics = require(script.Parent.Relics)
+local Cosmetics = require(script.Parent.Cosmetics)
+local Materials = require(script.Parent.Materials)
+
+local Bosses = {}
+
+-- Portal on the Boss Plateau ------------------------------------------------
+Bosses.Portal = table.freeze({
+	-- Seconds after server start before the first opening.
+	FirstOpenDelay = 240,
+	-- Seconds between two openings (start to start).
+	Interval = 600,
+	-- The portal stays open (joinable) this long.
+	OpenDuration = 60,
+	-- Joining requires standing this close to the portal ring (studs).
+	JoinRadius = 34,
+	-- Everyone in the waiting room pressed "Ready": the fight starts after this.
+	ReadyCountdown = 3,
+	-- Seconds the boss of the next opening is announced before it opens.
+	AnnounceBefore = 30,
+})
+
+-- Arena: a floating "janitor's closet in the Void", far away from the island
+-- (nothing outside can reach it: no PvP interference). Built when the portal
+-- opens and destroyed after every expedition.
+Bosses.Arena = table.freeze({
+	Center = Vector3.new(0, 420, 1600),
+	-- Walkable floor radius (studs); invisible walls stand just outside.
+	Radius = 58,
+	WallHeight = 34,
+	-- Players arrive on this ring (studs from the centre), on the -Z side.
+	SpawnRadius = 44,
+	-- Leaving these bounds is not possible normally (walls): it means an
+	-- exploit or a physics glitch.
+	BoundsMargin = 14,
+	BoundsHeight = 70,
+	-- Further than this from the centre = teleport exploit: the player is
+	-- removed from the expedition (no reward).
+	ExploitDistance = 220,
+	-- Static part budget of the arena (checked by the tests).
+	PartBudget = 200,
+})
+
+-- Combat rules shared by every boss ------------------------------------------
+Bosses.Combat = table.freeze({
+	-- Fight length limit (3 min 30).
+	Duration = 210,
+	-- Entrance show before the first attack (boss invulnerable).
+	Intro = 4,
+	-- Victory / defeat show before everyone is sent back.
+	Outro = 7,
+	-- Every attack is announced at least this long before it can hurt.
+	MinTelegraph = 0.8,
+	-- Big attacks (specials) at least this long.
+	BigTelegraph = 1.2,
+	-- Player hearts per fight and invulnerability after a hit.
+	Hearts = 4,
+	HitInvulnerability = 1.5,
+	-- Knockback applied by a hit (studs/s) and the short stun that comes with it.
+	Knockback = 46,
+	KnockStun = 0.35,
+	-- Phase change: the boss is untouchable for this long (reaction show).
+	PhaseShow = 2.2,
+	-- Removed from the fight when inactive this long (no strike, no move).
+	AfkSeconds = 35,
+	-- Standing height of a character root above the floor, and how far above
+	-- that a root must be to clear a ground wave (a normal jump is ~7.6).
+	RootHeight = 3,
+	JumpClear = 2.2,
+	-- Abilities usable inside the arena (movement / defence only). Every
+	-- other ability is refused there, and abilities never affect anyone
+	-- across the expedition border (Core/Expeditions).
+	ArenaAbilities = table.freeze({ dash = true, blink = true, shield = true, phase = true }),
+})
+
+-- "Strike" (Frappe): the only way to damage a boss. Arena only.
+Bosses.Strike = table.freeze({
+	Damage = 10,
+	-- Server cooldown between two strikes (client shows the same).
+	Cooldown = 0.4,
+	-- Reach from the boss body surface (studs, horizontal) and height tolerance.
+	Reach = 10,
+	Height = 14,
+	-- Dizzy boss (after its special): damage multiplier.
+	DizzyMultiplier = 1.5,
+	-- Current Power bonus: linear up to this Power, capped. 0.25 = +25 %.
+	PowerForCap = 1500,
+	PowerBonusCap = 0.25,
+})
+
+-- Eligibility for rewards: a participant must have dealt at least this share
+-- of an equal split of the boss Health (anti-AFK / anti-leech), and still be
+-- in the server, not removed for inactivity or exploit, not abandoned.
+Bosses.Eligibility = table.freeze({
+	MinShare = 0.2,
+})
+
+-- Trophy pedestals in every Sanctuary (boss relics only, never stealable).
+-- Socle k unlocks at Power record >= Unlocks[k].
+Bosses.Trophies = table.freeze({
+	Unlocks = table.freeze({ 0, 400, 900 }),
+})
+
+-- Types ------------------------------------------------------------------------
+
+export type LootEntry = {
+	-- Reward key (also used by the Codex): "essence", "void_shard", ...
+	id: string,
+	kind: string, -- "essence" | "material" | "relic" | "cosmetic"
+	-- Material / relic / cosmetic id (kind ~= "essence").
+	ref: string?,
+	-- Exact probability for every eligible participant (independent rolls).
+	chance: number,
+	-- Amount range (materials).
+	min: number?,
+	max: number?,
+	-- Essence: minutes of the player's own production, with a floor.
+	minutes: number?,
+	floor: number?,
+	-- Rare rewards are counted in the Codex.
+	rare: boolean?,
+	-- Duplicate compensation (owned cosmetic, max-level trophy).
+	fallback: { material: string, amount: number }?,
+}
+
+export type AttackDef = {
+	id: string,
+	-- Seconds between the warning and the first possible damage.
+	telegraph: number,
+	-- Big special (needs Combat.BigTelegraph).
+	big: boolean?,
+	-- Free tuning read by the boss module (radius, speed, counts...).
+	tuning: { [string]: number },
+}
+
+export type PhaseDef = {
+	-- Phase starts when Health fraction <= `from` (phase 1: 1).
+	from: number,
+	-- Attack pool (weighted by order of appearance: no repeat twice in a row).
+	attacks: { string },
+	-- Seconds of breathing room between two attacks.
+	gap: number,
+	-- Special attack id thrown on entering the phase and every `specialEvery` attacks.
+	special: string?,
+	specialEvery: number?,
+	-- Expression shown during the phase (client).
+	mood: string,
+}
+
+export type BossDef = {
+	id: string,
+	-- Server/Bosses/<module>.luau
+	module: string,
+	-- Rank I, II, III... (Codex order) and difficulty stars (1..5).
+	rank: number,
+	difficulty: number,
+	color: Color3,
+	accent: Color3,
+	-- Expedition gate (Power RECORD) and recommendation (current Power).
+	minPowerRecord: number,
+	recommendedPower: number,
+	-- Health = baseHealth * (1 + healthPerExtra * (participants - 1)).
+	baseHealth: number,
+	healthPerExtra: number,
+	-- Body half-size (studs) used for strike reach.
+	radius: number,
+	-- Body centre height above the floor.
+	height: number,
+	phases: { PhaseDef },
+	attacks: { [string]: AttackDef },
+	loot: { LootEntry },
+	-- Exclusive relic / cosmetic (also present in `loot`).
+	relic: string,
+	cosmetic: string,
+}
+
+-- Catalogue ----------------------------------------------------------------------
+
+local list: { BossDef } = {
+	{
+		-- The grumpy janitor of the Rift: a big purple jelly cube with a cap,
+		-- huge eyes and a giant broom. He hates mess (and you are the mess).
+		id = "VoidWarden",
+		module = "VoidWarden",
+		rank = 1,
+		difficulty = 2,
+		color = Color3.fromRGB(176, 110, 255),
+		accent = Color3.fromRGB(255, 214, 72),
+		minPowerRecord = 25,
+		recommendedPower = 150,
+		baseHealth = 1500,
+		healthPerExtra = 0.7,
+		radius = 7,
+		height = 7,
+		phases = {
+			{ from = 1, attacks = { "broom_wave", "goo_puddles", "dust_bunnies", "belly_flop" }, gap = 1.6, mood = "grumpy" },
+			{ from = 0.6, attacks = { "broom_wave", "dust_bunnies", "goo_puddles", "belly_flop" }, gap = 1.3, special = "big_cleanup", specialEvery = 4, mood = "angry" },
+			{ from = 0.25, attacks = { "broom_wave", "goo_puddles", "dust_bunnies", "belly_flop" }, gap = 1.0, special = "big_cleanup", specialEvery = 3, mood = "furious" },
+		},
+		attacks = {
+			-- Spin of the broom: a ring of dust rolls out from the boss. JUMP over it.
+			broom_wave = { id = "broom_wave", telegraph = 1.2, tuning = { speed = 30, band = 3, speedPerPhase = 4 } },
+			-- Sticky goo puddles: circles fill yellow -> red, then SPLAT. Step out.
+			goo_puddles = { id = "goo_puddles", telegraph = 1.2, tuning = { count = 3, extraPerPhase = 1, radius = 6, linger = 4, slow = 0.45 } },
+			-- Dust bunnies lobbed in an arc: landing marks show where. Move away.
+			dust_bunnies = { id = "dust_bunnies", telegraph = 1.1, tuning = { count = 4, extraPerPhase = 1, radius = 4.5, spread = 9 } },
+			-- Belly flop: a shadow grows where the boss will land.
+			belly_flop = { id = "belly_flop", telegraph = 1.0, tuning = { radius = 9, height = 26 } },
+			-- Special "Grand Ménage": 3 quarters of the arena get mopped. Find the
+			-- sparkling safe quarter! Leaves the boss dizzy (bonus damage).
+			big_cleanup = { id = "big_cleanup", telegraph = 2.0, big = true, tuning = { dizzy = 3.5, innerSafe = 0 } },
+		},
+		loot = {
+			{ id = "essence", kind = "essence", chance = 1, minutes = 5, floor = 250 },
+			{ id = "void_shard", kind = "material", ref = "void_shard", chance = 1, min = 3, max = 6 },
+			{ id = "void_catalyst", kind = "material", ref = "void_catalyst", chance = 0.15, min = 1, max = 1, rare = true },
+			{ id = "void_duster", kind = "relic", ref = "void_duster", chance = 0.08, rare = true, fallback = { material = "void_shard", amount = 8 } },
+			{ id = "trail_bubbles", kind = "cosmetic", ref = "trail_bubbles", chance = 0.05, rare = true, fallback = { material = "void_shard", amount = 5 } },
+		},
+		relic = "void_duster",
+		cosmetic = "trail_bubbles",
+	},
+}
+
+-- Validation (fails at load time, caught by every test run) -----------------------
+local byId: { [string]: BossDef } = {}
+for _, def in list do
+	assert(byId[def.id] == nil, "duplicate boss " .. def.id)
+	assert(def.difficulty >= 1 and def.difficulty <= 5, "boss " .. def.id .. " difficulty out of range")
+	assert(def.minPowerRecord <= def.recommendedPower, "boss " .. def.id .. " gate above its recommendation")
+	assert(#def.phases >= 1 and def.phases[1].from == 1, "boss " .. def.id .. " phase 1 must start at full Health")
+	for index = 2, #def.phases do
+		assert(def.phases[index].from < def.phases[index - 1].from, "boss " .. def.id .. " phases must go down")
+	end
+	for attackId, attack in def.attacks do
+		assert(attack.id == attackId, "boss " .. def.id .. " attack id mismatch " .. attackId)
+		local minimum = if attack.big then Bosses.Combat.BigTelegraph else Bosses.Combat.MinTelegraph
+		assert(attack.telegraph >= minimum, "boss " .. def.id .. " attack " .. attackId .. " telegraph too short")
+	end
+	for _, phase in def.phases do
+		for _, attackId in phase.attacks do
+			assert(def.attacks[attackId], "boss " .. def.id .. " phase uses unknown attack " .. attackId)
+		end
+		if phase.special then
+			assert(def.attacks[phase.special] and def.attacks[phase.special].big, "boss " .. def.id .. " special must be a big attack")
+		end
+	end
+	local seen: { [string]: boolean } = {}
+	for _, entry in def.loot do
+		assert(not seen[entry.id], "boss " .. def.id .. " duplicate loot " .. entry.id)
+		seen[entry.id] = true
+		assert(entry.chance > 0 and entry.chance <= 1, "boss " .. def.id .. " loot chance out of range " .. entry.id)
+		if entry.kind == "material" then
+			assert(entry.ref and entry.min and entry.max and entry.min >= 1 and entry.max >= entry.min, "boss " .. def.id .. " bad material loot " .. entry.id)
+			assert(Materials.get(entry.ref), "boss " .. def.id .. " drops an unknown material " .. tostring(entry.ref))
+		elseif entry.kind == "essence" then
+			assert(entry.minutes and entry.minutes > 0, "boss " .. def.id .. " essence loot needs minutes")
+		else
+			assert(entry.kind == "relic" or entry.kind == "cosmetic", "boss " .. def.id .. " unknown loot kind " .. entry.kind)
+			assert(entry.ref and entry.fallback, "boss " .. def.id .. " exclusive loot needs a duplicate fallback " .. entry.id)
+			assert(Materials.get(entry.fallback.material), "boss " .. def.id .. " fallback uses an unknown material")
+			if entry.kind == "relic" then
+				local relic = Relics.get(entry.ref :: string)
+				assert(relic and relic.bossOnly == def.id, "boss " .. def.id .. " relic loot must be its own boss relic")
+			else
+				local cosmetic = Cosmetics.get(entry.ref)
+				assert(cosmetic and cosmetic.unlock.kind == "boss" and cosmetic.unlock.boss == def.id, "boss " .. def.id .. " cosmetic loot must be its own boss cosmetic")
+			end
+		end
+	end
+	assert(Relics.get(def.relic) and Cosmetics.get(def.cosmetic), "boss " .. def.id .. " exclusive relic / cosmetic missing")
+	byId[def.id] = def
+end
+
+Bosses.list = list
+Bosses.byId = byId
+
+function Bosses.get(id: any): BossDef?
+	if type(id) ~= "string" then
+		return nil
+	end
+	return byId[id]
+end
+
+-- The boss of the n-th opening of a server (rotation, phase 7 adds more).
+function Bosses.forOpening(index: number): BossDef
+	return list[((math.max(1, math.floor(index)) - 1) % #list) + 1]
+end
+
+-- Formulas (pure) ----------------------------------------------------------------
+
+function Bosses.maxHealth(def: BossDef, participants: number): number
+	local n = math.max(1, math.floor(participants))
+	return math.floor(def.baseHealth * (1 + def.healthPerExtra * (n - 1)) + 0.5)
+end
+
+-- Strike bonus from the CURRENT Power (0 .. PowerBonusCap).
+function Bosses.powerBonus(power: number): number
+	local s = Bosses.Strike
+	if type(power) ~= "number" or power ~= power or power <= 0 then
+		return 0
+	end
+	return math.clamp(power / s.PowerForCap, 0, 1) * s.PowerBonusCap
+end
+
+function Bosses.strikeDamage(power: number, dizzy: boolean): number
+	local s = Bosses.Strike
+	local damage = s.Damage * (1 + Bosses.powerBonus(power))
+	if dizzy then
+		damage *= s.DizzyMultiplier
+	end
+	return math.floor(damage * 10 + 0.5) / 10
+end
+
+-- Damage a participant must deal to be eligible for rewards.
+function Bosses.eligibleDamage(maxHealth: number, participants: number): number
+	return Bosses.Eligibility.MinShare * maxHealth / math.max(1, participants)
+end
+
+-- Essence reward: `minutes` of the player's production (per second rate).
+function Bosses.essenceReward(entry: LootEntry, ratePerSecond: number): number
+	local rate = if type(ratePerSecond) == "number" and ratePerSecond == ratePerSecond then math.max(0, ratePerSecond) else 0
+	local amount = rate * 60 * (entry.minutes or 0)
+	return math.floor(math.clamp(math.max(amount, entry.floor or 0), 0, 1e13))
+end
+
+-- Phase index for a Health fraction (1 = full Health).
+function Bosses.phaseAt(def: BossDef, fraction: number): number
+	local phase = 1
+	for index, entry in def.phases do
+		if fraction <= entry.from then
+			phase = index
+		end
+	end
+	return phase
+end
+
+-- Can a Power record enter this boss's expedition?
+function Bosses.canEnter(def: BossDef, powerRecord: number): boolean
+	return powerRecord >= def.minPowerRecord
+end
+
+-- Trophy pedestals unlocked for a Power record (1..#Unlocks).
+function Bosses.trophySlots(powerRecord: number): number
+	local count = 0
+	for _, threshold in Bosses.Trophies.Unlocks do
+		if powerRecord >= threshold then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Percentage text with every significant digit kept ("8 %", "12.5 %", "100 %").
+function Bosses.percent(chance: number): string
+	local value = chance * 100
+	if math.abs(value - math.floor(value + 0.5)) < 1e-9 then
+		return string.format("%d %%", math.floor(value + 0.5))
+	end
+	local text = string.format("%.2f", value)
+	text = string.gsub(text, "0+$", "") :: string
+	text = string.gsub(text, "%.$", "") :: string
+	return text .. " %"
+end
+
+return Bosses

@@ -130,7 +130,7 @@ local function trigger(trap: Trap)
 	local tuning = trap.tuning
 	local victims = {}
 	for _, target in Sessions.all() do
-		if target == trap.owner then
+		if not Common.canAffect(trap.owner, target) then
 			continue
 		end
 		local root = Common.root(target)
@@ -162,7 +162,7 @@ function RuneTrap.tick(now: number)
 		end
 		local fired = false
 		for _, target in Sessions.all() do
-			if target ~= owner and not CharacterService.isProtected(target) then
+			if Common.canAffect(owner, target) and not CharacterService.isProtected(target) then
 				local root = Common.root(target)
 				if root and onRune(trap, root, 0) then
 					fired = true

@@ -28,6 +28,8 @@ export type Unlock = {
 	stat: string?,
 	-- Phase 10: MarketplaceService id (0 = not sold). Never read before then.
 	productId: number?,
+	-- kind = "boss": the boss whose loot table drops it (Config/Bosses).
+	boss: string?,
 }
 
 export type CosmeticDef = {
@@ -108,8 +110,8 @@ local function c(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
 
-local function unlock(kind: string, value: number?, stat: string?): Unlock
-	return { kind = kind, value = value, stat = stat }
+local function unlock(kind: string, value: number?, stat: string?, boss: string?): Unlock
+	return { kind = kind, value = value, stat = stat, boss = boss }
 end
 
 local list: { CosmeticDef } = {
@@ -122,6 +124,9 @@ local list: { CosmeticDef } = {
 		visual = { colors = { c(255, 255, 255), c(60, 170, 255) }, lifetime = 0.5, width = 1.2, light = 1 } },
 	{ id = "trail_voidwake", category = "trail", rarity = "Legendary", order = 4, unlock = unlock("power", 600),
 		visual = { colors = { c(196, 100, 255), c(96, 50, 210) }, lifetime = 0.55, width = 1.4, light = 0.8 } },
+	-- V2 phase 6: exclusive Void Warden drop (soap bubbles, of course).
+	{ id = "trail_bubbles", category = "trail", rarity = "Epic", order = 5, unlock = unlock("boss", nil, nil, "VoidWarden"),
+		visual = { colors = { c(170, 240, 255), c(255, 170, 230) }, lifetime = 0.5, width = 1.2, light = 0.7 } },
 
 	-- Auras --------------------------------------------------------------------
 	{ id = "aura_embers", category = "aura", rarity = "Common", order = 1, unlock = unlock("stat", 10, "deposits"),
@@ -218,6 +223,9 @@ for _, def in list do
 	end
 	if def.unlock.kind ~= "starter" and kind.auto then
 		assert(type(def.unlock.value) == "number" and def.unlock.value > 0, "cosmetic " .. def.id .. " needs a threshold")
+	end
+	if def.unlock.kind == "boss" then
+		assert(type(def.unlock.boss) == "string", "boss cosmetic " .. def.id .. " must name its boss")
 	end
 	-- Purely visual, inside the budgets.
 	local allowed = VISUAL_KEYS[def.category]

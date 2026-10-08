@@ -171,8 +171,16 @@ return function(ctx)
 				end
 			end
 		end
-		check(#Cosmetics.list == 26, "26 cosmetics in the starting collection (" .. #Cosmetics.list .. ")")
-		check(starters == 6 and auto == #Cosmetics.list, "6 starters; every cosmetic obtainable now (no fake boss/event/daily/premium content)")
+		-- Phase 6 added exactly one cosmetic: the Void Warden drop (source "boss",
+		-- granted only by BossService). Everything else stays automatic.
+		local bossDrops = {}
+		for _, def in Cosmetics.list do
+			if def.unlock.kind == "boss" then
+				table.insert(bossDrops, def.id)
+			end
+		end
+		check(#Cosmetics.list == 27, "26 phase 5 cosmetics + 1 boss drop (" .. #Cosmetics.list .. ")")
+		check(starters == 6 and auto == #Cosmetics.list - #bossDrops and #bossDrops == 1 and bossDrops[1] == "trail_bubbles", "6 starters; every other cosmetic obtainable now; only real boss content (no fake event/daily/premium)")
 		local rarities = {}
 		for _, def in Cosmetics.list do
 			rarities[def.rarity] = true
@@ -220,12 +228,12 @@ return function(ctx)
 			end
 		end
 		check(#stray == 0, "no gameplay module reads cosmetics (" .. table.concat(stray, ", ") .. ")")
-		check(table.concat(serviceUsers, ",") == "server/Services/DevCommands.luau,server/init.server.luau", "CosmeticService used only by bootstrap + dev commands (" .. table.concat(serviceUsers, ",") .. ")")
+		check(table.concat(serviceUsers, ",") == "server/Services/BossService.luau,server/Services/DevCommands.luau,server/init.server.luau", "CosmeticService used only by bootstrap + dev commands + the boss rewards (" .. table.concat(serviceUsers, ",") .. ")")
 	end)
 
 	--------------------------------------------------------------------------
 	scenario("V2 Cosmetics: schema 4 migration from a phase 4 save, sanitising", function()
-		check(GameConfig.Data.SchemaVersion == 4, "schema 4")
+		check(GameConfig.Data.SchemaVersion >= 4, "schema 4 or later (phase 6: 5)")
 		local phase4 = DataSchema.serialize(DataSchema.normalize({
 			schema = 3,
 			essence = 4321,
@@ -240,7 +248,7 @@ return function(ctx)
 		local raw = deepCopy(phase4)
 		local data = DataSchema.normalize(raw)
 		check(deepEqual(raw, phase4), "normalize never mutates the phase 4 record")
-		check(data.schema == 4, "phase 4 save -> schema 4")
+		check(data.schema == GameConfig.Data.SchemaVersion, "phase 4 save -> current schema")
 		check(data.essence == 4321 and data.lifetimeEssence == 9999 and data.power.peak == 777 and #data.relics == 1 and data.relics[1].level == 3, "Essence, Power record, relics kept")
 		check(data.abilities.unlocked.shield and data.abilities.loadout[3] == "shield" and data.abilities.harmonyOff.magma_heart, "abilities, loadout and harmony switches kept")
 		check(deepEqual(data.stats, phase4.stats), "stats kept")
@@ -248,7 +256,7 @@ return function(ctx)
 		-- V1 save -> 4 in one go.
 		local fixture = serde.decode("json", fs.readFile("tests/fixtures/save_v1.json"))
 		local fromV1 = DataSchema.normalize(fixture)
-		check(fromV1.schema == 4 and #fromV1.relics == 5 and deepEqual(fromV1.cosmetics.owned, Cosmetics.starters()), "real V1 save -> schema 4 with the starters")
+		check(fromV1.schema == GameConfig.Data.SchemaVersion and #fromV1.relics == 5 and deepEqual(fromV1.cosmetics.owned, Cosmetics.starters()), "real V1 save -> schema 4 with the starters")
 		-- Tampering.
 		local tampered = deepCopy(phase4)
 		tampered.schema = 4
@@ -268,8 +276,8 @@ return function(ctx)
 		check(deepEqual(round.cosmetics, clean.cosmetics), "serialize -> normalize round trip is lossless")
 		check(count(round.cosmetics.owned) <= #Cosmetics.list, "inventory bounded by the catalogue (no duplicates possible: a set)")
 
-		-- A save written by a NEWER build (schema 5) is never touched.
-		local future = { schema = 5, essence = 55, cosmetics = { owned = { future_trail = true }, equipped = { trail = "future_trail" } }, futureField = 1 }
+		-- A save written by a NEWER build is never touched.
+		local future = { schema = GameConfig.Data.SchemaVersion + 1, essence = 55, cosmetics = { owned = { future_trail = true }, equipped = { trail = "future_trail" } }, futureField = 1 }
 		Engine.dataStoreData[STORE .. "6161"] = deepCopy(future)
 		local player = Engine.addPlayer("FutureCos", 6161)
 		advance(3)
@@ -288,7 +296,7 @@ return function(ctx)
 		Engine.removePlayer(vet)
 		advance(2)
 		local saved = Engine.dataStoreData[STORE .. "6262"]
-		check(saved.schema == 4 and saved.cosmetics and saved.cosmetics.owned.trail_stardust == true and saved.essence == 4321, "saved back as schema 4, nothing lost")
+		check(saved.schema == GameConfig.Data.SchemaVersion and saved.cosmetics and saved.cosmetics.owned.trail_stardust == true and saved.essence == 4321, "saved back as schema 4, nothing lost")
 	end)
 
 	--------------------------------------------------------------------------
@@ -690,7 +698,7 @@ return function(ctx)
 		end)
 		advance(1)
 		local saved = Engine.dataStoreData[STORE .. alice.UserId]
-		check(result ~= false and saved and saved.schema == 4 and saved.cosmetics and saved.cosmetics.equipped.trail == "trail_stardust", "inventory + equipped persisted (schema 4)")
+		check(result ~= false and saved and saved.schema == GameConfig.Data.SchemaVersion and saved.cosmetics and saved.cosmetics.equipped.trail == "trail_stardust", "inventory + equipped persisted (current schema)")
 		equip(alice, "trail", "")
 		equip(alice, "title", "")
 		equip(alice, "sanctuary", "")

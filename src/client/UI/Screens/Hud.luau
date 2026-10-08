@@ -43,6 +43,7 @@ local Abilities = require(Controllers.Abilities)
 local GrappleTargeting = require(Controllers.GrappleTargeting)
 local RelicRenderer = require(Controllers.RelicRenderer)
 local SanctuaryFX = require(Controllers.SanctuaryFX)
+local Boss = require(Controllers.Boss)
 local ClientNet = require(UIRoot.Parent.ClientNet)
 local Net = require(Shared.Net)
 
@@ -368,6 +369,60 @@ local function buildMenu(parent: Instance)
 	})
 	local _ = chip
 end
+
+-- Boss bar (V2 phase 6): the portal countdown, always visible; opens the
+-- boss card (rewards with exact chances, ENTER when you stand at the portal).
+local bossBar: Button.Button? = nil
+local bossBarCaption: TextLabel? = nil
+local bossBarTimer: TextLabel? = nil
+local bossBarWasOpen = false
+
+local function buildBossBar(parent: Instance, order: number)
+	local button = Button.new({
+		name = "BossBar",
+		size = UDim2.fromOffset(270, 54),
+		kind = "purple",
+		corner = Theme.Radius.Large,
+		layoutOrder = order,
+		parent = parent,
+		onClick = function()
+			openModal("BossPortal")
+		end,
+	})
+	local emoji = Style.text({ Name = "Emoji", Size = UDim2.fromOffset(40, 40), Position = UDim2.new(0, 8, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 28, FontFace = Theme.Fonts.Display, Text = Emoji.get("trophy"), ZIndex = 3, Parent = button.content })
+	emoji:SetAttribute("Emoji", true)
+	local caption = Style.text({ Name = "Caption", Size = UDim2.new(0, 100, 1, -8), Position = UDim2.new(0, 52, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), TextSize = 18, FontFace = Theme.Fonts.Display, Text = Locale.t("hud.boss"), ZIndex = 3, Parent = button.content })
+	Style.ink(caption, Theme.Outline.Text)
+	local timer = Style.text({ Name = "Timer", Size = UDim2.new(1, -150, 1, -8), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), TextXAlignment = Enum.TextXAlignment.Right, TextSize = 18, TextScaled = true, FontFace = Theme.Fonts.Display, TextColor3 = Theme.Colors.Gold, ZIndex = 3, Parent = button.content })
+	Create("UITextSizeConstraint", { MaxTextSize = 18, MinTextSize = 10, Parent = timer })
+	Style.ink(timer, Theme.Outline.Text)
+	bossBar, bossBarCaption, bossBarTimer = button, caption, timer
+end
+
+local function refreshBossBar()
+	local button, caption, timer = bossBar, bossBarCaption, bossBarTimer
+	if not button or not caption or not timer then
+		return
+	end
+	local view = Boss.portal()
+	local t = workspace:GetServerTimeNow()
+	caption.Text = Locale.t("hud.boss")
+	if view.state == "Open" then
+		timer.Text = Locale.t("hud.bossOpen", { time = Format.clock(math.max(0, view.closesAt - t)) })
+		if not bossBarWasOpen then
+			bossBarWasOpen = true
+			button:pulse()
+			Tween.wiggle(button.instance, 5)
+		end
+	elseif view.state == "Fight" then
+		timer.Text = Locale.t("hud.bossFight")
+		bossBarWasOpen = false
+	else
+		timer.Text = Locale.t("hud.bossIn", { time = Format.clock(math.max(0, view.opensAt - t)) })
+		bossBarWasOpen = false
+	end
+end
+Hud.refreshBossBar = refreshBossBar
 
 local function buildGoal(parent: Instance, order: number)
 	local button = Button.new({
@@ -1150,7 +1205,7 @@ function Hud.init(parent: Instance, fullscreenLayer: Frame, options: Options)
 
 	local column = Create("Frame", {
 		Name = "LeftColumn",
-		Size = UDim2.fromOffset(270, 360),
+		Size = UDim2.fromOffset(270, 424),
 		Position = if touch then UDim2.new(0, 12, 0.36, 0) else UDim2.new(0, 16, 0.5, -20),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundTransparency = 1,
@@ -1159,8 +1214,9 @@ function Hud.init(parent: Instance, fullscreenLayer: Frame, options: Options)
 	Style.list(column, 10, Enum.FillDirection.Vertical, Enum.HorizontalAlignment.Left)
 	buildEssence(column)
 	buildMenu(column)
+	buildBossBar(column, 4)
 	if not touch then
-		buildGoal(column, 4)
+		buildGoal(column, 5)
 	end
 	buildAbilities(parent)
 	buildCarry(parent)
@@ -1185,6 +1241,14 @@ function Hud.init(parent: Instance, fullscreenLayer: Frame, options: Options)
 		refreshStatic()
 		carriedKey = ""
 		rebuildCarry()
+	end)
+
+	-- Boss portal countdown.
+	task.spawn(function()
+		while true do
+			refreshBossBar()
+			task.wait(0.5)
+		end
 	end)
 
 	-- Under attack: red vignette pulses while someone steals from you.

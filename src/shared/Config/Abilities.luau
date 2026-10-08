@@ -11,8 +11,8 @@
 --
 -- Unlocks: abilities that are not `default` are bought with Essence once the
 -- player's Power RECORD reaches `unlock.power` (a theft never re-locks them).
--- `unlock.materials` is reserved for boss / Forge materials (phase 6+): every
--- launch ability leaves it empty.
+-- `unlock.materials` uses boss materials (Config/Materials, phase 6): checked
+-- and spent by AbilityService.unlock. Every current ability leaves it empty.
 --
 -- Harmonies: 6 relics change one ability while the relic stands on a pedestal
 -- of its owner's Sanctuary (a relic out on a heist does not count). Players
@@ -35,7 +35,7 @@ export type UnlockDef = {
 	-- Power record required.
 	power: number,
 	essence: number,
-	-- Future boss / Forge materials: materialId -> amount (empty at launch).
+	-- Boss materials (Config/Materials): materialId -> amount (empty for now).
 	materials: { [string]: number },
 }
 

@@ -88,6 +88,9 @@ local function refreshDetail()
 	if def.eventOnly then
 		table.insert(lines, Style.colored(Locale.t("dex.eventOnly", { event = Locale.t("event." .. def.eventOnly .. ".name") }), Theme.Colors.Warning))
 	end
+	if def.bossOnly then
+		table.insert(lines, Style.colored(Locale.t("dex.bossOnly", { boss = Locale.t("boss." .. def.bossOnly .. ".name") }), Color3.fromRGB(206, 160, 255)))
+	end
 	detailStats.Text = table.concat(lines, "\n")
 	local mutationLines = { "<b>" .. Locale.t("dex.mutations") .. "</b>" }
 	for _, mutation in Mutations.list do

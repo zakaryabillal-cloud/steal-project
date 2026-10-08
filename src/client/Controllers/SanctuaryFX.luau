@@ -72,6 +72,7 @@ local PROTECTION_COLORS = {
 	Sealed = Color3.fromRGB(190, 140, 255),
 	Resting = Color3.fromRGB(170, 170, 200),
 	LastRelics = Color3.fromRGB(140, 230, 170),
+	Expedition = Color3.fromRGB(176, 110, 255),
 }
 
 local PROTECTION_KEYS = {
@@ -80,6 +81,7 @@ local PROTECTION_KEYS = {
 	Sealed = "block.sealed",
 	Resting = "block.resting",
 	LastRelics = "block.lastRelics",
+	Expedition = "block.expedition",
 }
 
 local function attrNumber(instance: Instance, name: string): number

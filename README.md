@@ -19,7 +19,7 @@ Future, ombres douces, nuages volumétriques, particules, beams, interface) est 
 pas sur ces images. Anciens aperçus V2 (nuit) : `docs/previews/v2_*.png`. Direction artistique complète :
 [`docs/ART_DIRECTION.md`](docs/ART_DIRECTION.md).</sub>
 
-> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités », 5 « Cosmétiques » et 5.5 « Direction artistique cartoon » terminées).
+> **V2 en cours** — plan validé et état d'avancement : [`docs/V2_PLAN.md`](docs/V2_PLAN.md) (phases 1 « Fondations », 2 « Monde V2 », 3 « Audio dynamique », 4 « Capacités », 5 « Cosmétiques », 5.5 « Direction artistique cartoon » et 6 « Premier boss : Void Warden » terminées).
 
 ### Direction artistique (Phase 5.5)
 
@@ -165,6 +165,34 @@ RiftDex, palier du Sanctuaire, temps de jeu) et restent acquis pour toujours. É
 bouton « Style » du menu) : filtre par catégorie, état verrouillé / possédé / équipé, condition de déblocage avec
 progression, bouton **Essayer** (aperçu local 5 s, même verrouillé). Détails : `docs/V2_PLAN.md` §10.
 
+### Expéditions de boss (Phase 6) — le Void Warden
+
+Toutes les **10 minutes**, le portail du **Plateau du boss** s'ouvre pendant **60 s** (annonce 30 s avant,
+compte à rebours sur la barre « Boss » du HUD et sur un panneau au-dessus du portail). Devant le portail, la
+carte du boss (une « affiche de catch ») montre le boss en 3D, son rang, sa difficulté, le **Power recommandé
+(150)** face au tien, le **Power record minimum (25)** et **chaque récompense avec sa probabilité exacte** pour
+chaque joueur éligible : Essence (5 min de ta production, 100 %), Éclats du Néant ×3–6 (100 %), Catalyseur du
+Néant (15 %), relique exclusive **Plumeau du Néant** (8 %), traînée exclusive **Bulles de savon** (5 %).
+On entre seul ou à plusieurs (**reliques en main interdites**, la règle la plus sûre), dans une arène flottante
+lointaine (« le placard du concierge du Néant ») : pas de PvP dedans, Sanctuaire protégé (« Expédition »)
+tant qu'on participe. **Prêt !** de tout le monde lance le combat plus tôt.
+
+Le **Void Warden** est un gros cube de gelée violet, casquette de concierge, énormes yeux, moustache, gants
+flottants et balai géant (pièces Roblox natives, pas de modèle sculpté). Ses attaques sont **toutes annoncées**
+(zone qui se remplit du jaune au rouge, ≥ 0,8 s ; 2 s pour la spéciale) : **coup de balai** (anneau de poussière
+à sauter), **flaques collantes** (cercles qui font SPLAT puis ralentissent), **moutons de poussière** lancés en
+cloche (marques au sol), **plat ventre** (une ombre grossit où il atterrit), et en phase 2 le **Grand Ménage**
+(trois quarts de l'arène balayés, un quart qui brille est sûr ; il finit étourdi : dégâts ×1,5). Phases : grognon
+(100–60 %), fâché (60–25 %), rouge comme une tomate (< 25 %). Chacun a **4 cœurs** (1,5 s d'invincibilité après un
+coup) ; KO = retour au plateau. **Frappe** (clic / E / X / gros bouton) : seulement dans l'arène, portée et
+dégâts calculés par le serveur ; le Power actuel donne au plus **+25 %** de dégâts **contre les boss** (jamais en
+PvP). Les PV du boss augmentent de 70 % par joueur supplémentaire ; un débutant peut gagner seul en 3:30.
+Récompenses **individuelles**, tirées côté serveur, seulement pour les participants éligibles (≥ 20 % d'une part
+équitable des dégâts, encore là, ni AFK ni partis), **jamais deux fois pour le même combat**. La relique de boss
+va sur un **socle de trophée non volable** (1 à 3 socles débloqués par le Power record) ; un doublon la fait
+monter de niveau. **Boss Codex** : découverte, tentatives, victoires, meilleur temps, trouvailles rares, matériaux
+gardés pour la future Forge. Détails : `docs/V2_PLAN.md` §12.
+
 ### Rythme visé
 
 - 30 s : comprendre (tutoriel par le monde, faisceau, flèche de bord d'écran).
@@ -183,6 +211,9 @@ progression, bouton **Essayer** (aperçu local 5 s, même verrouillé). Détails
 | Sceller le sanctuaire | G | Y | bouton |
 | Écran Capacités (loadout, déblocages, harmonies) | L | croix haut | bouton rond à gauche des capacités |
 | Écran Style (cosmétiques) | C | croix bas | bouton « Style » du menu |
+| Carte du boss (portail, récompenses) | E devant le portail | X | toucher la carte / barre « Boss » du HUD |
+| **Frappe** (arène du boss uniquement) | clic gauche ou E | X | gros bouton FRAPPE |
+| Sauter par-dessus le coup de balai | Espace | A | bouton de saut |
 | Fermer un menu | Échap | B | ✕ |
 
 Blink et Leurre partent dans la direction du déplacement (sinon vers l'avant du personnage). Le Grappin vise
@@ -245,7 +276,9 @@ src/
 │   │   ├── Sounds.luau       registre audio (id / fallback / note de design)
 │   │   ├── Theme.luau        jetons UI cartoon : couleurs, boutons, contours, polices, couleurs des sanctuaires
 │   │   ├── Palette.luau      palette du monde, terrain, matériaux « jouet », éclairage de jour (Phase 5.5)
-│   │   └── Emoji.luau        emojis autorisés (fiables sur tous les appareils) (Phase 5.5)
+│   │   ├── Emoji.luau        emojis autorisés (fiables sur tous les appareils) (Phase 5.5)
+│   │   ├── Bosses.luau       portail, arène, règles de combat, Void Warden (phases, attaques, butin exact) (Phase 6)
+│   │   └── Materials.luau    matériaux de boss pour la future Forge (Phase 6)
 │   ├── Locale/               textes EN/FR (choix auto selon la langue Roblox, modifiable en jeu)
 │   ├── Relics/               RelicFactory (assemblage visuel, habillage, mutations, LOD) + RelicShapes
 │   │                         + RelicFaces (visages cartoon, regard vers le joueur, clignements)
@@ -259,7 +292,8 @@ src/
 │   ├── init.server.luau      bootstrap : monde, services, joueurs, sync, autosave, BindToClose
 │   ├── Core/                 Remotes (rate-limit + pcall), Sessions, DataSchema, Rolls, Snapshot (Sync
 │   │                         chaud/froid), Scheduler (boucle unique de tous les jobs périodiques), Types
-│   ├── Abilities/            logique serveur de chaque capacité (Dash, Pulse) (V2)
+│   ├── Abilities/            logique serveur de chaque capacité (V2)
+│   ├── Bosses/               comportement de chaque boss (planification des attaques) : VoidWarden (Phase 6)
 │   ├── Services/
 │   │   ├── DataService       DataStore : UpdateAsync, verrou de session, retries, autosave
 │   │   ├── PlotService       attribution des sanctuaires, file d'attente, protections, Sceau
@@ -275,22 +309,28 @@ src/
 │   │   ├── EventService      planification et déclenchement des événements
 │   │   ├── CharacterService  spawn, groupes de collision, vitesse, étourdissement, vide
 │   │   ├── MovementGuard     détection de téléportation / vitesse anormale
+│   │   ├── BossService       portail, arène, combat, cœurs, Frappe, récompenses, Codex, nettoyage (Phase 6)
+│   │   ├── TrophyService     socles de trophées (reliques de boss non volables) (Phase 6)
 │   │   ├── TutorialService   progression du tutoriel
 │   │   └── DevCommands       commandes /rh (Studio uniquement)
 │   └── World/                génération procédurale : TerrainBuilder, RiftBuilder (+ visage de la Faille),
 │                             SanctuaryBuilder, Props (ponts, gués, lampadaires, arbres, fleurs géantes,
-│                             champignons, cristaux, ruines, ciel), Ambience (éclairage de jour), Parts
+│                             champignons, cristaux, ruines, ciel), Ambience (éclairage de jour), Parts,
+│                             ArenaBuilder (arène du boss, construite à la demande)
 └── client/                   → StarterPlayerScripts.Client
     ├── init.client.luau      bootstrap client + routage des effets serveur
     ├── ClientNet.luau
     ├── Abilities/            prédiction + ressenti client de chaque capacité (V2)
     ├── Controllers/          Store (état), Settings, Audio, CameraFX, LightingFX, RelicRenderer,
-    │                         RiftFX, SanctuaryFX, CharacterFX, Abilities, Prompts, WorldFX, Tutorial
+    │                         RiftFX, SanctuaryFX, CharacterFX, Abilities, Prompts, WorldFX, Tutorial,
+    │                         Boss (Frappe, rejoindre), BossFX (corps du boss, télégraphes, effets)
+    ├── Boss/                 VoidWardenModel (corps cartoon en pièces natives) (Phase 6)
     └── UI/                   couches HUD / modales / overlay, mise à l'échelle par résolution
         ├── Kit/              Create, Style, Tween, Button (bouton « chunky »), Icons, RelicViewport, Text,
         │                     Modal (ruban de titre), Juice (confettis, « +250! », étoiles, rayons)
         └── Screens/          TopStack, Hud, Shop, Dex, Inspect, SettingsMenu, Discovery,
-                              Notifications, Announcer, EventBanner, Loading
+                              Notifications, Announcer, EventBanner, Loading,
+                              BossHud, BossPortal, BossCodex (Phase 6)
 tests/                        harnais headless (Lune) + scénarios
 tools/                        analyse statique, rendu d'aperçus
 ```
@@ -329,9 +369,12 @@ Pour 6–8 joueurs : même procédure ; à partir du 9ᵉ joueur, la file d'atte
   publié). Sans cela le jeu fonctionne avec des **données temporaires** (message « Studio : DataStores
   indisponibles »), rien n'est écrit.
 - Store : `RiftHeist_Player_v1`, clé `u_<UserId>`, schéma versionné (`GameConfig.Data.SchemaVersion`,
-  actuellement **4** : la V2 ajoute le loadout de capacités et le Power record (2), les interrupteurs
-  d'harmonies (3) et l'inventaire de cosmétiques (4) ; les sauvegardes V1 à V3 sont migrées automatiquement
-  sans perte).
+  actuellement **5** : la V2 ajoute le loadout de capacités et le Power record (2), les interrupteurs
+  d'harmonies (3), l'inventaire de cosmétiques (4) puis le **Boss Codex**, les **matériaux** et les **trophées**
+  (5) ; les sauvegardes V1 à V4 sont migrées automatiquement sans perte).
+- Boss : les récompenses sont écrites dans la session **et sauvegardées immédiatement** ; l'identifiant du combat
+  payé est gardé dans le Codex, si bien qu'un même combat ne peut jamais payer deux fois (déconnexion, crash,
+  relance).
 - **Garde anti-écrasement** : un profil écrit par une version plus récente du jeu n'est jamais verrouillé,
   normalisé ni réécrit par un serveur plus ancien (le joueur joue avec des données temporaires et est invité à
   changer de serveur). Les serveurs V1 n'ont pas cette garde : à la publication de la V2, utiliser
@@ -477,6 +520,8 @@ Actives **uniquement dans Studio** (`RunService:IsStudio()`), via le chat :
 | `/rh abilities [off]` | toutes les capacités équipables pour la session (**jamais sauvegardé** ; les vrais déblocages ne changent pas) |
 | `/rh cooldowns` | remet à zéro tes recharges |
 | `/rh cosmetics [off\|reset]` | tous les cosmétiques équipables pour la session (**jamais sauvegardé**) · `off` : retire ce qui n'est pas possédé · `reset` : inventaire ramené aux 6 cosmétiques de départ (les déblocages reviennent selon ta progression) |
+| `/rh boss open` · `start` · `hp <%>` · `win` · `stop` | ouvre le portail tout de suite · lance le combat sans attendre · fixe les PV du boss · le laisse à 1 PV · termine l'expédition |
+| `/rh boss shards <n>` · `codex` | ajoute des Éclats du Néant · vide ton Codex (pour retester la découverte) |
 | `/rh reset` | réinitialise les données (kick) |
 
 ## 12. Tests automatisés et outils
@@ -494,11 +539,10 @@ lune run tests/run.luau
 Le harnais (`tests/harness`) simule le moteur Roblox : temps virtuel, `task.*`, signaux différés,
 Players/DataStore/RemoteEvents/TweenService… et **valide chaque propriété/méthode utilisée contre
 l'API-Dump officiel de Roblox** (membres inconnus, types, propriétés en lecture seule). Le vrai code
-serveur et un vrai client tournent dedans. Résultat actuel : **1094 vérifications, 0 échec, 0 erreur d'exécution**
-(148 V1 + 135 V2 phase 1 dans `tests/scenarios/V2Foundations.luau` + 68 V2 phase 2 dans
-`tests/scenarios/V2World.luau` + 101 V2 phase 3 dans `tests/scenarios/V2Audio.luau` + 289 V2 phase 4 dans
-`tests/scenarios/V2Abilities.luau` + 115 V2 phase 5 dans `tests/scenarios/V2Cosmetics.luau` + 238 phase 5.5 dans
-`tests/scenarios/V2ArtDirection.luau`). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
+serveur et un vrai client tournent dedans. Résultat actuel : **1355 vérifications, 0 échec, 0 erreur d'exécution**
+(1094 des phases précédentes, inchangées — V1, V2 phases 1 à 5.5 —, 1 contrôle automatique de plus pour le nom du nouveau cosmétique, et 260 de la
+phase 6 dans `tests/scenarios/V2Bosses.luau`). `ONLY=bosses lune run tests/run.luau` saute les scénarios V2 sans
+rapport avec les boss pour itérer plus vite (≈ 40 s). Le harnais sait lancer des rayons (`workspace:Raycast`, `RaycastParams`,
 groupes de collision, terrain en voxels) pour valider Blink, Grappin, lignes de vue et pièges.
 
 Vérifications du monde seules (≈ 7 s, sans joueurs) : `lune run tests/world.luau`. Elles suivent chaque route
@@ -583,6 +627,13 @@ lus dans la palette exportée ; nécessite numpy + Pillow. Ce n'est pas le moteu
   **possession** (inventaire serveur), puis publie l'équipement en attributs (`Cos_<catégorie>`, `Theme`). Aucune
   remote ne peut ajouter un cosmétique ; les déblocages sont calculés par le serveur à partir de ses propres
   données ; l'inventaire chargé est assaini (ids inconnus, mauvaise catégorie, non possédé).
+- Boss (Phase 6) : la Frappe n'a **aucun argument** (le serveur vérifie participation, phase du combat, portée
+  depuis son propre personnage, recharge, boss en l'air ou protégé, et calcule les dégâts) ; entrée refusée
+  reliques en main, sous le Power record, loin du portail, portail fermé ou combat en cours ; attaques résolues
+  sur la vue serveur des joueurs ; hors des murs = ramené dans l'arène, à plus de 220 studs (téléportation) =
+  retiré sans récompense ; un intrus dans l'arène est renvoyé au plateau ; inactif 35 s = renvoyé (AFK) ;
+  récompenses individuelles seulement pour les éligibles, une seule fois par combat ; chaque téléportation est
+  signalée au `MovementGuard` ; aucune capacité ne traverse la frontière de l'expédition (`Core/Expeditions`).
 - Le serveur seul crée/détruit les reliques et modifie l'Essence ; les sauvegardes chargées sont assainies.
 
 ## 14. Performance
@@ -597,6 +648,10 @@ lus dans la palette exportée ; nécessite numpy + Pillow. Ce n'est pas le moteu
   Faille animé dans la boucle `RiftFX` existante (aucune connexion ajoutée), visages des reliques dans les
   animateurs existants (LOD : seulement de près), confettis plafonnés (60 vivants, 4 explosions / s).
 - Interface mise à l'échelle par résolution (`UIScale`), boutons tactiles dédiés sur mobile.
+- Boss : l'arène (< 200 pièces, 2 lumières, 1 émetteur) n'existe que pendant une expédition et est détruite
+  ensuite ; le boss est **une seule pièce invisible** côté serveur (le corps cartoon, ~30 pièces, est construit
+  par chaque client) ; un message réseau par attaque ; télégraphes et effets locaux détruits avec leur attaque ;
+  explosions de particules réduites selon le réglage Qualité (Basse = mobile).
 - Cosmétiques : **une seule** boucle (Heartbeat, 4 fois par seconde) pour tous les joueurs ; traînées et particules
   natives ; effets des autres coupés au-delà d'une distance (traînée 160, aura 90, transport 120, thème 220,
   titre 60 studs, × réglage Qualité) ; au plus 8 auras et 3 lumières d'aura actives ; Qualité Basse coupe les auras
@@ -629,6 +684,11 @@ lus dans la palette exportée ; nécessite numpy + Pillow. Ce n'est pas le moteu
 | Approcher une relique au sol | elle se tourne vers toi, cligne des yeux ; étiquette avec pastille de rareté et ★ |
 | Une relique sort de la Faille | la Faille lève les sourcils pendant la charge, ouvre la bouche, « BURP! » |
 | Acheter une amélioration | confettis + « NIVEAU +1 ! » au-dessus du bouton |
+| Entrer au portail avec une relique en main | refusé : « Pose d'abord tes reliques » |
+| Boss : rester au sol quand l'anneau de poussière passe | un cœur en moins, « BONK! », recul ; sauter = indemne |
+| Boss : se faire voler pendant l'expédition | impossible : « Le propriétaire affronte un boss » |
+| Boss : déconnexion en plein combat | le combat continue pour les autres ; aucune récompense pour l'absent |
+| Boss : victoire | « VICTOIRE ! », confettis, il s'enfuit en boudant, carte des récompenses ; Codex mis à jour |
 
 ---
 

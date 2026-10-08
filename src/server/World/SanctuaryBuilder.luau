@@ -221,6 +221,28 @@ local function buildPedestals(model: Model, origin: CFrame, accent: Color3)
 	end
 end
 
+-- Trophy pedestals (V2 phase 6): boss relics only, never stealable. Two
+-- parts each (mobile budget); TrophyService shows the unlocked ones.
+local function buildTrophies(model: Model, origin: CFrame)
+	local folder = Parts.folder("Trophies", model)
+	for slot = 1, #Layout.TrophyAngles do
+		local socle = Parts.model("Trophy" .. slot, folder)
+		socle:SetAttribute("Slot", slot)
+		local cf = origin * Layout.trophyLocal(slot)
+		local h = Layout.TrophyHeight
+		Parts.cylinder({ size = Vector3.new(4.2, h - 0.4, 4.2), cf = cf * CFrame.new(0, (h - 0.4) / 2, 0), color = Palette.Core.Cream, material = M.Marble, parent = socle, name = "Base" })
+		Parts.cylinder({ size = Vector3.new(4.6, 0.4, 4.6), cf = cf * CFrame.new(0, h - 0.2, 0), color = Palette.Core.Sunny, material = M.SmoothPlastic, parent = socle, name = "Top" })
+		socle:SetAttribute("State", "Hidden")
+		for _, part in socle:GetChildren() do
+			if part:IsA("BasePart") then
+				part:SetAttribute("BaseTransparency", part.Transparency)
+				part.Transparency = 1
+				part.CanCollide = false
+			end
+		end
+	end
+end
+
 local function buildCore(model: Model, origin: CFrame, accent: Color3)
 	local core = Parts.model("Core", model)
 	local function p(size: Vector3, cf: CFrame, color: Color3, material: Enum.Material, name: string, collide: boolean?)
@@ -516,6 +538,7 @@ function SanctuaryBuilder.create(index: number, parent: Instance): Model
 	buildBase(base)
 	Parts.folder("Structure", model)
 	buildPedestals(model, origin, accent)
+	buildTrophies(model, origin)
 	buildCore(model, origin, accent)
 	buildBarrier(model, origin, accent, index)
 

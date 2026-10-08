@@ -29,10 +29,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
 local Abilities = require(Shared.Config.Abilities)
+local Bosses = require(Shared.Config.Bosses)
+local Materials = require(Shared.Config.Materials)
 
 local Core = script.Parent.Parent.Core
 local Types = require(Core.Types)
 local Sessions = require(Core.Sessions)
+local Expeditions = require(Core.Expeditions)
 local Remotes = require(Core.Remotes)
 local Scheduler = require(Core.Scheduler)
 local PlotService = require(script.Parent.PlotService)
@@ -68,6 +71,7 @@ local DENIED_FEEDBACK: { [string]: boolean } = {
 	noGround = true,
 	forbidden = true,
 	notEquipped = true,
+	arena = true,
 }
 
 local function now(): number
@@ -134,6 +138,10 @@ function AbilityService.use(player: Player, abilityId: any, rawPayload: any): (b
 	local _, _, root = Sessions.character(session)
 	if not root then
 		return false, "noCharacter"
+	end
+	-- Boss arena: movement / defence only (no PvP tool between fighters).
+	if Expeditions.isAway(session) and not Bosses.Combat.ArenaAbilities[def.id] then
+		return deny(session, def.id, "arena")
 	end
 	local canAct, reason = StatusService.canAct(session, def)
 	if not canAct then
@@ -262,15 +270,21 @@ function AbilityService.unlock(player: Player, abilityId: any): (boolean, string
 	if session.data.power.peak < requirement.power then
 		return false, "power"
 	end
-	-- Boss / Forge materials do not exist yet (phase 6+): any requirement
-	-- on them cannot be met, so no launch ability uses one.
-	for _, amount in requirement.materials do
-		if amount > 0 then
+	-- Boss materials (phase 6): checked here, spent together with the Essence.
+	-- Unknown material ids can never be met.
+	local materials = session.data.materials
+	for materialId, amount in requirement.materials do
+		if amount > 0 and (Materials.get(materialId) == nil or (materials[materialId] or 0) < amount) then
 			return false, "materials"
 		end
 	end
 	if not EconomyService.spend(session, requirement.essence) then
 		return false, "notEnough"
+	end
+	for materialId, amount in requirement.materials do
+		if amount > 0 then
+			materials[materialId] = (materials[materialId] or 0) - amount
+		end
 	end
 	unlocked[def.id] = true
 	Sessions.markCold(session)

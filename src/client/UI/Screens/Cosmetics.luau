@@ -26,6 +26,7 @@ local Button = require(Kit.Button)
 local Modal = require(Kit.Modal)
 local Juice = require(Kit.Juice)
 local Emoji = require(Shared.Config.Emoji)
+local Bosses = require(Shared.Config.Bosses)
 
 local Controllers = UIRoot.Parent.Controllers
 local Store = require(Controllers.Store)
@@ -102,7 +103,22 @@ function CosmeticsScreen.hintText(def: Cosmetics.CosmeticDef): string
 	if u.kind == "playtime" then
 		value = math.floor((u.value or 0) / 3600 + 0.5)
 	end
-	local text = Locale.t(key, { value = value })
+	local text: string
+	if u.kind == "boss" then
+		-- Boss drop: which boss, and the exact chance from its loot table.
+		local boss = Bosses.get(u.boss)
+		local chance = 0
+		if boss then
+			for _, entry in boss.loot do
+				if entry.kind == "cosmetic" and entry.ref == def.id then
+					chance = entry.chance
+				end
+			end
+		end
+		text = Locale.t(key, { boss = Locale.t("boss." .. tostring(u.boss) .. ".name"), chance = Bosses.percent(chance) })
+	else
+		text = Locale.t(key, { value = value })
+	end
 	if Cosmetics.UnlockKinds[u.kind].auto and u.kind ~= "starter" and u.kind ~= "playtime" then
 		text ..= string.format("  ·  %d%%", math.floor(Cosmetics.progress(def, progressData()) * 100))
 	end

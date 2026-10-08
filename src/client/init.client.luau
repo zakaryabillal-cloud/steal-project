@@ -36,6 +36,8 @@ local CosmeticRenderer = require(Controllers.CosmeticRenderer)
 local Prompts = require(Controllers.Prompts)
 local WorldFX = require(Controllers.WorldFX)
 local Tutorial = require(Controllers.Tutorial)
+local Boss = require(Controllers.Boss)
+local BossFX = require(Controllers.BossFX)
 
 local UI = require(script.UI)
 local Kit = script.UI.Kit
@@ -56,6 +58,9 @@ local SettingsMenu = require(Screens.SettingsMenu)
 local Discovery = require(Screens.Discovery)
 local Loadout = require(Screens.Loadout)
 local CosmeticsScreen = require(Screens.Cosmetics)
+local BossHud = require(Screens.BossHud)
+local BossPortal = require(Screens.BossPortal)
+local BossCodex = require(Screens.BossCodex)
 
 local localPlayer = Players.LocalPlayer
 
@@ -97,6 +102,8 @@ CosmeticRenderer.init()
 Abilities.init()
 Prompts.init()
 WorldFX.init()
+Boss.init()
+BossFX.init()
 
 -- 3. Interface --------------------------------------------------------------------
 local stack = TopStack.get(UI.hud)
@@ -109,6 +116,15 @@ UI.registerModal("Dex", Dex.init(UI.modal, UI.close))
 UI.registerModal("Settings", SettingsMenu.init(UI.modal, UI.close))
 UI.registerModal("Loadout", Loadout.init(UI.modal, UI.close))
 UI.registerModal("Cosmetics", CosmeticsScreen.init(UI.modal, UI.close))
+UI.registerModal("BossPortal", BossPortal.init(UI.modal, UI.close))
+UI.registerModal("BossCodex", BossCodex.init(UI.modal, UI.close))
+BossPortal.setCodexOpener(function()
+	UI.open("BossCodex")
+end)
+BossHud.init(UI.hud, UI.overlay, UI.touch, stack)
+Boss.menuRequested:Connect(function()
+	UI.open("BossPortal")
+end)
 
 -- Abilities screen: L (keyboard) / D-pad up (controller) / HUD button (touch).
 game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
@@ -312,6 +328,45 @@ ClientNet.on("Dissolve", function(payload)
 	if isMe(payload.userId) then
 		Hud.pulseEssence()
 		Audio.play("EssenceCollect", { pitch = 1.2 })
+	end
+end)
+
+-- Boss expeditions (V2 phase 6) ----------------------------------------------------
+ClientNet.on("BossAttack", function(payload)
+	BossFX.attack(payload)
+	BossHud.attack(payload, BossFX.AttackColors[payload.attack])
+end)
+
+ClientNet.on("BossHit", BossFX.hit)
+ClientNet.on("BossKO", BossFX.ko)
+
+ClientNet.on("BossStart", function(payload)
+	local name = Locale.t("boss." .. tostring(payload.boss) .. ".name")
+	announce(string.upper(name), Locale.t("boss.strikeHint"), Color3.fromRGB(206, 160, 255), 3)
+	CameraFX.shake(0.4)
+end)
+
+ClientNet.on("BossPhase", function(payload)
+	local phase = tonumber(payload.phase) or 1
+	announce(Locale.t("boss.phaseAnnounce", { phase = phase }), Locale.t("boss.phase." .. phase), Color3.fromRGB(255, 120, 200), 2.2)
+	CameraFX.shake(0.35)
+end)
+
+ClientNet.on("BossEnd", function(payload)
+	BossFX.ended(payload)
+	BossHud.results(payload)
+	MusicDirector.stinger(if payload.result == "Victory" then "Stinger.BossVictory" else "Stinger.BossDefeat")
+	if payload.result == "Victory" then
+		LightingFX.flash(Theme.Colors.Gold, 0.3, 1.2)
+	end
+end)
+
+local lastBossDeny = 0
+Boss.denied:Connect(function(reason: string)
+	local key = "boss.deny." .. reason
+	if Locale.has(key) and os.clock() - lastBossDeny > 1 then
+		lastBossDeny = os.clock()
+		Notifications.push(Locale.t(key), "warning", 1.6)
 	end
 end)
 

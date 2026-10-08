@@ -72,6 +72,12 @@ function EconomyService.recompute(session: Session)
 			table.insert(harmonyRelics, entity.id)
 		end
 	end
+	-- Boss relics on trophy pedestals (phase 6) produce and count in Power
+	-- like displayed relics; they can never be stolen.
+	for _, entity in RelicService.trophiesOf(session.userId) do
+		total += Economy.relicBaseRate(entity.id, entity.level, entity.mutation)
+		table.insert(placed, { id = entity.id, level = entity.level, mutation = entity.mutation })
+	end
 	table.sort(harmonyRelics)
 	session.multiplier = multiplier
 	session.rate = total * multiplier

@@ -1,6 +1,7 @@
 --!strict
 -- Weighted random rolls for Rift spawns. Pure functions taking an RNG so they
--- can be tested deterministically.
+-- can be tested deterministically. Boss relics (bossOnly) never come out of
+-- the Rift: they are only dropped by their boss (BossService).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
@@ -34,9 +35,12 @@ end
 
 function Rolls.relic(rng: Random, rarityId: string, eventId: string?): Relics.RelicDef
 	local pool: { Relics.RelicDef } = Relics.byRarity[rarityId] or {}
+	local function spawnable(def: Relics.RelicDef): boolean
+		return def.bossOnly == nil and def.spawnWeight > 0 and (def.eventOnly == nil or def.eventOnly == eventId)
+	end
 	local total = 0
 	for _, def in pool do
-		if def.eventOnly == nil or def.eventOnly == eventId then
+		if spawnable(def) then
 			total += def.spawnWeight
 		end
 	end
@@ -50,15 +54,17 @@ function Rolls.relic(rng: Random, rarityId: string, eventId: string?): Relics.Re
 		return Rolls.relic(rng, lower.id, eventId)
 	end
 	local pick = rng:NextNumber() * total
+	local last: Relics.RelicDef? = nil
 	for _, def in pool do
-		if def.eventOnly == nil or def.eventOnly == eventId then
+		if spawnable(def) then
+			last = def
 			pick -= def.spawnWeight
 			if pick <= 0 then
 				return def
 			end
 		end
 	end
-	return pool[1]
+	return last or pool[1]
 end
 
 function Rolls.mutation(rng: Random, boosts: { [string]: number }?): string?
