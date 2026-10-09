@@ -16,6 +16,7 @@
 -- Rotation (phase 7A): the portal cycles through `list` in order (opening n
 -- = list[(n - 1) % #list + 1]); the board and the card show the next boss
 -- and the one after it. Studio: /rh boss open <id>, /rh boss next <id>.
+-- Phase 7B: Void Warden -> Forgeheart -> Tempest Seraph -> Void Warden...
 --
 -- Power: the Power RECORD gates / recommends the expedition; the CURRENT
 -- Power only adds a small capped bonus to strikes against bosses. Nothing
@@ -209,13 +210,22 @@ export type PadDef = {
 	r: number,
 }
 
+-- Calm lane of a wind sweep (phase 7B, Tempest Seraph's Sky Gust): a strip
+-- parallel to the wind direction, `offset` studs to the side of the arena
+-- centre (signed, along the sweep's `side` vector), `width` studs wide.
+export type Lane = {
+	offset: number,
+	width: number,
+}
+
 export type BossDef = {
 	id: string,
 	-- Server/Bosses/<module>.luau
 	module: string,
-	-- Arena look (Server/World/ArenaBuilder): "closet" | "volcano".
+	-- Arena look (Server/World/ArenaBuilder): "closet" | "volcano" | "sky".
 	theme: string,
-	-- Optional safe pads drawn in the arena (Forgeheart's eruption).
+	-- Optional safe pads drawn in the arena (Forgeheart's eruption, the
+	-- Tempest Seraph's cloud shelters).
 	pads: { PadDef }?,
 	padRadius: number?,
 	-- Rank I, II, III... (Codex order) and difficulty stars (1..5).
@@ -347,7 +357,72 @@ local list: { BossDef } = {
 		relic = "ember_anvil",
 		cosmetic = "trail_magma",
 	},
+	{
+		-- TEMPEST SERAPH (phase 7B): a cartoon thunder-cloud diva. A puffy
+		-- cloud body, big expressive eyes, a golden crown worn crooked, tiny
+		-- flapping wings and yellow zig-zag bolts. Smug, dramatic, very loud,
+		-- never scary. Floats above the floor and pops into a drizzle at the end.
+		id = "TempestSeraph",
+		module = "TempestSeraph",
+		theme = "sky",
+		-- Six cloud shelters around the centre: during the MEGA-STORM every
+		-- other one is lit (always one within reach).
+		pads = {
+			{ deg = 30, r = 27 }, { deg = 90, r = 27 }, { deg = 150, r = 27 },
+			{ deg = 210, r = 27 }, { deg = 270, r = 27 }, { deg = 330, r = 27 },
+		},
+		padRadius = 8,
+		rank = 3,
+		difficulty = 4,
+		color = Color3.fromRGB(110, 180, 255),
+		accent = Color3.fromRGB(255, 226, 70),
+		minPowerRecord = 300,
+		recommendedPower = 900,
+		baseHealth = 3000,
+		healthPerExtra = 0.8,
+		radius = 8,
+		height = 11,
+		phases = {
+			{ from = 1, attacks = { "targeted_bolt", "dancing_tornadoes", "sky_gust", "chain_lightning" }, gap = 1.3, mood = "grumpy" },
+			{ from = 0.65, attacks = { "targeted_bolt", "sky_gust", "dancing_tornadoes", "chain_lightning" }, gap = 1.05, special = "mega_storm", specialEvery = 4, mood = "angry" },
+			{ from = 0.3, attacks = { "chain_lightning", "targeted_bolt", "sky_gust", "dancing_tornadoes" }, gap = 0.85, special = "mega_storm", specialEvery = 3, mood = "furious" },
+		},
+		attacks = {
+			-- "Éclair ciblé": a reticle FOLLOWS a fighter for `track` s, then
+			-- LOCKS (stops) and the bolt strikes 0.6 s later. Step out after the
+			-- lock. Phase 1: 1 (+1 per extra fighter, max +2); phase 2+: one per
+			-- fighter; phase 3: `extraPerPhase` more volley(s) 0.5 s later.
+			targeted_bolt = { id = "targeted_bolt", telegraph = 1.6, tuning = { radius = 5.5, track = 1.0, extraPerPhase = 1, volleyGap = 0.5 } },
+			-- "Tornades dansantes": every tornado path is drawn from the warning;
+			-- they appear at the impact time and dance along it, slower than you
+			-- walk. Too tall to jump over.
+			dancing_tornadoes = { id = "dancing_tornadoes", telegraph = 1.4, tuning = { radius = 4.5, speed = 14, count = 2, extraPerPhase = 1, minDuration = 2.5, height = 18 } },
+			-- "Rafale céleste": a wind front sweeps the whole arena; only the
+			-- three green calm lanes are safe (jumping does not help).
+			sky_gust = { id = "sky_gust", telegraph = 1.5, tuning = { speed = 22, speedPhase3 = 28, band = 4, laneWidth = 14, laneSpacing = 32, jitter = 3, startBeyond = 6 } },
+			-- "Chaîne électrique": nodes under the fighters (then free spots)
+			-- linked by arcs; every node and every arc zaps. Spread out!
+			chain_lightning = { id = "chain_lightning", telegraph = 1.4, tuning = { count = 3, extraPerPhase = 1, radius = 4.5, width = 3 } },
+			-- Special "MÉGA-TEMPÊTE" (phase 2+): he rises to the centre and the
+			-- whole arena is struck except every other cloud shelter (lit).
+			-- Phase 3: two more strikes alternating the lit shelters. Then he
+			-- is dazed (dizzy, bonus damage).
+			mega_storm = { id = "mega_storm", telegraph = 3.2, big = true, tuning = { second = 2.4, dizzy = 3 } },
+		},
+		loot = {
+			{ id = "essence", kind = "essence", chance = 1, minutes = 9, floor = 900 },
+			{ id = "storm_shard", kind = "material", ref = "storm_shard", chance = 1, min = 3, max = 6 },
+			{ id = "thunder_core", kind = "material", ref = "thunder_core", chance = 0.15, min = 1, max = 1, rare = true },
+			{ id = "zigzag_crown", kind = "relic", ref = "zigzag_crown", chance = 0.08, rare = true, fallback = { material = "storm_shard", amount = 8 } },
+			{ id = "aura_thunder", kind = "cosmetic", ref = "aura_thunder", chance = 0.05, rare = true, fallback = { material = "storm_shard", amount = 5 } },
+		},
+		relic = "zigzag_crown",
+		cosmetic = "aura_thunder",
+	},
 }
+
+-- Arena themes built by Server/World/ArenaBuilder.
+local THEMES = { closet = true, volcano = true, sky = true }
 
 -- Validation (fails at load time, caught by every test run) -----------------------
 local byId: { [string]: BossDef } = {}
@@ -396,7 +471,7 @@ for _, def in list do
 		end
 	end
 	assert(Relics.get(def.relic) and Cosmetics.get(def.cosmetic), "boss " .. def.id .. " exclusive relic / cosmetic missing")
-	assert(def.theme == "closet" or def.theme == "volcano", "boss " .. def.id .. " unknown arena theme " .. tostring(def.theme))
+	assert(THEMES[def.theme] == true, "boss " .. def.id .. " unknown arena theme " .. tostring(def.theme))
 	if def.pads then
 		assert(def.padRadius and def.padRadius > 0, "boss " .. def.id .. " pads need a radius")
 		for _, pad in def.pads do
@@ -434,6 +509,78 @@ function Bosses.arenaPads(def: BossDef): { Vector3 }
 end
 
 -- Formulas (pure) ----------------------------------------------------------------
+
+-- Phase 7B shared geometry (server shapes and client drawings use the SAME
+-- formulas, so what is drawn is exactly what hurts). All distances are flat
+-- (XZ plane).
+
+-- Length of a polyline.
+function Bosses.pathLength(points: { Vector3 }): number
+	local total = 0
+	for i = 2, #points do
+		total += (points[i] - points[i - 1]).Magnitude
+	end
+	return total
+end
+
+-- Position on a polyline at time `t`: it moves at constant speed (by arc
+-- length) from points[1] at `startAt` to points[#points] at `endAt`, and is
+-- clamped to the ends outside that window (tornadoes, path shapes).
+function Bosses.pathPosition(points: { Vector3 }, startAt: number, endAt: number, t: number): Vector3
+	local count = #points
+	if count == 0 then
+		return Vector3.zero
+	end
+	local total = Bosses.pathLength(points)
+	if count == 1 or total <= 0 or endAt <= startAt then
+		return if t >= endAt then points[count] else points[1]
+	end
+	local remaining = math.clamp((t - startAt) / (endAt - startAt), 0, 1) * total
+	for i = 2, count do
+		local a, b = points[i - 1], points[i]
+		local segment = (b - a).Magnitude
+		if remaining <= segment then
+			return if segment > 0 then a:Lerp(b, remaining / segment) else b
+		end
+		remaining -= segment
+	end
+	return points[count]
+end
+
+-- Flat distance from `p` to the segment [a, b] (chain lightning arcs).
+function Bosses.segmentDistance(p: Vector3, a: Vector3, b: Vector3): number
+	local ab = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	local ap = Vector3.new(p.X - a.X, 0, p.Z - a.Z)
+	local lengthSq = ab:Dot(ab)
+	if lengthSq <= 1e-9 then
+		return ap.Magnitude
+	end
+	local k = math.clamp(ap:Dot(ab) / lengthSq, 0, 1)
+	return (ap - ab * k).Magnitude
+end
+
+-- Is a sweep's `lateral` offset (signed distance along the sweep's side
+-- vector) inside one of its calm lanes?
+function Bosses.inCalmLane(lateral: number, lanes: { Lane }): boolean
+	for _, lane in lanes do
+		if math.abs(lateral - lane.offset) <= lane.width / 2 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Side vector of a sweep direction (lanes are measured along it):
+-- side = (-dir.Z, 0, dir.X).
+function Bosses.sweepSide(dir: Vector3): Vector3
+	return Vector3.new(-dir.Z, 0, dir.X)
+end
+
+-- Signed position of a sweep's wind front along its direction at time `t`
+-- (it is at `start` when `t` = `at`, then moves forward at `speed`).
+function Bosses.sweepFront(start: number, speed: number, at: number, t: number): number
+	return start + (t - at) * speed
+end
 
 function Bosses.maxHealth(def: BossDef, participants: number): number
 	local n = math.max(1, math.floor(participants))

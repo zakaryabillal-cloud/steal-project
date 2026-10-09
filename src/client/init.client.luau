@@ -364,6 +364,8 @@ end)
 ClientNet.on("BossHit", BossFX.hit)
 ClientNet.on("BossKO", BossFX.ko)
 ClientNet.on("BossDodge", BossFX.dodge)
+-- Phase 7B: a Tempest Seraph bolt reticle froze on the server.
+ClientNet.on("BossLock", BossFX.lock)
 -- Studio "/rh audio": which asset ids loaded (phase 7A).
 ClientNet.on("AudioReport", function()
 	AudioCheck.print()

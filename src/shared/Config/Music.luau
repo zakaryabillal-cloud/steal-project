@@ -92,7 +92,11 @@ local ASSET_IDS: { [string]: string } = {
 	["Boss.VoidWarden.3"] = "",
 	["Boss.Forgeheart.1"] = "rbxassetid://1838075377",
 	["Boss.Forgeheart.2"] = "",
-	["Boss.TempestSeraph.1"] = "",
+	-- Phase 7B PLACEHOLDER: no verified electro-rock / chiptune track exists
+	-- in this project yet and ids are never invented, so the Tempest Seraph
+	-- reuses the already-configured ChaseIntense id (see PLACEHOLDERS below).
+	-- Replace it with a verified, licensed electro-rock / chiptune track.
+	["Boss.TempestSeraph.1"] = "rbxassetid://1842546506",
 	["Boss.TempestSeraph.2"] = "",
 	["Boss.EclipseOracle.1"] = "",
 	["Boss.EclipseOracle.2"] = "",
@@ -180,8 +184,8 @@ Music.Tracks = {
 	["Boss.VoidWarden.3"] = loop(0.75, "VOID WARDEN red as a tomato: frantic cartoon chase version, still playful.", "140+ BPM", "1-2 min loop", "Void Warden, phase 3 'furious' (< 25 % HP)."),
 	["Boss.Forgeheart.1"] = loop(0.62, "FORGEHEART: energetic electronic rock, intense and explosive (creator's pick: 'Mindwinder (a)').", "fast", "full track, looped", "Forgeheart fight only, every phase (phases 2-3: brighter mix)."),
 	["Boss.Forgeheart.2"] = loop(0.64, "FORGEHEART optional second layer (unused while empty: phase 1 theme continues).", "same", "full track", "Forgeheart, phases 2-3 (optional)."),
-	["Boss.TempestSeraph.1"] = loop(0.7, "TEMPEST SERAPH: airy, fast strings, wind, soaring melody.", "140-160 BPM", "2-3 min loop", "Tempest Seraph, phase 1."),
-	["Boss.TempestSeraph.2"] = loop(0.72, "TEMPEST SERAPH grounded fight: thunderous drums, triumphant.", "150-170 BPM", "1.5-2 min loop", "Tempest Seraph, phase 2."),
+	["Boss.TempestSeraph.1"] = loop(0.62, "TEMPEST SERAPH (brief): electro-rock / chiptune, a diva thunder-cloud. Punchy 8-bit square-wave lead and arpeggios, crunchy cartoon rock guitars, zappy synth bass, thunder-clap snares; playful, dramatic, never scary. PLACEHOLDER until then: the ChaseIntense track.", "150-170 BPM", "full track, looped", "Tempest Seraph fight, every phase (phases 2-3: brighter mix)."),
+	["Boss.TempestSeraph.2"] = loop(0.64, "TEMPEST SERAPH optional second layer (unused while empty: phase 1 theme continues).", "same", "full track", "Tempest Seraph, phases 2-3 (optional)."),
 	["Boss.EclipseOracle.1"] = loop(0.7, "ECLIPSE ORACLE (secret): mystical, ritual chants, odd meter.", "90-120 BPM", "2-3 min loop", "Secret Eclipse boss, phase 1."),
 	["Boss.EclipseOracle.2"] = loop(0.72, "ECLIPSE ORACLE revealed: overwhelming, dissonant choir.", "120-140 BPM", "1.5-2 min loop", "Secret Eclipse boss, phase 2."),
 
@@ -198,6 +202,12 @@ Music.Tracks = {
 local TITLES: { [string]: string } = {
 	["Boss.VoidWarden.1"] = "Dynamic Swing",
 	["Boss.Forgeheart.1"] = "Mindwinder (a)",
+	["Boss.TempestSeraph.1"] = "ChaseIntense (placeholder)",
+}
+-- Phase 7B: slots that temporarily reuse another configured id (documented,
+-- never invented). The source says what must replace them.
+local PLACEHOLDERS: { [string]: string } = {
+	["Boss.TempestSeraph.1"] = "PLACEHOLDER (phase 7B): reuses the ChaseIntense id already configured in this file; must be replaced by a verified, licensed electro-rock / chiptune track (no id may be invented)",
 }
 
 -- Apply ASSET_IDS (every slot must appear in both tables).
@@ -213,7 +223,10 @@ for key, title in TITLES do
 	local track = Music.Tracks[key]
 	assert(track and track.id ~= "", "titled music slot without an id: " .. key)
 	track.title = title
-	track.source = "Roblox audio library id chosen by the creator (phase 7A), verified at runtime"
+	track.source = PLACEHOLDERS[key] or "Roblox audio library id chosen by the creator (phase 7A), verified at runtime"
+end
+for key in PLACEHOLDERS do
+	assert(TITLES[key] ~= nil, "placeholder music slot without a title: " .. key)
 end
 
 -- Phase 7A mixing: music level multiplier per boss phase (brighter, a bit
@@ -262,7 +275,8 @@ Music.Settings = {
 	IntenseRarity = "Legendary",
 }
 
--- Known boss ids (Void Warden and Forgeheart are playable). Used to document slots.
+-- Known boss ids (Void Warden, Forgeheart and Tempest Seraph are playable).
+-- Used to document slots.
 Music.Bosses = { "VoidWarden", "Forgeheart", "TempestSeraph", "EclipseOracle" }
 
 -- The theme of a boss (slot of phase 1), or nil.

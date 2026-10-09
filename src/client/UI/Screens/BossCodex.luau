@@ -31,6 +31,11 @@ local BossCodex = {}
 
 local PURPLE = Color3.fromRGB(150, 96, 240)
 local INK = Color3.fromRGB(30, 27, 75)
+-- Model scale on the card (the big ones are shrunk to fit the viewport).
+local CARD_SCALE: { [string]: number } = {
+	Forgeheart = 0.8,
+	TempestSeraph = 0.8,
+}
 
 type Card = {
 	def: Bosses.BossDef,
@@ -71,8 +76,7 @@ local function buildCard(parent: Instance, def: Bosses.BossDef, order: number): 
 	viewport.CurrentCamera = camera
 	-- Every boss brings its own body (Client/Boss/BossModels).
 	local model = BossModels.get(def.id)
-	local scale = if def.id == "Forgeheart" then 0.8 else 1
-	local rig = model.build(scale, viewport)
+	local rig = model.build(CARD_SCALE[def.id] or 1, viewport)
 	model.pose(rig, CFrame.Angles(0, math.pi, 0), model.defaultPose(), 0)
 	local name = Style.display({ Name = "Name", Size = UDim2.new(1, -230, 0, 34), Position = UDim2.fromOffset(214, 10), TextSize = 28, Parent = frame })
 	local title = Style.text({ Name = "Title", Size = UDim2.new(1, -230, 0, 22), Position = UDim2.fromOffset(214, 44), TextSize = 16, TextWrapped = true, FontFace = Theme.Fonts.Body, TextColor3 = Theme.Colors.TextDim, Parent = frame })
@@ -109,7 +113,7 @@ function BossCodex.refresh()
 			if known and card.known == false then
 				-- Discovered: the silhouette becomes the real (colourful) boss.
 				card.model.destroy(rig)
-				local fresh = card.model.build(if card.def.id == "Forgeheart" then 0.8 else 1, card.viewport)
+				local fresh = card.model.build(CARD_SCALE[card.def.id] or 1, card.viewport)
 				card.model.pose(fresh, CFrame.Angles(0, math.pi, 0), card.model.defaultPose(), 0)
 				card.rig = fresh
 			elseif not known then

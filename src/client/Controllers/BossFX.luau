@@ -1,12 +1,17 @@
 --!strict
 -- Boss visuals (V2 phase 6), client only, Cartoon & Goofy
 -- (docs/ART_DIRECTION.md):
---   * the boss's body (Client/Boss/BossModels: Void Warden, Forgeheart)
---     follows the server anchor with squash & stretch, a face per mood and
---     one readable pose per action (anticipation before every attack);
+--   * the boss's body (Client/Boss/BossModels: Void Warden, Forgeheart,
+--     Tempest Seraph) follows the server anchor with squash & stretch, a face
+--     per mood and one readable pose per action (anticipation before every
+--     attack);
 --   * phase 7A: per-boss attack drawings (the Void Warden's here,
 --     Forgeheart's in Client/Boss/ForgeheartFX through the drawing kit),
 --     per-boss warning / action sounds and arena ambience;
+--   * phase 7B: the Tempest Seraph's drawings (Client/Boss/TempestSeraphFX,
+--     same kit + a few helpers: bars between two points, "BossLock" reticle
+--     positions from the server, shouts), her poses (Zap, Twirl, Blow,
+--     Charge, Storm) and her defeat (she pops into a little drizzle);
 --   * telegraphs: every attack draws its shape on the floor BEFORE it can
 --     hurt, filling yellow -> red with an ink outline (rings, discs,
 --     quarters), then a short impact effect in the attack's own colour;
@@ -42,6 +47,7 @@ local BossFolder = script.Parent.Parent.Boss
 local BossRig = require(BossFolder.BossRig)
 local BossModels = require(BossFolder.BossModels)
 local ForgeheartFX = require(BossFolder.ForgeheartFX)
+local TempestSeraphFX = require(BossFolder.TempestSeraphFX)
 
 local BossFX = {}
 
@@ -57,6 +63,9 @@ local ATTACK_COLORS: { [string]: Color3 } = {
 	big_cleanup = Color3.fromRGB(90, 190, 255),
 }
 for attackId, color in ForgeheartFX.Colors do
+	ATTACK_COLORS[attackId] = color
+end
+for attackId, color in TempestSeraphFX.Colors do
 	ATTACK_COLORS[attackId] = color
 end
 BossFX.AttackColors = ATTACK_COLORS
@@ -217,6 +226,34 @@ local function setRing(r: Ring, radius: number, color: Color3?)
 	end
 end
 
+-- Phase 7B: a bar from `a` to `b` (`width` across, `thickness` up: a flat
+-- strip when both points are on the floor; vertical bars for lightning).
+local function segmentFrame(a: Vector3, b: Vector3): CFrame
+	local d = b - a
+	local mid = (a + b) / 2
+	if d.Magnitude < 1e-3 then
+		return CFrame.new(mid)
+	end
+	local up = if math.abs(d.Unit.Y) > 0.9 then Vector3.new(1, 0, 0) else Vector3.new(0, 1, 0)
+	return CFrame.lookAt(mid, b, up)
+end
+
+local function segment(a: Vector3, b: Vector3, width: number, color: Color3, transparency: number, thickness: number?): Part
+	return newPart({
+		Name = "Segment",
+		Size = Vector3.new(width, thickness or 0.12, math.max(0.05, (b - a).Magnitude)),
+		CFrame = segmentFrame(a, b),
+		Color = color,
+		Transparency = transparency,
+		Material = Enum.Material.Neon,
+	})
+end
+
+local function setSegment(part: BasePart, a: Vector3, b: Vector3, width: number?)
+	part.Size = Vector3.new(width or part.Size.X, part.Size.Y, math.max(0.05, (b - a).Magnitude))
+	part.CFrame = segmentFrame(a, b)
+end
+
 -- Flat triangle from two wedges (sector fill of the big special).
 local function triangle(a: Vector3, b: Vector3, c: Vector3, w1: WedgePart, w2: WedgePart)
 	local ab, ac, bc = b - a, c - a, c - b
@@ -304,9 +341,14 @@ local function addVisual(kind: string, untilTime: number, instances: { Instance 
 	table.insert(visuals, { kind = kind, untilTime = untilTime, update = update, instances = instances })
 end
 
+-- Phase 7B: where the server froze each tracked reticle ("BossLock" FX,
+-- key -> position): the drawings snap to it (the server is the authority).
+local lockPositions: { [string]: { position: Vector3, at: number } } = {}
+
 local function clearVisuals()
 	BossFX.safeZone = nil
 	table.clear(waves)
+	table.clear(lockPositions)
 	for _, visual in visuals do
 		for _, instance in visual.instances do
 			instance:Destroy()
@@ -610,6 +652,9 @@ local WARN_SOUNDS: { [string]: string } = {
 for attackId, key in ForgeheartFX.WarnSounds do
 	WARN_SOUNDS[attackId] = key
 end
+for attackId, key in TempestSeraphFX.WarnSounds do
+	WARN_SOUNDS[attackId] = key
+end
 BossFX.WarnSounds = WARN_SOUNDS
 local ATTACK_ICONS: { [string]: string } = {
 	broom_wave = "swirl",
@@ -621,12 +666,16 @@ local ATTACK_ICONS: { [string]: string } = {
 for attackId, icon in ForgeheartFX.Icons do
 	ATTACK_ICONS[attackId] = icon
 end
+for attackId, icon in TempestSeraphFX.Icons do
+	ATTACK_ICONS[attackId] = icon
+end
 BossFX.AttackIcons = ATTACK_ICONS
 
 -- Sounds played when the boss changes action (server attribute "Action").
 local ACTION_SOUNDS: { [string]: { [string]: string } } = {
 	VoidWarden = { Intro = "VWAppear", Hop = "VWHop", Dizzy = "VWBounce", Defeated = "VWDefeat", PhaseChange = "BossPhaseUp" },
 	Forgeheart = ForgeheartFX.ActionSounds :: any,
+	TempestSeraph = TempestSeraphFX.ActionSounds :: any,
 }
 BossFX.ActionSounds = ACTION_SOUNDS
 
@@ -653,7 +702,7 @@ local function safeLabel(adornee: BasePart, text: string, color: Color3): Instan
 	Style.ink(textLabel, 3)
 	return label
 end
-local kit: ForgeheartFX.Kit = {
+local kit: TempestSeraphFX.Kit = {
 	now = now,
 	floorY = floorY,
 	newPart = newPart,
@@ -685,8 +734,24 @@ local kit: ForgeheartFX.Kit = {
 		CameraFX.shakeAt(position, amount, range)
 	end,
 	colors = { Warn = WARN, Danger = DANGER, Safe = SAFE, Ink = INK },
+	-- Phase 7B helpers (Tempest Seraph).
+	segment = segment,
+	setSegment = setSegment,
+	lockPosition = function(key: string): Vector3?
+		local entry = lockPositions[key]
+		return if entry then entry.position else nil
+	end,
+	shout = function(position: Vector3, text: string, color: Color3, size: number, duration: number)
+		shout(nil, position, text, color, size, duration)
+	end,
+	lowQuality = function(): boolean
+		return Settings.quality == "Low"
+	end,
 }
 for attackId, draw in ForgeheartFX.drawers(kit) do
+	PLAYERS[attackId] = draw
+end
+for attackId, draw in TempestSeraphFX.drawers(kit) do
 	PLAYERS[attackId] = draw
 end
 
@@ -703,6 +768,26 @@ function BossFX.attack(payload: { [string]: any })
 	draw(payload.data, tonumber(payload.telegraphAt) or now())
 	local anchor = Boss.anchor()
 	Audio.playAt(WARN_SOUNDS[payload.attack] or "BossWarnWave", if anchor then anchor.Position else Bosses.Arena.Center, { volume = 1 })
+end
+
+-- Phase 7B: a tracked reticle froze on the server ("BossLock" FX: key,
+-- position). Its drawing stops following its fighter and sits exactly there.
+function BossFX.lock(payload: { [string]: any })
+	if type(payload.key) ~= "string" or typeof(payload.position) ~= "Vector3" then
+		return
+	end
+	local t = now()
+	for key, entry in lockPositions do
+		if t - entry.at > 20 then
+			lockPositions[key] = nil
+		end
+	end
+	lockPositions[payload.key] = { position = payload.position, at = t }
+end
+
+-- Tests / debug: the bolt reticles drawn right now (key -> position, locked).
+function BossFX.reticles(): { [string]: { position: Vector3, locked: boolean, track: number? } }
+	return TempestSeraphFX.debugReticles()
 end
 
 ----------------------------------------------------------------------------
@@ -775,9 +860,108 @@ local function forgeheartPose(pose: BossRig.Pose, action: any, t: number, since:
 	end
 end
 
+-- Last strike time of a Tempest Seraph attack (bolt volleys, storm waves).
+local function lastStrike(attack: { [string]: any }?, hitAt: number): number
+	local data = if attack and type(attack.data) == "table" then attack.data else nil
+	local last = hitAt
+	if data then
+		for _, list in { data.bolts, data.waves } do
+			if type(list) == "table" then
+				for _, entry in list do
+					if type(entry) == "table" and type(entry.at) == "number" then
+						last = math.max(last, entry.at)
+					end
+				end
+			end
+		end
+	end
+	return last
+end
+
+-- Tempest Seraph's own actions (phase 7B): wings = pose.broom, side puffs =
+-- pose.hands, her lightning bolts = pose.glow. Exaggerated diva acting.
+local function tempestPose(pose: BossRig.Pose, action: any, t: number, since: number, hitAt: number, attack: { [string]: any }?)
+	if action == "Zap" then
+		local last = lastStrike(attack, hitAt)
+		if t < hitAt then
+			-- Takes aim like a diva: wings up, sparks building, smug grin.
+			local k = math.clamp(since / 1, 0, 1)
+			pose.mood = "smug"
+			pose.broom = 0.7 * k
+			pose.lean = 0.12 * k
+			pose.glow = 0.4 + 0.8 * k
+			pose.mouth = 0.25
+			pose.hands = math.sin(t * 10) * 0.4
+		elseif t < last + 0.45 then
+			-- ZAP! Wings swoop down, bolts blazing.
+			pose.broom = -1
+			pose.lean = 0.2
+			pose.squash = 0.86
+			pose.mouth = 0.9
+			pose.glow = 1.6
+		end
+	elseif action == "Twirl" then
+		if t < hitAt then
+			-- Spins faster and faster, flapping: "wheeee!"
+			pose.spin = since * since * 4
+			pose.broom = math.sin(t * 16)
+			pose.mouth = 0.6
+			pose.glow = 0.5
+		elseif t < hitAt + 0.8 then
+			pose.spin = since * 8
+			pose.broom = 1
+			pose.mouth = 0.8
+			pose.squash = 1.08
+		end
+	elseif action == "Blow" then
+		local data = if attack and type(attack.data) == "table" then attack.data else nil
+		local endAt = if data and type(data.endAt) == "number" then data.endAt else hitAt + 1.5
+		if t < hitAt then
+			-- A HUGE breath in: she puffs up and leans back.
+			local k = math.clamp(since / 1.2, 0, 1)
+			pose.squash = 1 + 0.28 * k
+			pose.lean = -0.2 * k
+			pose.mouth = 0.1
+			pose.broom = 0.4 * k
+			pose.hands = 1.2 * k
+		elseif t < endAt then
+			-- ...and blows it all out, deflating as the wind crosses.
+			local k = math.clamp((t - hitAt) / 1.2, 0, 1)
+			pose.squash = 1.25 - 0.35 * k
+			pose.lean = 0.25
+			pose.mouth = 1
+			pose.broom = -0.6 + math.sin(t * 12) * 0.2
+		end
+	elseif action == "Charge" then
+		if t < hitAt then
+			-- Charging up: wings high, buzzing, bolts flickering brighter.
+			pose.broom = 1
+			pose.glow = 0.8 + math.sin(t * 25) * 0.4 + math.min(since, 1.4) * 0.4
+			pose.squash = 1.05 + math.sin(t * 40) * 0.03
+			pose.mouth = 0.3
+		elseif t < hitAt + 0.5 then
+			pose.broom = -1
+			pose.glow = 1.8
+			pose.squash = 0.85
+			pose.mouth = 1
+		end
+	elseif action == "Storm" then
+		local last = lastStrike(attack, hitAt)
+		if t < last + 0.4 then
+			-- Full storm face: big flaps, roaring, lightning everywhere.
+			pose.mood = "furious"
+			pose.broom = math.sin(t * 14)
+			pose.glow = 1.2 + math.sin(t * 30) * 0.3
+			pose.mouth = 0.8 + math.sin(t * 9) * 0.2
+			pose.squash = 1.12 + math.sin(t * 36) * 0.03
+		end
+	end
+end
+
 local function poseFor(anchor: BasePart, t: number): BossRig.Pose
 	local pose = if rigModel then rigModel.defaultPose() else BossRig.defaultPose("grumpy")
 	local forge = rigBoss == "Forgeheart"
+	local tempest = rigBoss == "TempestSeraph"
 	local action = attr(anchor, "Action")
 	local actionAt = attr(anchor, "ActionAt")
 	local mood = attr(anchor, "Mood")
@@ -881,6 +1065,22 @@ local function poseFor(anchor: BasePart, t: number): BossRig.Pose
 			pose.lean = math.sin(t * 7) * 0.1 * (1 - pose.deflate)
 			pose.fade = math.clamp((since - 4.2) / 1.2, 0, 1)
 		end
+	elseif action == "Defeated" and tempest then
+		-- Phase 7B: a last crackle, then she pops into a sad little drizzle
+		-- (puffs pop, she shrinks) and fades away.
+		if since < 1 then
+			pose.mood = "shocked"
+			pose.squash = 1.15 + math.sin(t * 40) * 0.05
+			pose.glow = 1.6 + math.sin(t * 50) * 0.3
+			pose.mouth = 1
+		else
+			pose.dizzy = true
+			pose.mood = "dizzy"
+			pose.deflate = math.clamp((since - 1) / 1.6, 0, 1)
+			pose.squash = 1 - pose.deflate * 0.25
+			pose.lean = math.sin(t * 5) * 0.1
+			pose.fade = math.clamp((since - 4.2) / 1.2, 0, 1)
+		end
 	elseif action == "Defeated" then
 		if since < 2.6 then
 			pose.dizzy = true
@@ -900,6 +1100,8 @@ local function poseFor(anchor: BasePart, t: number): BossRig.Pose
 		pose.broom = 0.5 + math.sin(t * 6) * 0.4
 	elseif forge then
 		forgeheartPose(pose, action, t, since, hitAt, attack)
+	elseif tempest then
+		tempestPose(pose, action, t, since, hitAt, attack)
 	end
 	if wobble > 0 then
 		pose.squash *= 1 - math.sin(wobble * math.pi) * 0.12
@@ -1076,7 +1278,7 @@ local function stepRig(dt: number)
 			Audio.playAt(key, position)
 		end
 	end
-	if anchor:GetAttribute("Action") == "Defeated" and rigBoss ~= "Forgeheart" then
+	if anchor:GetAttribute("Action") == "Defeated" and rigBoss ~= "Forgeheart" and rigBoss ~= "TempestSeraph" then
 		local since = t - ((anchor:GetAttribute("ActionAt") :: number?) or t)
 		if since > 2.6 then
 			-- Hop away toward the door.
@@ -1155,6 +1357,12 @@ local function buildPortalBoard()
 	portalBoard, portalTitle, portalTimer, portalNext, portalPanel = gui, title, timer, nextLabel, panel
 end
 
+-- Board colour per boss (the Void Warden's purple by default).
+local BOARD_COLORS: { [string]: Color3 } = {
+	Forgeheart = Color3.fromRGB(196, 84, 44),
+	TempestSeraph = Color3.fromRGB(70, 120, 210),
+}
+
 local function refreshPortal()
 	if not portalBoard then
 		buildPortalBoard()
@@ -1177,7 +1385,7 @@ local function refreshPortal()
 		end
 		local def = Boss.portalBoss()
 		if portalPanel then
-			portalPanel.BackgroundColor3 = if def.id == "Forgeheart" then Color3.fromRGB(196, 84, 44) else Color3.fromRGB(150, 96, 240)
+			portalPanel.BackgroundColor3 = BOARD_COLORS[def.id] or Color3.fromRGB(150, 96, 240)
 		end
 	end
 	-- The dormant membrane wakes up (brighter, pinker) while it is open.
@@ -1218,7 +1426,7 @@ function BossFX.struck(payload: { [string]: any })
 	local color = if dizzy then Color3.fromRGB(255, 120, 220) elseif finisher then Color3.fromRGB(255, 150, 60) else Color3.fromRGB(255, 226, 70)
 	shout(nil, anchor.Position + Vector3.new(math.random(-5, 5), 6, math.random(-3, 3)), if dizzy then text .. " x1.5" else text, color, if finisher then 46 elseif dizzy then 40 else 34, 0.7)
 	burst(anchor.Position + Vector3.new(0, 4, -6), Color3.fromRGB(255, 230, 120), if finisher then 12 elseif dizzy then 9 else 6)
-	Audio.playAt(if finisher then "PunchFinisher" elseif rigBoss == "Forgeheart" then "PunchHitRock" else "PunchHit", anchor.Position, { volume = 0.9 })
+	Audio.playAt(if finisher then "PunchFinisher" elseif rigBoss == "Forgeheart" then "PunchHitRock" elseif rigBoss == "TempestSeraph" then "TSPunchHit" else "PunchHit", anchor.Position, { volume = 0.9 })
 	if payload.weapon == "squeaky_mallet" then
 		Audio.playAt("Squeak", anchor.Position)
 	end
@@ -1345,10 +1553,49 @@ function BossFX.ko(payload: { [string]: any })
 	end
 end
 
+-- Phase 7B: rain falling under the defeated Tempest Seraph for `duration`
+-- seconds (a few looping drops, parts only).
+local function drizzle(origin: Vector3, from: number, duration: number)
+	local count = if Settings.quality == "Low" then 6 else 14
+	local drops: { BasePart } = {}
+	local instances: { Instance } = {}
+	for i = 1, count do
+		local drop = newPart({ Name = "Raindrop", Size = Vector3.new(0.25, 0.9, 0.25), Color = Color3.fromRGB(140, 200, 255), Material = Enum.Material.Neon, Transparency = 1 })
+		drops[i] = drop
+		instances[i] = drop
+	end
+	local fall = 0.7
+	local top = origin.Y - 2
+	local bottom = floorY() + 0.5
+	addVisual("drizzle", from + duration, instances, function(t: number)
+		for i, drop in drops do
+			local phase = (((t - from) + i * fall / count) % fall) / fall
+			local a = i * 2.4
+			local r = 1 + (i % 4) * 1.1
+			drop.CFrame = CFrame.new(origin.X + math.cos(a) * r, top + (bottom - top) * phase, origin.Z + math.sin(a) * r)
+			drop.Transparency = 0.15 + phase * 0.5
+		end
+		return true
+	end)
+end
+
 function BossFX.ended(payload: { [string]: any })
 	clearVisuals()
 	local anchor = Boss.anchor()
-	if payload.result == "Victory" and anchor and rigBoss == "Forgeheart" then
+	if payload.result == "Victory" and anchor and rigBoss == "TempestSeraph" then
+		-- A last crackle, then POP: rain-drop burst and a little drizzle while
+		-- she deflates (pose "Defeated").
+		local origin = anchor.Position
+		task.delay(1, function()
+			if Boss.anchor() == anchor then
+				CameraFX.shake(0.3)
+				for i = 0, 4 do
+					burst(origin + Vector3.new(math.cos(i * 1.3) * 5, 1 + i * 0.6, math.sin(i * 1.3) * 5), if i % 2 == 0 then Color3.fromRGB(150, 210, 255) else Color3.new(1, 1, 1), 14)
+				end
+				drizzle(origin, now(), 2.8)
+			end
+		end)
+	elseif payload.result == "Victory" and anchor and rigBoss == "Forgeheart" then
 		-- The cartoon explosion before he deflates (pose "Defeated").
 		task.delay(1, function()
 			if Boss.anchor() == anchor then

@@ -271,6 +271,20 @@ local list: { RelicDef } = {
 		glow = Color3.fromRGB(255, 214, 72),
 		dexIndex = 0,
 	},
+	{
+		-- The Tempest Seraph's spare crown, worn crooked of course, with a
+		-- lightning zig-zag on the front (phase 7B).
+		id = "zigzag_crown",
+		rarity = "Legendary",
+		shape = "ZigzagCrown",
+		rateFactor = 1.1,
+		spawnWeight = 0,
+		bossOnly = "TempestSeraph",
+		primary = Color3.fromRGB(255, 206, 64),
+		secondary = Color3.fromRGB(110, 180, 255),
+		glow = Color3.fromRGB(255, 240, 150),
+		dexIndex = 0,
+	},
 }
 
 local byId: { [string]: RelicDef } = {}

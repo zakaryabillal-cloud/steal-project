@@ -186,6 +186,25 @@ local Sounds: { [string]: SoundDef } = {
 	FHEruptionBuild = mix(def(WIND, 0.6, 0.4, 0, "Pressure building up, rising rumble (to source)."), 2, 1),
 	FHDizzy = mix(def(SLIDER, 0.5, 0.6, 0, "Rock cracking + cartoon spring 'boyoyoing' (to source)."), 3, 1),
 	FHDefeat = mix(def(BOOM, 0.6, 0.6, 0, "Explosion then comic balloon deflating (to source)."), 3, 2),
+
+	-- V2 phase 7B: TEMPEST SERAPH identity (electro-rock / chiptune, zappy,
+	-- diva). No verified asset id exists for these yet: every key plays its
+	-- built-in fallback at a chiptune-ish pitch until a licensed sound is
+	-- sourced (the note says what to look for). One distinct warning per attack.
+	TSAppear = mix(def(BOOM, 0.6, 1.55, 0, "Thunder clap + 8-bit diva 'ta-daaa!' arpeggio when she appears (to source)."), 3, 1),
+	TSWarnBolt = mix(def(SLIDER, 0.45, 3.2, 0, "Chiptune targeting 'bip-bip-bip' while a reticle follows a fighter (to source)."), 4, 0.3),
+	TSBoltLock = mix(def(SLIDER, 0.55, 2.5, 0, "Sharp 8-bit 'ti-DING' lock-on: the reticle stops, step out NOW (to source)."), 3, 0.15),
+	TSBoltStrike = mix(def(BOOM, 0.6, 1.8, 0.05, "Crackly cartoon lightning 'KZZAK!' of a bolt landing (to source)."), 3, 0.1),
+	TSTornado = mix(def(WIND, 0.5, 1.25, 0.03, "Rising chiptune whirl 'fwee-oo-fwee' of the dancing tornadoes (to source)."), 4, 0.3),
+	TSWarnGust = mix(def(WIND, 0.55, 1.05, 0, "She inhales hugely, wind chimes + 8-bit riser: a gust is coming (to source)."), 4, 0.5),
+	TSGust = mix(def(WIND, 0.6, 0.7, 0.02, "Big cartoon 'WHOOOSH' of the wind wall crossing the arena (to source)."), 3, 0.5),
+	TSChainCharge = mix(def(SLIDER, 0.5, 1.35, 0.02, "Electric charging buzz 'bzzz-zz' with a rising square-wave tone (to source)."), 4, 0.3),
+	TSChainZap = mix(def(BOOM, 0.55, 2.2, 0.04, "Chained 'ZAP-ZAP-ZAP' crackle of the arcs firing (to source)."), 3, 0.15),
+	TSStormAlarm = mix(def(SLIDER, 0.65, 0.55, 0, "Comic storm siren + thunder roll before the MEGA-STORM (to source)."), 2, 1),
+	TSStormBoom = mix(def(BOOM, 0.75, 0.95, 0.02, "Huge cartoon thunder 'KA-BRAKA-BOOM' of the MEGA-STORM strike (to source)."), 2, 0.5),
+	TSDizzy = mix(def(JUMP, 0.5, 1.7, 0, "Fizzling static + spring 'boyoyoing' when she is dazed (to source)."), 3, 1),
+	TSDefeat = mix(def(WATER, 0.55, 1.3, 0, "Little 'pop' then a sad pitter-patter drizzle (to source)."), 3, 2),
+	TSPunchHit = def(LAND, 0.55, 1.75, 0.08, "Puffy cloud 'POMF' when you hit the Tempest Seraph (to source)."),
 	AmbientWorld = def("", 0.25, 1, 0, "Looping ambient night bed under the music: wind, soft chimes, distant hum (1-3 min seamless loop).", true),
 	-- MUSIC is not here: every music track and stinger is in Config/Music.
 }

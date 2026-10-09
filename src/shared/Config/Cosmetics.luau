@@ -140,6 +140,9 @@ local list: { CosmeticDef } = {
 		visual = { color = c(255, 230, 120), color2 = c(170, 130, 255), rate = 8, size = 0.45, speed = 1.2, texture = "sparkle" } },
 	{ id = "aura_eclipse", category = "aura", rarity = "Legendary", order = 4, unlock = unlock("stat", 5, "rareFinds"),
 		visual = { color = c(255, 190, 90), color2 = c(150, 60, 220), rate = 10, size = 0.5, speed = 0.8, texture = "glow", light = { range = 8, brightness = 0.6 } } },
+	-- V2 phase 7B: exclusive Tempest Seraph drop (crackling cartoon sparks).
+	{ id = "aura_thunder", category = "aura", rarity = "Epic", order = 5, unlock = unlock("boss", nil, nil, "TempestSeraph"),
+		visual = { color = c(255, 226, 70), color2 = c(110, 180, 255), rate = 7, size = 0.4, speed = 1.6, texture = "spark" } },
 
 	-- Relic carry FX -------------------------------------------------------------
 	{ id = "carry_glimmer", category = "carry", rarity = "Common", order = 1, unlock = unlock("starter"),

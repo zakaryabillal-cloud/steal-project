@@ -54,6 +54,7 @@ RelicFaces.Faces = table.freeze({
 	eclipse_sigil = { at = Vector3.new(0, 0.05, -1.02), eye = 0.46, mood = "smug" },
 	void_duster = { at = Vector3.new(0.18, 0.95, -0.78), eye = 0.36, mood = "cheeky", cheeks = true },
 	ember_anvil = { at = Vector3.new(0, 0.05, -0.62), eye = 0.38, mood = "grumpy", cheeks = true },
+	zigzag_crown = { at = Vector3.new(-0.1, -0.45, -1.08), eye = 0.32, mood = "smug", cheeks = true },
 } :: { [string]: FaceSpec })
 
 function RelicFaces.get(relicId: string): FaceSpec?

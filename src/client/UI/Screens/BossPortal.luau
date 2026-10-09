@@ -75,6 +75,12 @@ local shownBoss = ""
 local POSTER: { [string]: Color3 } = {
 	VoidWarden = Color3.fromRGB(110, 70, 210),
 	Forgeheart = Color3.fromRGB(196, 84, 44),
+	TempestSeraph = Color3.fromRGB(70, 120, 210),
+}
+-- Model scale on the card (the big ones are shrunk to fit the poster).
+local CARD_SCALE: { [string]: number } = {
+	Forgeheart = 0.8,
+	TempestSeraph = 0.8,
 }
 local lastReason: string? = nil
 local reasonUntil = 0
@@ -206,7 +212,7 @@ local function showBoss(def: Bosses.BossDef)
 	end
 	local model = BossModels.get(def.id)
 	rigModel = model
-	rig = model.build(if def.id == "Forgeheart" then 0.8 else 1, viewport)
+	rig = model.build(CARD_SCALE[def.id] or 1, viewport)
 	model.pose(rig :: BossRig.Rig, CFrame.Angles(0, math.pi, 0), model.defaultPose(), 0)
 	for _, row in lootRows do
 		row:Destroy()

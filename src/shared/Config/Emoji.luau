@@ -71,6 +71,9 @@ Emoji.Glyphs = table.freeze({
 	volcano = "🌋",
 	comet = "🌠",
 	lava = "🔴",
+	-- Phase 7B: Tempest Seraph (attack bubbles: Sky Gust, Chain Lightning)
+	wind = "💨",
+	link = "🔗",
 })
 
 -- Every allowed code point (built from Glyphs, plus a few spare ones).

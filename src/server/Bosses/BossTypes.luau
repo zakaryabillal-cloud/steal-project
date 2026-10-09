@@ -22,6 +22,25 @@ local Bosses = require(ReplicatedStorage.Shared.Config.Bosses)
 --           invulnerability limits it to one heart per HitInvulnerability);
 --   outside everyone NOT standing on one of the `safeSpots` discs
 --           (`safeRadius`) is hit at `at` (phase 7A: Final Eruption).
+--
+-- Phase 7B (Tempest Seraph):
+--   circle  + `track` (userId) / `lockAt` / `key`: a tracked reticle. While
+--           t < lockAt the server moves `center` to that fighter's floor
+--           position (if they are still fighting); at lockAt it freezes and
+--           sends the "BossLock" FX { fight, key, position, userId, at };
+--           then it hits at `at` like any circle (+ "step" dodge);
+--   path    a disc of `radius` moving along `points` at constant speed (by
+--           arc length, Config/Bosses.pathPosition) from `at` to
+--           `untilTime`; hurts fighters within `radius`, grounded OR
+--           airborne (below `height` studs above the floor);
+--   sweep   a straight wind front moving along `dir` (unit, flat): its
+--           signed offset from `center` is `start` at `at`, then grows at
+--           `speed`. When it passes a fighter (band `band`) the fighter is
+--           hit unless inside a calm lane (|lateral - offset| <= width / 2,
+--           lateral measured along Config/Bosses.sweepSide(dir)); jumping does
+--           not help. Removed once the front is past `radius` + band;
+--   chain   at `at`, hits fighters within `radius` of a node of `points` or
+--           within `width` / 2 of a segment between two consecutive nodes.
 export type Shape = {
 	kind: string,
 	at: number,
@@ -35,9 +54,23 @@ export type Shape = {
 	slow: number?,
 	safeSpots: { Vector3 }?,
 	safeRadius: number?,
-	-- Runtime (BossService): resolved fighters / finished flag.
+	-- Phase 7B: tracked circle (bolt reticle).
+	track: number?,
+	lockAt: number?,
+	key: string?,
+	-- Phase 7B: path (tornado) / chain nodes, tornado height.
+	points: { Vector3 }?,
+	height: number?,
+	-- Phase 7B: sweep (wind front) and chain link width.
+	dir: Vector3?,
+	start: number?,
+	lanes: { Bosses.Lane }?,
+	width: number?,
+	-- Runtime (BossService): resolved fighters / finished flag / reticle
+	-- frozen.
 	resolved: { [any]: boolean }?,
 	done: boolean?,
+	locked: boolean?,
 }
 
 -- Server-driven boss movement (hop arc). Untouchable while in the air.
@@ -52,7 +85,8 @@ export type Motion = {
 export type Plan = {
 	id: string,
 	-- Boss animation for clients ("Sweep", "Splat", "Throw", "Hop", "Spin";
-	-- Forgeheart: "Slam", "Lob", "Stomp", "Roar", "Erupt").
+	-- Forgeheart: "Slam", "Lob", "Stomp", "Roar", "Erupt"; Tempest Seraph:
+	-- "Zap", "Twirl", "Blow", "Charge", "Storm").
 	action: string,
 	telegraphAt: number,
 	-- First moment any shape can hurt (>= telegraphAt + attack telegraph).
@@ -77,8 +111,11 @@ export type FightView = {
 	floorY: number,
 	radius: number,
 	bossPosition: Vector3,
-	-- Floor positions of the fighters still standing.
+	-- Floor positions of the fighters still standing (then their decoys).
 	targets: { Vector3 },
+	-- Phase 7B: userId of each entry of `targets` (same order), 0 for a
+	-- decoy. Optional (older callers): without it nothing is tracked.
+	targetIds: { number }?,
 	rng: Random,
 }
 

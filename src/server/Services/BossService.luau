@@ -14,7 +14,9 @@
 -- the server checks the fighter's own character against the boss. Attacks
 -- are planned by Server/Bosses/<Id> (generic shapes) and resolved here
 -- against the server's view of the fighters; one FX message per attack
--- carries what clients need to draw the telegraph.
+-- carries what clients need to draw the telegraph. Phase 7B adds tracked
+-- reticles (one "BossLock" FX when each one freezes), moving tornado paths,
+-- wind sweeps with calm lanes and chain lightning (Bosses/BossTypes).
 --
 -- Safety nets: entry refused while carrying relics (nothing can be lost or
 -- duplicated), PvP isolation + "Expedition" Sanctuary protection only while
@@ -802,6 +804,16 @@ local function grounded(f: Fight, root: BasePart): boolean
 	return root.Position.Y - f.arena.floorY < COMBAT.RootHeight + COMBAT.JumpClear
 end
 
+-- Floor point under `position`, kept inside the arena (tracked reticles).
+local function floorPoint(f: Fight, position: Vector3): Vector3
+	local c = f.arena.center
+	local offset = Vector3.new(position.X - c.X, 0, position.Z - c.Z)
+	if offset.Magnitude > ARENA.Radius then
+		offset = offset.Unit * ARENA.Radius
+	end
+	return Vector3.new(c.X + offset.X, f.arena.floorY, c.Z + offset.Z)
+end
+
 local function fighters(f: Fight): { { p: Participant, root: BasePart } }
 	local list = {}
 	for _, p in f.participants do
@@ -846,6 +858,24 @@ local function resolveShapes(f: Fight, t: number)
 				remove = front > shape.radius + band
 			end
 		elseif shape.kind == "circle" then
+			-- Phase 7B tracked reticle (Tempest Seraph's bolt): follows its
+			-- fighter until `lockAt`, then freezes where it was last seen
+			-- BEFORE the lock (never jumps after it) and tells the clients.
+			if shape.lockAt and not shape.locked then
+				if t < shape.lockAt then
+					if shape.track then
+						for _, entry in list do
+							if entry.p.userId == shape.track then
+								shape.center = floorPoint(f, entry.root.Position)
+								break
+							end
+						end
+					end
+				else
+					shape.locked = true
+					sendFight(f, "BossLock", { key = shape.key, position = shape.center, userId = shape.track, at = shape.at })
+				end
+			end
 			if t >= shape.at then
 				for _, entry in list do
 					local offset = entry.root.Position - shape.center
@@ -915,6 +945,83 @@ local function resolveShapes(f: Fight, t: number)
 						dodged(f, entry.p, "safe", t)
 					else
 						hit(f, entry.p, shape.center, t)
+					end
+				end
+				remove = true
+			end
+		elseif shape.kind == "path" then
+			-- Phase 7B tornado: a disc moving along its drawn path (same
+			-- formula as the clients); too tall to jump over.
+			local untilTime = shape.untilTime or shape.at
+			if t >= untilTime then
+				remove = true
+			elseif t >= shape.at then
+				local position = Bosses.pathPosition(shape.points or { shape.center }, shape.at, untilTime, t)
+				local top = shape.height or 18
+				local resolved = shape.resolved :: { [any]: boolean }
+				for _, entry in list do
+					local offset = entry.root.Position - position
+					local d = flat(offset).Magnitude
+					if d <= shape.radius and offset.Y < top then
+						hit(f, entry.p, position, t)
+					elseif d <= shape.radius + 4 and not resolved[entry.p] then
+						-- Brushed past it: one "DODGED!" per tornado.
+						resolved[entry.p] = true
+						dodged(f, entry.p, "step", t)
+					end
+				end
+			end
+		elseif shape.kind == "sweep" then
+			-- Phase 7B Sky Gust: a straight wind front crossing the arena;
+			-- whoever it passes outside a calm lane is hit (jumping does not
+			-- help: the wind is as tall as the arena).
+			if t >= shape.at then
+				local speed = shape.speed or 22
+				local band = shape.band or 4
+				local dir = shape.dir or Vector3.new(1, 0, 0)
+				local side = Bosses.sweepSide(dir)
+				local lanes: { Bosses.Lane } = shape.lanes or {}
+				local front = Bosses.sweepFront(shape.start or -shape.radius, speed, shape.at, t)
+				local resolved = shape.resolved :: { [any]: boolean }
+				for _, entry in list do
+					if not resolved[entry.p] then
+						local offset = flat(entry.root.Position - shape.center)
+						local along = offset:Dot(dir)
+						if front >= along - band / 2 then
+							resolved[entry.p] = true
+							-- Far behind the front already (e.g. blinked through
+							-- it): the front did not pass them, no hit.
+							if front <= along + band / 2 + speed * 0.15 then
+								if Bosses.inCalmLane(offset:Dot(side), lanes) then
+									dodged(f, entry.p, "safe", t)
+								else
+									hit(f, entry.p, entry.root.Position - dir * 4, t)
+								end
+							end
+						end
+					end
+				end
+				remove = front > shape.radius + band
+			end
+		elseif shape.kind == "chain" then
+			-- Phase 7B Chain Lightning: every node and every arc between two
+			-- consecutive nodes zaps at once.
+			if t >= shape.at then
+				local points: { Vector3 } = shape.points or {}
+				local half = (shape.width or 3) / 2
+				for _, entry in list do
+					local position = entry.root.Position
+					local node, link = math.huge, math.huge
+					for index, point in points do
+						node = math.min(node, flat(position - point).Magnitude)
+						if index > 1 then
+							link = math.min(link, Bosses.segmentDistance(position, points[index - 1], point))
+						end
+					end
+					if (node <= shape.radius or link <= half) and position.Y - shape.center.Y < COMBAT.RootHeight + 6 then
+						hit(f, entry.p, shape.center, t)
+					elseif node <= shape.radius + 6 or link <= half + 5 then
+						dodged(f, entry.p, "step", t)
 					end
 				end
 				remove = true
@@ -990,11 +1097,13 @@ local function chooseAttack(f: Fight): string
 	return pool[f.rng:NextInteger(1, #pool)]
 end
 
--- Floor points the next attack aims at: fighters, then their decoys.
-local function targetsOf(f: Fight, t: number): { Vector3 }
-	local targets = {}
+-- Floor points the next attack aims at: fighters, then their decoys, and
+-- the userId behind each point (0 for a decoy; phase 7B tracked bolts).
+local function targetsWithIds(f: Fight, t: number): ({ Vector3 }, { number })
+	local targets, ids = {}, {}
 	for _, entry in fighters(f) do
 		table.insert(targets, Vector3.new(entry.root.Position.X, f.arena.floorY, entry.root.Position.Z))
+		table.insert(ids, entry.p.userId)
 	end
 	-- Decoys draw his attention too (phase 6.5).
 	for _, record in Decoy.active() do
@@ -1003,14 +1112,20 @@ local function targetsOf(f: Fight, t: number): { Vector3 }
 			local position = Decoy.position(record, t)
 			if ArenaBuilder.inside(position, 0) then
 				table.insert(targets, Vector3.new(position.X, f.arena.floorY, position.Z))
+				table.insert(ids, 0)
 			end
 		end
 	end
+	return targets, ids
+end
+
+local function targetsOf(f: Fight, t: number): { Vector3 }
+	local targets = targetsWithIds(f, t)
 	return targets
 end
 
 local function planNext(f: Fight, t: number)
-	local targets = targetsOf(f, t)
+	local targets, targetIds = targetsWithIds(f, t)
 	local view: BossTypes.FightView = {
 		boss = f.boss,
 		phase = f.phase,
@@ -1020,6 +1135,7 @@ local function planNext(f: Fight, t: number)
 		radius = ARENA.Radius,
 		bossPosition = f.anchor.Position,
 		targets = targets,
+		targetIds = targetIds,
 		rng = f.rng,
 	}
 	local attackId = chooseAttack(f)

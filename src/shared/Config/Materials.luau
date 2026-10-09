@@ -9,7 +9,9 @@
 --   Forge.Recipes (planned): 30 void_shard -> 1 guaranteed void_duster;
 --                            1 void_catalyst + 10 void_shard -> +1 level on a boss relic;
 --                            30 magma_shard -> 1 guaranteed ember_anvil (phase 7A);
---                            1 ember_core + 10 magma_shard -> +1 level on a boss relic.
+--                            1 ember_core + 10 magma_shard -> +1 level on a boss relic;
+--                            30 storm_shard -> 1 guaranteed zigzag_crown (phase 7B);
+--                            1 thunder_core + 10 storm_shard -> +1 level on a boss relic.
 
 export type MaterialDef = {
 	id: string,
@@ -33,6 +35,10 @@ local list: { MaterialDef } = {
 	-- Phase 7A: Forgeheart's volcanic materials.
 	{ id = "magma_shard", order = 3, rarity = "Rare", color = Color3.fromRGB(255, 130, 50), emoji = "fire", source = "Forgeheart", max = 1e6 },
 	{ id = "ember_core", order = 4, rarity = "Epic", color = Color3.fromRGB(255, 214, 72), emoji = "volcano", source = "Forgeheart", max = 1e5 },
+	-- Phase 7B: the Tempest Seraph's electric materials ("Éclats de foudre"
+	-- and the rare "Noyau de tonnerre" for the Forge).
+	{ id = "storm_shard", order = 5, rarity = "Rare", color = Color3.fromRGB(255, 226, 70), emoji = "power", source = "TempestSeraph", max = 1e6 },
+	{ id = "thunder_core", order = 6, rarity = "Epic", color = Color3.fromRGB(120, 200, 255), emoji = "comet", source = "TempestSeraph", max = 1e5 },
 }
 
 local byId: { [string]: MaterialDef } = {}
@@ -52,6 +58,8 @@ local recipes: { Recipe } = {
 	{ output = "level:boss_relic", inputs = { void_catalyst = 1, void_shard = 10 } },
 	{ output = "relic:ember_anvil", inputs = { magma_shard = 30 } },
 	{ output = "level:boss_relic", inputs = { ember_core = 1, magma_shard = 10 } },
+	{ output = "relic:zigzag_crown", inputs = { storm_shard = 30 } },
+	{ output = "level:boss_relic", inputs = { thunder_core = 1, storm_shard = 10 } },
 }
 Materials.PlannedRecipes = table.freeze(recipes)
 

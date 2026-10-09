@@ -899,4 +899,69 @@ Shapes.EmberAnvil = function(ctx: Ctx)
 	})
 end
 
+-- Legendary (boss relic, V2 phase 7B): the Tempest Seraph's spare crown,
+-- worn crooked of course. A chunky golden band (hollow ring of segments) on
+-- a sky-blue cushion, stubby points with round tips, sky-blue gems, a big
+-- neon lightning zig-zag as the front point, two little sparks orbiting it
+-- and a sprinkle of sparkles.
+Shapes.ZigzagCrown = function(ctx: Ctx)
+	local def = ctx.def
+	-- Crooked: tilted to the side and a little backwards.
+	local tilt = CFrame.Angles(0, 0, rad(-14)) * CFrame.Angles(rad(6), 0, 0)
+	local r = 0.95
+	local bandY = -0.45
+	ctx:part({ kind = "VCylinder", size = Vector3.new(1.74, 0.5, 1.74), cf = tilt * CFrame.new(0, -0.58, 0), color = def.secondary, role = "body", name = "Cushion" })
+	local segments = 10
+	for i = 0, segments - 1 do
+		local a = (i + 0.5) / segments * math.pi * 2
+		local length = 2 * r * math.sin(math.pi / segments) + 0.1
+		local p = Vector3.new(math.cos(a) * r, bandY, math.sin(a) * r)
+		ctx:part({ kind = "Block", size = Vector3.new(length, 0.62, 0.22), cf = tilt * CFrame.lookAt(p, Vector3.new(0, bandY, 0)), color = def.primary, role = "body", name = "Band" })
+	end
+	-- Stubby points (the front one, at -Z, is the lightning zig-zag).
+	for k = 1, 4 do
+		local a = rad(270 + k * 72)
+		local p = Vector3.new(math.cos(a) * r, -0.08, math.sin(a) * r)
+		local base = tilt * CFrame.lookAt(p, Vector3.new(0, -0.08, 0))
+		ctx:part({ kind = "Block", size = Vector3.new(0.42, 0.42, 0.18), cf = base * CFrame.Angles(0, 0, rad(45)), color = def.primary, role = "body", name = "Point" })
+		ctx:part({ kind = "Ball", size = Vector3.one * 0.22, cf = base * CFrame.new(0, 0.34, 0), color = def.glow, material = M.Neon, role = "glow", name = "Tip" })
+	end
+	-- Sky-blue gems on the band, either side of the face.
+	for _, side in { -1, 1 } do
+		local a = rad(270 + side * 40)
+		ctx:part({ kind = "Ball", size = Vector3.one * 0.26, cf = tilt * CFrame.new(math.cos(a) * (r + 0.1), bandY, math.sin(a) * (r + 0.1)), color = def.secondary, material = M.Glass, transparency = 0.15, role = "body", name = "Gem" })
+	end
+	-- The lightning zig-zag front point.
+	local front = tilt * CFrame.new(0, 0, -(r + 0.05))
+	ctx:part({ kind = "Block", size = Vector3.new(0.16, 0.4, 0.12), cf = front * CFrame.new(0.06, 0.02, 0) * CFrame.Angles(0, 0, rad(25)), color = def.glow, material = M.Neon, role = "glow", name = "Zigzag" })
+	ctx:part({ kind = "Block", size = Vector3.new(0.16, 0.34, 0.12), cf = front * CFrame.new(0, 0.24, 0) * CFrame.Angles(0, 0, rad(-65)), color = def.glow, material = M.Neon, role = "glow", name = "Zigzag" })
+	ctx:part({ kind = "Block", size = Vector3.new(0.16, 0.44, 0.12), cf = front * CFrame.new(-0.06, 0.46, 0) * CFrame.Angles(0, 0, rad(25)), color = def.glow, material = M.Neon, role = "glow", name = "Zigzag" })
+	-- Two little sparks orbiting the crown.
+	local sparks = {}
+	for i = 0, 1 do
+		table.insert(sparks, { part = ctx:part({ kind = "Ball", size = Vector3.one * 0.18, color = def.glow, material = M.Neon, role = "glow" }), phase = i * math.pi })
+	end
+
+	ctx:animate(function(env: Env)
+		local t = env.time
+		for _, spark in sparks do
+			local a = t * 2.4 + spark.phase
+			local y = 0.25 + math.sin(t * 5 + spark.phase) * 0.12
+			ctx:move(spark.part, tilt * CFrame.new(math.cos(a) * 1.25, y, math.sin(a) * 1.25))
+		end
+	end)
+
+	ctx:emitter({
+		texture = TEX.sparkle,
+		color = ColorSequence.new(Color3.fromRGB(255, 255, 255), def.glow),
+		rate = 6,
+		lifetime = NumberRange.new(0.6, 1.2),
+		speed = NumberRange.new(0.5, 1.2),
+		size = 0.16,
+		spread = 180,
+		acceleration = Vector3.new(0, 0.4, 0),
+		essential = true,
+	})
+end
+
 return Shapes

@@ -18,6 +18,7 @@
 --   /rh boss next <bossId|auto>   choose the boss of the next opening
 --   /rh boss shards <n>           add Void Shards
 --   /rh boss magma <n>            add Magma Shards (+1 Ember Core per 10)
+--   /rh boss storm <n>            add Storm Shards (+1 Thunder Core per 10)
 --   /rh boss codex                clear your boss Codex (test the discovery)
 --   /rh boss stop                 end the expedition now (everyone back)
 --   /rh weapons all|reset         own every boss weapon / back to the gloves
@@ -155,6 +156,11 @@ local function run(player: Player, text: string)
 			local amount = math.floor(tonumber(args[4]) or 30)
 			materials.magma_shard = math.max(0, (materials.magma_shard or 0) + amount)
 			materials.ember_core = math.max(0, (materials.ember_core or 0) + math.floor(amount / 10))
+		elseif option == "storm" then
+			local materials = session.data.materials
+			local amount = math.floor(tonumber(args[4]) or 30)
+			materials.storm_shard = math.max(0, (materials.storm_shard or 0) + amount)
+			materials.thunder_core = math.max(0, (materials.thunder_core or 0) + math.floor(amount / 10))
 		elseif option == "codex" then
 			table.clear(session.data.bosses)
 		elseif option == "stop" then

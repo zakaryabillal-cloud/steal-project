@@ -15,6 +15,8 @@
 -- phase notches, "2/3" phase indicator, per-boss texts), big specials get a
 -- "SPECIAL ATTACK!" banner + a pulsing red screen edge until they hit, and
 -- the safe arrow also points to Forgeheart's green rocks.
+-- Phase 7B: the Tempest Seraph's sky-blue bar and little cloud head with its
+-- crooked crown; the safe arrow points to her lit cloud shelters (spots).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -49,6 +51,7 @@ local JELLY = Color3.fromRGB(176, 110, 255)
 local BAR_COLORS: { [string]: { Color3 } } = {
 	VoidWarden = { Color3.fromRGB(110, 70, 210), Color3.fromRGB(255, 120, 220), JELLY },
 	Forgeheart = { Color3.fromRGB(196, 84, 44), Color3.fromRGB(255, 220, 90), Color3.fromRGB(255, 110, 40) },
+	TempestSeraph = { Color3.fromRGB(70, 120, 210), Color3.fromRGB(255, 230, 90), Color3.fromRGB(110, 180, 255) },
 }
 local HEART = Color3.fromRGB(255, 96, 140)
 local HEART_LOST = Color3.fromRGB(150, 156, 186)
@@ -170,10 +173,55 @@ local function forgeheartHead(parent: Instance, size: number): Frame
 	return head
 end
 
+-- The Tempest Seraph's little head (phase 7B): a puffy cloud (puffs behind
+-- the face), big diva eyes, a smug little mouth and a golden crown worn
+-- crooked. The frame itself is an invisible holder (same size as the others).
+local function tempestHead(parent: Instance, size: number): Frame
+	local head: Frame = Create("Frame", { Name = "BossHead", Size = UDim2.fromOffset(size, size), BackgroundTransparency = 1, Parent = parent })
+	local cloud = Color3.fromRGB(240, 238, 255)
+	for k, spec in { { 0.1, 0.62, 0.46 }, { 0.9, 0.62, 0.46 }, { 0.3, 0.2, 0.5 }, { 0.68, 0.18, 0.46 } } do
+		local puff: Frame = Create("Frame", { Name = "Puff" .. k, Size = UDim2.fromScale(spec[3], spec[3]), Position = UDim2.fromScale(spec[1], spec[2]), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = if k <= 2 then Color3.fromRGB(214, 202, 255) else cloud, ZIndex = 1, Parent = head })
+		Style.corner(puff, UDim.new(1, 0))
+		Style.stroke(puff, Theme.Colors.Ink, 0, 3)
+	end
+	local face: Frame = Create("Frame", { Name = "Face", Size = UDim2.fromScale(0.84, 0.74), Position = UDim2.fromScale(0.5, 0.56), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = cloud, ZIndex = 2, Parent = head })
+	Style.corner(face, UDim.new(1, 0))
+	Style.stroke(face, Theme.Colors.Ink, 0, 3)
+	Style.shade(face, 0.12)
+	for _, side in { -1, 1 } do
+		local eye: Frame = Create("Frame", { Size = UDim2.fromScale(0.3, 0.4), Position = UDim2.fromScale(0.5 + side * 0.18, 0.44), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), Parent = face })
+		Style.corner(eye, UDim.new(1, 0))
+		Style.stroke(eye, Theme.Colors.Ink, 0, 2)
+		local pupil: Frame = Create("Frame", { Size = UDim2.fromScale(0.5, 0.42), Position = UDim2.fromScale(0.5 + side * 0.08, 0.62), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.Colors.Ink, Parent = eye })
+		Style.corner(pupil, UDim.new(1, 0))
+		-- Diva eyeliner flick.
+		local lash: Frame = Create("Frame", { Size = UDim2.fromScale(0.14, 0.05), Position = UDim2.fromScale(0.5 + side * 0.34, 0.24), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = side * 35, BackgroundColor3 = Theme.Colors.Ink, Parent = face })
+		Style.corner(lash, UDim.new(1, 0))
+		local cheek: Frame = Create("Frame", { Size = UDim2.fromScale(0.16, 0.09), Position = UDim2.fromScale(0.5 + side * 0.33, 0.7), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromRGB(255, 150, 196), BackgroundTransparency = 0.3, Parent = face })
+		Style.corner(cheek, UDim.new(1, 0))
+	end
+	local mouth: Frame = Create("Frame", { Size = UDim2.fromScale(0.26, 0.07), Position = UDim2.fromScale(0.54, 0.8), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, BackgroundColor3 = Theme.Colors.Ink, Parent = face })
+	Style.corner(mouth, UDim.new(1, 0))
+	-- The crown, worn crooked: a band and three gold tips.
+	local crown: Frame = Create("Frame", { Name = "Crown", Size = UDim2.fromScale(0.46, 0.17), Position = UDim2.fromScale(0.64, 0.12), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 18, BackgroundColor3 = Theme.Colors.Gold, ZIndex = 3, Parent = head })
+	Style.corner(crown, UDim.new(0, 3))
+	Style.stroke(crown, Theme.Colors.Ink, 0, 2)
+	for k = 1, 3 do
+		-- Square diamonds (the band is 0.46 x 0.17 of the head).
+		local tip: Frame = Create("Frame", { Name = "Tip" .. k, Size = UDim2.fromScale(0.2, 0.54), Position = UDim2.fromScale(0.2 + (k - 1) * 0.3, -0.1), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BackgroundColor3 = Theme.Colors.Gold, ZIndex = 2, Parent = crown })
+		Style.stroke(tip, Theme.Colors.Ink, 0, 2)
+	end
+	local gem: Frame = Create("Frame", { Name = "Gem", Size = UDim2.fromScale(0.2, 0.6), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromRGB(255, 96, 170), ZIndex = 4, Parent = crown })
+	Style.corner(gem, UDim.new(1, 0))
+	return head
+end
+
 -- The boss's little head (for the Health pill and the results card).
 function BossHud.bossHead(parent: Instance, size: number, bossId: string?): Frame
 	if bossId == "Forgeheart" then
 		return forgeheartHead(parent, size)
+	elseif bossId == "TempestSeraph" then
+		return tempestHead(parent, size)
 	end
 	local head: Frame = Create("Frame", { Name = "BossHead", Size = UDim2.fromOffset(size, size), BackgroundColor3 = JELLY, Parent = parent })
 	Style.corner(head, UDim.new(0, math.floor(size * 0.25)))
@@ -458,7 +506,7 @@ local function refresh()
 		local goal = zone.position
 		local spots = zone.spots
 		if spots and #spots > 0 then
-			-- Forgeheart: the nearest green rock.
+			-- Forgeheart / Tempest Seraph: the nearest green rock / lit shelter.
 			local best = math.huge
 			for _, spot in spots do
 				local d = Vector3.new(hrp.Position.X - spot.X, 0, hrp.Position.Z - spot.Z).Magnitude

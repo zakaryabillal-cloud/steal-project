@@ -7,7 +7,12 @@
 --            quadrant lines help read the "Grand Ménage" special;
 --   volcano  Forgeheart's forge (phase 7A): warm cartoon rock, glowing lava
 --            cracks, six cooled-rock SAFE PADS (Final Eruption), a ring of
---            round boulders, a lava sea below and a volcano behind.
+--            round boulders, a lava sea below and a volcano behind;
+--   sky      the Tempest Seraph's celestial stage (phase 7B): a solid pastel
+--            cloud floor, soft cloud bumps on the edge, six CLOUD SHELTERS
+--            (MEGA-STORM: every other one is lit) with a lightning-rod post
+--            and a little canopy far above head height, floating cloud
+--            islands, a rainbow arch, glowing stars and light beams.
 --
 -- Built by BossService when the portal opens, destroyed after every
 -- expedition. Shared by every theme: the same floor size, invisible walls so
@@ -43,6 +48,25 @@ local ROCK_LIGHT = Color3.fromRGB(196, 136, 110)
 local ROCK_COOL = Color3.fromRGB(150, 160, 196)
 local LAVA = Color3.fromRGB(255, 120, 40)
 local LAVA_HOT = Color3.fromRGB(255, 214, 72)
+-- Sky theme (phase 7B): pastel clouds, never grey-dark. Floor decor avoids
+-- yellow / red / green (the telegraph and safe colours).
+local CLOUD = Color3.fromRGB(250, 250, 255)
+local CLOUD_LAV = Color3.fromRGB(228, 216, 255)
+local CLOUD_BLUE = Color3.fromRGB(206, 230, 255)
+local SKY_DEEP = Color3.fromRGB(150, 176, 240)
+local SHELTER = Color3.fromRGB(150, 214, 255)
+local ROD = Color3.fromRGB(176, 186, 230)
+local STAR = Color3.fromRGB(255, 244, 196)
+local ORB_SHELL = Color3.fromRGB(255, 226, 70)
+local ORB_CORE = Color3.fromRGB(200, 245, 255)
+local RAINBOW = {
+	Color3.fromRGB(255, 120, 150),
+	Color3.fromRGB(255, 186, 90),
+	Color3.fromRGB(255, 236, 120),
+	Color3.fromRGB(140, 226, 150),
+	Color3.fromRGB(120, 190, 255),
+	Color3.fromRGB(186, 140, 255),
+}
 
 export type Arena = {
 	model: Model,
@@ -256,6 +280,109 @@ local function buildVolcano(model: Model, c: Vector3, R: number, top: number, de
 	return floor
 end
 
+-- Tempest Seraph: the celestial stage (phase 7B). A solid pastel cloud floor,
+-- soft collidable cloud bumps on the edge, six cloud shelters (glowing ring,
+-- lightning-rod post on the outer edge, canopy far above head height: nothing
+-- blocks movement), floating cloud islands, a rainbow arch, stars and light
+-- beams. Decor never hurts anyone.
+local function buildSky(model: Model, c: Vector3, R: number, top: number, def: Bosses.BossDef): BasePart
+	local floor = Parts.cylinder({ size = Vector3.new(R * 2 + 8, 4, R * 2 + 8), cf = CFrame.new(c.X, top - 2, c.Z), color = CLOUD, parent = model, name = "Floor" })
+	Parts.cylinder({ size = Vector3.new(R * 1.6, 0.2, R * 1.6), cf = CFrame.new(c.X, top + 0.02, c.Z), color = CLOUD_BLUE, collide = false, shadow = false, parent = model, name = "Tile" })
+	Parts.cylinder({ size = Vector3.new(R * 1.2, 0.24, R * 1.2), cf = CFrame.new(c.X, top + 0.06, c.Z), color = CLOUD, collide = false, shadow = false, parent = model, name = "Tile" })
+	Parts.cylinder({ size = Vector3.new(R * 0.4, 0.28, R * 0.4), cf = CFrame.new(c.X, top + 0.1, c.Z), color = CLOUD_LAV, collide = false, shadow = false, parent = model, name = "Tile" })
+	-- Cloud shelters (MEGA-STORM: every other one is lit by the clients).
+	local padRadius = def.padRadius or 8
+	for index, spot in Bosses.arenaPads(def) do
+		local pad = Parts.cylinder({ size = Vector3.new(padRadius * 2, 0.4, padRadius * 2), cf = CFrame.new(spot.X, top + 0.14, spot.Z), color = CLOUD_LAV, collide = false, shadow = false, parent = model, name = "SafePad" })
+		pad:SetAttribute("PadIndex", index)
+		Parts.cylinder({ size = Vector3.new(padRadius * 2 + 1.2, 0.3, padRadius * 2 + 1.2), cf = CFrame.new(spot.X, top + 0.08, spot.Z), color = SHELTER, material = M.Neon, collide = false, shadow = false, parent = model, name = "PadRim" })
+		-- Lightning-rod post on the outer edge of the shelter (no collision).
+		local outward = Vector3.new(spot.X - c.X, 0, spot.Z - c.Z).Unit
+		local rodAt = spot + outward * (padRadius + 1.2)
+		Parts.cylinder({ size = Vector3.new(0.7, 11, 0.7), cf = CFrame.new(rodAt.X, top + 5.5, rodAt.Z), color = ROD, collide = false, parent = model, name = "RodPost" })
+		Parts.ball({ size = Vector3.one * 1.6, cf = CFrame.new(rodAt.X, top + 11.4, rodAt.Z), color = SHELTER, material = M.Neon, collide = false, shadow = false, parent = model, name = "RodTip" })
+		-- A little cloud canopy far above head height (never in the way).
+		Parts.ellipsoid({ size = Vector3.new(padRadius * 1.6, 3.4, padRadius * 1.6), cf = CFrame.new(spot.X, top + 21, spot.Z), color = CLOUD, transparency = 0.15, collide = false, shadow = false, parent = model, name = "Canopy" })
+	end
+	-- Soft cloud bumps on the edge (low and round: you see out, never fall out).
+	local bumps = 24
+	for i = 0, bumps - 1 do
+		local a = (i + 0.5) / bumps * math.pi * 2
+		local size = if i % 3 == 0 then 5.4 else 4.6
+		Parts.ball({ size = Vector3.one * size, cf = CFrame.new(c.X + math.cos(a) * (R + 2.2), top + size * 0.25, c.Z + math.sin(a) * (R + 2.2)), color = if i % 2 == 0 then CLOUD else CLOUD_LAV, parent = model, name = "CloudBump" })
+	end
+	-- Underside: a fat cloud with puffs, and a soft glow far below.
+	Parts.cylinder({ size = Vector3.new(R * 1.7, 8, R * 1.7), cf = CFrame.new(c.X, top - 8, c.Z), color = CLOUD_LAV, parent = model, name = "Under" })
+	for k = 0, 5 do
+		local a = k / 6 * math.pi * 2
+		Parts.ball({ size = Vector3.one * R * 0.62, cf = CFrame.new(c.X + math.cos(a) * R * 0.62, top - 12, c.Z + math.sin(a) * R * 0.62), color = if k % 2 == 0 then CLOUD else CLOUD_BLUE, collide = false, parent = model, name = "UnderPuff" })
+	end
+	Parts.ball({ size = Vector3.one * R * 0.5, cf = CFrame.new(c.X, top - 24, c.Z), color = SKY_DEEP, material = M.Neon, collide = false, shadow = false, parent = model, name = "UnderGlow" })
+	local function polar(deg: number, r: number): CFrame
+		local a = math.rad(deg)
+		local p = Vector3.new(c.X + math.cos(a) * r, top, c.Z + math.sin(a) * r)
+		return CFrame.lookAt(p, Vector3.new(c.X, top, c.Z))
+	end
+	-- Floating cloud platforms and islands outside the walls (decor only).
+	for k, spec in { { 20, R + 22, -6, 14 }, { 65, R + 34, 10, 10 }, { 120, R + 26, -12, 16 }, { 160, R + 44, 18, 9 }, { 200, R + 30, 4, 13 }, { 235, R + 50, -18, 18 }, { 300, R + 28, 14, 11 }, { 335, R + 40, -4, 15 } } do
+		local cf = polar(spec[1], spec[2]) * CFrame.new(0, spec[3], 0)
+		local size = spec[4]
+		Parts.ellipsoid({ size = Vector3.new(size * 1.6, size * 0.5, size), cf = cf, color = if k % 2 == 0 then CLOUD else CLOUD_LAV, collide = false, parent = model, name = "CloudIsland" })
+		Parts.ball({ size = Vector3.one * size * 0.7, cf = cf * CFrame.new(size * 0.35, size * 0.2, 0), color = CLOUD, collide = false, parent = model, name = "CloudIsland" })
+		Parts.ball({ size = Vector3.one * size * 0.55, cf = cf * CFrame.new(-size * 0.4, size * 0.15, size * 0.1), color = if k % 2 == 0 then CLOUD_BLUE else CLOUD, collide = false, parent = model, name = "CloudIsland" })
+	end
+	-- Rainbow arch behind the boss (six bands of blocks along a half circle).
+	local rainbow = polar(90, R + 70) * CFrame.new(0, -6, 0)
+	local arcSegments = 7
+	for band, color in RAINBOW do
+		local radius = 46 - (band - 1) * 3.2
+		for i = 0, arcSegments - 1 do
+			local a = (i + 0.5) / arcSegments * math.pi
+			local length = 2 * radius * math.sin(math.pi / (2 * arcSegments)) + 0.8
+			local cf = rainbow * CFrame.new(math.cos(a) * radius, math.sin(a) * radius, 0) * CFrame.Angles(0, 0, a + math.pi / 2)
+			Parts.block({ size = Vector3.new(length, 3.2, 2), cf = cf, color = color, material = M.Neon, transparency = 0.2, collide = false, shadow = false, parent = model, name = "Rainbow" })
+		end
+	end
+	-- Glowing stars and soft light beams (decor lumineux).
+	for k, spec in { { 10, R + 30, 46 }, { 55, R + 60, 60 }, { 140, R + 40, 52 }, { 185, R + 70, 70 }, { 250, R + 36, 58 }, { 290, R + 64, 48 }, { 320, R + 48, 66 }, { 100, R + 90, 80 } } do
+		local cf = polar(spec[1], spec[2]) * CFrame.new(0, spec[3], 0)
+		Parts.block({ size = Vector3.one * (if k % 2 == 0 then 3 else 2.2), cf = cf * CFrame.Angles(0, 0, math.rad(45)), color = STAR, material = M.Neon, collide = false, shadow = false, parent = model, name = "Star" })
+	end
+	for _, spec in { { 45, R + 20 }, { 165, R + 24 }, { 285, R + 22 } } do
+		local cf = polar(spec[1], spec[2])
+		Parts.cylinder({ size = Vector3.new(6, 90, 6), cf = cf * CFrame.new(0, 30, 0), color = CLOUD_BLUE, material = M.Neon, transparency = 0.75, collide = false, shadow = false, parent = model, name = "LightBeam" })
+	end
+	-- Arrival arch: two cloud pillars, a puffy top and a glowing sky curtain.
+	local doorAt = Vector3.new(c.X, top, c.Z - (R + 5))
+	local door = CFrame.lookAt(doorAt, Vector3.new(c.X, top, c.Z))
+	Parts.cylinder({ size = Vector3.new(3, 14, 3), cf = door * CFrame.new(-5, 7, 0), color = CLOUD_LAV, parent = model, name = "DoorPost" })
+	Parts.cylinder({ size = Vector3.new(3, 14, 3), cf = door * CFrame.new(5, 7, 0), color = CLOUD_LAV, parent = model, name = "DoorPost" })
+	Parts.ellipsoid({ size = Vector3.new(15, 4, 4), cf = door * CFrame.new(0, 14.6, 0), color = CLOUD, collide = false, parent = model, name = "DoorTop" })
+	Parts.ball({ size = Vector3.one * 4.4, cf = door * CFrame.new(-5, 15, 0), color = CLOUD, collide = false, parent = model, name = "DoorPuff" })
+	Parts.ball({ size = Vector3.one * 4.4, cf = door * CFrame.new(5, 15, 0), color = CLOUD, collide = false, parent = model, name = "DoorPuff" })
+	local portal = Parts.block({ size = Vector3.new(8.4, 12.6, 0.4), cf = door * CFrame.new(0, 6.6, 0.4), color = SHELTER, material = M.Neon, transparency = 0.25, collide = false, shadow = false, parent = model, name = "DoorGlow" })
+	Parts.light(portal, Color3.fromRGB(190, 225, 255), 24, 1.2)
+	-- Twinkling sparkles drifting up from below (the only emitter).
+	local holder = Parts.block({ size = Vector3.new(R * 2.4, 1, R * 2.4), cf = CFrame.new(c.X, top - 20, c.Z), transparency = 1, collide = false, shadow = false, parent = model, name = "SparkleSource" })
+	holder.CanQuery = false
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "Sparkles"
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Color = ColorSequence.new(STAR, CLOUD_BLUE)
+	emitter.Size = NumberSequence.new(0.5, 1)
+	emitter.Transparency = NumberSequence.new(0.2, 1)
+	emitter.Lifetime = NumberRange.new(4, 6)
+	emitter.Speed = NumberRange.new(4, 7)
+	emitter.Rate = 4
+	emitter.EmissionDirection = Enum.NormalId.Top
+	emitter.Parent = holder
+	local sun = Parts.block({ size = Vector3.one, cf = CFrame.new(c.X, top + 24, c.Z), transparency = 1, collide = false, shadow = false, parent = model, name = "Sun" })
+	sun.CanQuery = false
+	Parts.light(sun, Color3.fromRGB(235, 240, 255), 60, 0.8)
+	floor:SetAttribute("ArenaFloor", true)
+	return floor
+end
+
 function ArenaBuilder.build(parent: Instance, bossId: string): Arena
 	local c = A.Center
 	local R = A.Radius
@@ -267,6 +394,8 @@ function ArenaBuilder.build(parent: Instance, bossId: string): Arena
 	local top = c.Y
 	if theme == "volcano" and def then
 		buildVolcano(model, c, R, top, def)
+	elseif theme == "sky" and def then
+		buildSky(model, c, R, top, def)
 	else
 		buildCloset(model, c, R, top)
 	end
@@ -282,12 +411,18 @@ function ArenaBuilder.build(parent: Instance, bossId: string): Arena
 
 	-- Floating bubble anchors for the Grapple (phase 6.5).
 	-- Volcano: floating hot rocks with a glowing core instead of bubbles.
+	-- Sky (phase 7B): electric orbs, a yellow glass shell with a neon core.
 	local anchors = Parts.folder("GrapplePoints", model)
-	local hot = theme == "volcano"
+	local shellColor, shellAlpha, coreColor = BUBBLE, 0.35, Color3.fromRGB(120, 240, 255)
+	if theme == "volcano" then
+		shellColor, shellAlpha, coreColor = ROCK_LIGHT, 0.15, LAVA_HOT
+	elseif theme == "sky" then
+		shellColor, shellAlpha, coreColor = ORB_SHELL, 0.3, ORB_CORE
+	end
 	for _, point in Bosses.arenaGrapplePoints() do
-		local shell = Parts.ball({ size = Vector3.one * 2.6, cf = CFrame.new(point.position), color = if hot then ROCK_LIGHT else BUBBLE, material = M.Glass, transparency = if hot then 0.15 else 0.35, collide = false, shadow = false, parent = anchors, name = "Anchor" })
+		local shell = Parts.ball({ size = Vector3.one * 2.6, cf = CFrame.new(point.position), color = shellColor, material = M.Glass, transparency = shellAlpha, collide = false, shadow = false, parent = anchors, name = "Anchor" })
 		shell:SetAttribute("GrapplePoint", point.index)
-		Parts.ball({ size = Vector3.one * 1.1, cf = CFrame.new(point.position), color = if hot then LAVA_HOT else Color3.fromRGB(120, 240, 255), material = M.Neon, collide = false, shadow = false, parent = anchors, name = "AnchorCore" })
+		Parts.ball({ size = Vector3.one * 1.1, cf = CFrame.new(point.position), color = coreColor, material = M.Neon, collide = false, shadow = false, parent = anchors, name = "AnchorCore" })
 	end
 
 	local spawns = {}
